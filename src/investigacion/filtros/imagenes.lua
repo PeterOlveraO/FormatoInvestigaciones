@@ -116,7 +116,8 @@ end
 -- Una ruta local se busca en las carpetas que pasa el generador; solo se avisa
 -- cuando no aparece en ninguna.
 local function encuentra_local(ruta)
-  if ruta:match("^/") and existe(ruta) then return true end
+  -- Tal cual: cubre tanto una ruta absoluta como una relativa al directorio de
+  -- trabajo, en cualquier sistema.
   if existe(ruta) then return true end
   for carpeta in RECURSOS:gmatch("[^\n]+") do
     if existe(carpeta .. "/" .. ruta) then return true end

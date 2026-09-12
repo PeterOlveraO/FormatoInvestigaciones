@@ -1,0 +1,8 @@
+# Normaliza los finales de linea al clonar y al subir: el proyecto se usa en
+# Linux, Windows y macOS, y un .lua o un .ltx con CRLF en unos y LF en otros
+# ensucia cada diff.
+* text=auto eol=lf
+
+# Binarios que no se deben tocar
+*.png binary
+*.pdf binary

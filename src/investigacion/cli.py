@@ -114,7 +114,24 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+def use_replacement_characters() -> None:
+    """Evita que un simbolo raro tumbe el programa al imprimir un aviso.
+
+    Los avisos incluyen el caracter que dio problemas, y la consola de Windows
+    (o una salida redirigida a un archivo) no siempre puede representarlo. Sin
+    esto, imprimir el aviso lanzaria UnicodeEncodeError justo cuando se intenta
+    explicar un problema.
+    """
+
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            stream.reconfigure(errors="replace")
+        except (AttributeError, ValueError):  # pragma: no cover - salidas no estandar
+            pass
+
+
 def main(argv: list[str] | None = None) -> int:
+    use_replacement_characters()
     parser = build_parser()
     args, extras = parser.parse_known_args(argv)
     if extras:

@@ -490,10 +490,13 @@ def pandoc_to_latex(
             command.append(f"--lua-filter={filter_path}")
 
     environment = os.environ.copy()
-    environment["INVESTIGACION_IMAGENES"] = str(remote_media)
-    environment["INVESTIGACION_DIAGRAMAS"] = str(diagram_media)
-    # Una carpeta por linea: asi la ruta puede llevar cualquier separador.
-    environment["INVESTIGACION_RECURSOS"] = "\n".join(str(path) for path in resources)
+    # Con barras normales aunque el sistema use contrabarras: estas rutas acaban
+    # dentro de un \includegraphics, y en LaTeX la contrabarra empieza un
+    # comando. TeX acepta la barra normal en todos los sistemas.
+    environment["INVESTIGACION_IMAGENES"] = remote_media.as_posix()
+    environment["INVESTIGACION_DIAGRAMAS"] = diagram_media.as_posix()
+    # Una carpeta por linea: asi la ruta puede llevar espacios sin ambiguedad.
+    environment["INVESTIGACION_RECURSOS"] = "\n".join(path.as_posix() for path in resources)
 
     try:
         result = subprocess.run(
@@ -785,7 +788,12 @@ def generate_pdf(
     output_directory.mkdir(parents=True, exist_ok=True)
     output_pdf = output_directory / f"{slugify(data.titulo)}.pdf"
 
-    with tempfile.TemporaryDirectory(prefix="investigacion-") as temporary_directory:
+    # ignore_cleanup_errors: en Windows es normal que un archivo del temporal
+    # siga bloqueado un instante despues de cerrar pdflatex. El PDF ya esta
+    # copiado a su destino, asi que no tiene sentido fallar por la limpieza.
+    with tempfile.TemporaryDirectory(
+        prefix="investigacion-", ignore_cleanup_errors=True
+    ) as temporary_directory:
         tex_path = Path(temporary_directory) / "trabajo.tex"
         tex_path.write_text(rendered, encoding="utf-8")
         copy_template_assets(template_file, tex_path.parent, logos_directory)

@@ -398,6 +398,29 @@ no dependen de esa extensión y siguen funcionando en ambos modos.
 desordenadas. `markdown_headings()` ignora los bloques delimitados por ``` o ~~~
 para que un `# comentario` dentro de código no cuente como encabezado.
 
+## Portabilidad
+
+El proyecto se desarrolla en Linux pero tiene que funcionar igual en Windows y
+macOS, así que **no debe aparecer nada específico de un sistema**: ni rutas
+fijas, ni `os.name`, ni separadores escritos a mano. Lo que ya está resuelto y
+conviene no deshacer:
+
+- **`os.pathsep`** para `TEXINPUTS` y `--resource-path`: en Windows el separador
+  es `;` y en el resto `:`.
+- **`Path.as_posix()`** en las variables de entorno que reciben los filtros Lua.
+  Esas rutas acaban dentro de un `\includegraphics`, y en LaTeX la contrabarra
+  de una ruta de Windows empezaría un comando inexistente. TeX acepta la barra
+  normal en todos los sistemas.
+- **`ignore_cleanup_errors=True`** en el directorio temporal: en Windows es
+  normal que pdflatex deje un archivo bloqueado un instante, y el PDF ya está
+  copiado cuando eso ocurre.
+- **`reconfigure(errors="replace")`** sobre stdout y stderr en `main()`: los
+  avisos incluyen el carácter problemático y la consola de Windows no siempre
+  puede representarlo.
+- Toda lectura y escritura de texto lleva **codificación explícita**; en Windows
+  la de por omisión no es UTF-8.
+- `.gitattributes` normaliza los finales de línea a LF.
+
 ## Directorios
 
 - `Latex/base.ltx` — plantilla APA con portada TikZ.
@@ -416,6 +439,10 @@ para que un `# comentario` dentro de código no cuente como encabezado.
   forma más rápida de ver qué se rompió. `ejemplo/catalogo.pdf` es su salida,
   versionada para poder verla sin instalar nada.
 - `docs/imagenes/` — capturas del PDF que usa el README.
+- `REQUISITOS.md` y `PROMPT-IA.md` — instalación por sistema operativo y el
+  prompt con el que se le pide el trabajo a una IA. Si cambia la sintaxis que
+  acepta el generador, el prompt hay que actualizarlo también: es la
+  especificación que lee el modelo.
 
 `ejemplo/catalogo.pdf` y esas capturas son lo único generado que se versiona, y
 **no deben llevar datos personales ni logos de nadie**. Se rehacen así:

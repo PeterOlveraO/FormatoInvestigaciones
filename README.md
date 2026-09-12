@@ -39,22 +39,29 @@ interlineado doble, la sangría y los pies de figura los pone el programa.
 
 ## Requisitos
 
-Pandoc y TeX Live. En Arch o Manjaro:
+Python 3.10 o superior, **Pandoc** y una distribución de **TeX** con `pdflatex`.
+Graphviz es opcional y solo hace falta para los diagramas. Funciona en Linux,
+Windows y macOS.
 
 ```bash
-sudo pacman -S pandoc texlive-basic texlive-latexextra texlive-fontsextra \
-  texlive-langspanish texlive-pictures texlive-plaingeneric
+# Arch o Manjaro
+sudo pacman -S python pandoc graphviz texlive-basic texlive-latexextra \
+  texlive-fontsextra texlive-langspanish texlive-pictures texlive-plaingeneric
 
-# Opcional, para los diagramas ```dot
-sudo pacman -S graphviz
+# Debian o Ubuntu
+sudo apt install python3 python3-venv pandoc graphviz \
+  texlive-latex-recommended texlive-latex-extra texlive-fonts-extra \
+  texlive-lang-spanish texlive-pictures texlive-plain-generic
+
+# Windows
+winget install Python.Python.3.12 JohnMacFarlane.Pandoc Graphviz.Graphviz MiKTeX.MiKTeX
+
+# macOS
+brew install python pandoc graphviz && brew install --cask mactex-no-gui
 ```
 
-En Debian o Ubuntu:
-
-```bash
-sudo apt install pandoc texlive-latex-recommended texlive-latex-extra \
-  texlive-fonts-extra texlive-lang-spanish texlive-pictures graphviz
-```
+Las instrucciones completas, con Fedora, openSUSE, la lista de paquetes de LaTeX
+y cómo comprobar que no falta nada, están en **[REQUISITOS.md](REQUISITOS.md)**.
 
 El paquete de Python **no tiene dependencias**: solo biblioteca estándar.
 
@@ -64,9 +71,9 @@ El paquete de Python **no tiene dependencias**: solo biblioteca estándar.
 git clone <url-del-repositorio>
 cd FormatoInvestigaciones
 python -m venv .venv
-source .venv/bin/activate
+source .venv/bin/activate        # En Windows: .venv\Scripts\activate
 python -m pip install -e .
-cp .env.example .env
+cp .env.example .env             # En Windows: copy .env.example .env
 ```
 
 Edita `.env` con los datos que no cambian entre trabajos (universidad, facultad,
@@ -126,14 +133,25 @@ El PDF que genera está en el repositorio para verlo sin instalar nada:
 investigacion ejemplo/catalogo.md --titulo "Catalogo" --materia "Ejemplo" --docente "Ejemplo"
 ```
 
-Sirve también como especificación de formato: si le pides a una IA que te
-redacte la investigación, dale ese archivo para que sepa exactamente cómo
-entregarla.
+## Pedirle el trabajo a una IA
+
+**[PROMPT-IA.md](PROMPT-IA.md)** trae un prompt listo para copiar que le explica
+al modelo todo lo que el generador sabe componer: la estructura que debe seguir,
+la sintaxis completa, cómo escribir un diagrama de Graphviz, los doce tipos de
+gráfica y cómo dejar las referencias en APA.
+
+Pegas el prompt, añades tu tema, guardas la respuesta en `input/` y generas el
+PDF. El resultado aprovecha tablas, diagramas y gráficas en vez de quedarse en
+párrafos sueltos.
 
 ## Documentación
 
+- **[REQUISITOS.md](REQUISITOS.md)** — qué instalar en cada sistema operativo y
+  cómo comprobar que no falta nada.
 - **[GUIA.md](GUIA.md)** — cómo funciona por dentro, todas las opciones del
   comando, la sintaxis completa que acepta y qué hacer cuando algo falla.
+- **[PROMPT-IA.md](PROMPT-IA.md)** — el prompt para que una IA te redacte el
+  trabajo en este formato.
 - **[CLAUDE.md](CLAUDE.md)** — notas de arquitectura para quien vaya a tocar el
   código: los contratos entre las piezas y las trampas encontradas.
 
@@ -152,7 +170,7 @@ repositorio.
 ## Pruebas
 
 ```bash
-source .venv/bin/activate
+source .venv/bin/activate        # En Windows: .venv\Scripts\activate
 python -m unittest discover -s tests
 ```
 

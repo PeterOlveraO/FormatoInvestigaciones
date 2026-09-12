@@ -1,7 +1,8 @@
 # Guía de uso
 
 Todo lo que el programa acepta, cómo se le pide y qué hace por dentro. Para una
-presentación general del proyecto, ver [README.md](README.md).
+presentación general del proyecto, ver [README.md](README.md); para lo que hay
+que instalar en cada sistema operativo, [REQUISITOS.md](REQUISITOS.md).
 
 ## Índice
 
@@ -562,7 +563,7 @@ ruta ni extensión.
 ## Pruebas
 
 ```bash
-source .venv/bin/activate
+source .venv/bin/activate        # En Windows: .venv\Scripts\activate
 python -m unittest discover -s tests
 ```
 
