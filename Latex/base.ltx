@@ -1,0 +1,693 @@
+\documentclass[12pt, letterpaper]{article}
+
+% ==========================================
+% PAQUETES BASE
+% ==========================================
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+\usepackage{textcomp}                     % Simbolos (euro, grados, etc.)
+\usepackage[spanish, es-tabla]{babel}     % Idioma español
+\usepackage[margin=2.54cm]{geometry}      % Márgenes APA (1 pulgada)
+\usepackage{setspace}                     % Interlineado
+\usepackage{indentfirst}                  % Sangría en el primer párrafo
+\usepackage{titlesec}                     % Formato de títulos APA
+\usepackage{ragged2e}                     % Alineación a la izquierda sin justificar
+\usepackage{fancyhdr}                     % Número de página en el encabezado
+\usepackage{amsmath, amssymb}             % Matemáticas (debe ir antes de newtxmath)
+\usepackage{newtxtext, newtxmath}         % Times New Roman (clon libre) en texto y matemáticas
+\usepackage{xcolor}                       % Color (lo requiere el resaltado de código)
+\usepackage{tikz}                         % Para dibujar la portada geométrica
+
+% ==========================================
+% GRÁFICAS DE DATOS
+% ==========================================
+% pgfplots dibuja dentro del propio pdflatex: la gráfica sale vectorial y con la
+% misma tipografía que el texto, en vez de pegada como imagen de otro programa.
+% Los bloques ```pgfplot del Markdown llegan aquí por filtros/graficas.lua.
+%
+% El estilo por omisión es deliberadamente sobrio —escala de grises, rejilla
+% tenue, línea de eje fina— porque el criterio del proyecto es no salirse de
+% APA. Cada gráfica puede cambiar lo que quiera en su propio `\begin{axis}[...]`:
+% estas opciones se aplican antes que las suyas.
+\IfFileExists{pgfplots.sty}{%
+  \usepackage{pgfplots}
+  \pgfplotsset{compat=1.18}
+  \usepgfplotslibrary{statistics}         % Caja y bigotes
+  \pgfplotsset{
+    every axis/.append style={
+      width=0.85\linewidth,
+      height=6.5cm,
+      font=\small,
+      axis line style={gray!60, line width=0.4pt},
+      grid=major,
+      grid style={gray!25, line width=0.3pt},
+      tick style={gray!60},
+      legend style={draw=gray!60, fill=white, font=\small},
+      label style={font=\small},
+      title style={font=\small\bfseries},
+    },
+    % Series distinguibles sin color: cambian el trazo y la marca. Aquí no se
+    % pone `fill`, porque en una gráfica de líneas rellenaría el área bajo la
+    % curva y la convertiría en otra cosa; el relleno de las barras va abajo.
+    cycle list={%
+      {black, mark=*, mark size=1.6pt},
+      {black, mark=square*, mark size=1.6pt, densely dashed},
+      {black, mark=triangle*, mark size=2pt, dotted},
+      {gray!70!black, mark=o, mark size=1.6pt, densely dashdotted},
+    },
+    % Las barras no usan la lista de arriba sino la suya propia, que por
+    % omisión es de colores; sin esto un `ybar` sale azul y rojo.
+    /pgfplots/bar cycle list/.style={/pgfplots/cycle list={%
+      {black, fill=gray!65},
+      {black, fill=gray!35},
+      {black, fill=gray!12},
+      {gray!70!black, fill=white},
+    }},
+  }
+}{}
+\IfFileExists{pgfplotstable.sty}{\usepackage{pgfplotstable}}{}  % Datos desde CSV
+\IfFileExists{pgf-pie.sty}{\usepackage{pgf-pie}}{}              % Gráfica de pastel
+
+% ==========================================
+% PAQUETES QUE NECESITA LA SALIDA DE PANDOC
+% ==========================================
+% Cualquier cambio aquí debe mantenerse alineado con lo que Pandoc genera:
+%   pandoc archivo.md -s --to=latex   (revisar el preámbulo resultante)
+\usepackage{graphicx}                     % Imágenes incluidas desde Markdown
+\usepackage{longtable}                    % Tablas extensas de Markdown
+\usepackage{booktabs}                     % Líneas de tablas generadas por Pandoc
+\usepackage{array}                        % Columnas de tablas
+\usepackage{calc}                         % \real{} en los anchos de columna de Pandoc
+\usepackage{caption}                      % Pies de tabla y figura
+\usepackage{etoolbox}                     % Parches para longtable
+\usepackage{fancyvrb}                     % Bloques de código
+\IfFileExists{framed.sty}{\usepackage{framed}}{}  % Fondo del código y cajas de nota
+\usepackage{soul}                         % \hl{} para el resaltado (==texto==)
+\IfFileExists{ulem.sty}{\usepackage[normalem]{ulem}}{}  % \sout y \uline
+\IfFileExists{upquote.sty}{\usepackage{upquote}}{}  % Comillas rectas en verbatim
+% Los diagramas de arte ASCII pegados dentro de un bloque de código usan los
+% caracteres de dibujo de caja (└ ─ ┼ │); pmboxdraw los compone como reglas del
+% ancho exacto de la letra monoespaciada, así que el dibujo no se desalinea.
+\IfFileExists{pmboxdraw.sty}{\usepackage{pmboxdraw}}{}
+% Los emoji se componen como imagen; ver el bloque SÍMBOLOS UNICODE.
+\IfFileExists{twemojis.sty}{\usepackage{twemojis}}{}
+
+% ------------------------------------------------------------------
+% Tachado, resaltado y subrayado: por qué no se usan los de soul
+% ------------------------------------------------------------------
+% Pandoc emite \st (~~tachado~~), \hl (==resaltado==) y \ul (<u>subrayado</u>)
+% contando con que los defina soul. Pero soul analiza el texto letra por letra y
+% eso se le atraganta en dos sitios que un trabajo escolar usa a diario:
+%   - dentro de longtable (la tabla de Pandoc) \st y \hl dejan a pdflatex dando
+%     vueltas para siempre, sin error y sin PDF;
+%   - en un título, el comando viaja al índice y la compilación aborta.
+% ulem hace el tachado y el subrayado sin ese análisis, así que \st y \ul se
+% redefinen sobre él cuando está instalado (si no lo está, siguen los de soul).
+% Para el resaltado no hay sustituto que corte renglón, así que se conserva el
+% de soul en el texto corriente y dentro de las tablas se cambia por un
+% \colorbox, que no parte pero tampoco se cuelga.
+% \DeclareRobustCommand evita, además, que el comando se expanda al escribir el
+% índice o los marcadores del PDF.
+\let\ResaltadoSoul\hl
+\definecolor{ColorResaltado}{rgb}{1,0.94,0.4}
+\sethlcolor{ColorResaltado}
+\ifdefined\sout   % (\IfFileExists no sirve aquí: se comería el #1)
+  \DeclareRobustCommand{\st}[1]{\sout{#1}}
+  \DeclareRobustCommand{\ul}[1]{\uline{#1}}
+\fi
+\DeclareRobustCommand{\hl}[1]{\ResaltadoSoul{#1}}
+\DeclareRobustCommand{\ResaltadoEnTabla}[1]{%
+  \begingroup\setlength{\fboxsep}{1pt}\colorbox{ColorResaltado}{#1}\endgroup}
+\AtBeginEnvironment{longtable}{\let\hl\ResaltadoEnTabla}
+
+\captionsetup[table]{skip=6pt}
+% APA 7 pone el rótulo de la figura ARRIBA: «Figura 1» en negrita y, debajo, el
+% título en cursiva. El paquete caption solo cambia el formato, así que para
+% subir el pie hace falta floatrow.
+\captionsetup[figure]{labelfont=bf, textfont=it, labelsep=newline,
+                      singlelinecheck=false, justification=raggedright}
+\IfFileExists{floatrow.sty}{%
+  \usepackage{floatrow}
+  \floatsetup[figure]{capposition=top}
+  % floatrow deja las tablas largas pegadas al margen izquierdo; longtable las
+  % centra con \LTleft y \LTright a \fill, que es como salian antes.
+  \AtBeginDocument{\setlength\LTleft{\fill}\setlength\LTright{\fill}}
+}{}
+\newcounter{none}                         % Pandoc usa \LTcaptype=none en tablas sin título
+
+% Orden correcto de las tablas después de \paragraph o \subparagraph
+\makeatletter
+\patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
+\makeatother
+
+% Comandos que Pandoc espera encontrar definidos
+\providecommand{\tightlist}{%
+  \setlength{\itemsep}{0pt}\setlength{\parskip}{0pt}}
+\providecommand{\passthrough}[1]{#1}
+
+% ------------------------------------------------------------------
+% Entornos que producen los filtros del generador
+% ------------------------------------------------------------------
+% `::: nota` y sus hermanas (aviso, ejemplo, definición) llegan aquí envueltas
+% por filtros/bloques.lua. El marco es un filete fino y negro, sin color: una
+% caja de colores desentonaría en un trabajo APA.
+\ifdefined\FrameRule
+  \newenvironment{CajaMarcada}[1]%
+    {\begin{framed}\singlespacing\setlength{\parindent}{0pt}%
+     \noindent\textbf{#1}\par\nobreak\vspace{2pt}}%
+    {\end{framed}}
+\else
+  \newenvironment{CajaMarcada}[1]%
+    {\begin{quote}\singlespacing\setlength{\parindent}{0pt}%
+     \noindent\textbf{#1}\par\nobreak\vspace{2pt}}%
+    {\end{quote}}
+\fi
+
+% La lista de referencias de APA 7 lleva sangría francesa: la primera línea al
+% margen y las demás sangradas media pulgada. Es al revés que un párrafo normal,
+% de ahí el \parindent negativo compensado con \leftskip.
+\newenvironment{ReferenciasAPA}%
+  {\par\setlength{\parindent}{-1.27cm}\setlength{\leftskip}{1.27cm}}%
+  {\par}
+
+% Imágenes que nunca exceden el ancho ni el alto del texto
+\makeatletter
+\newsavebox\pandoc@box
+\providecommand*\pandocbounded[1]{%
+  \sbox\pandoc@box{#1}%
+  \Gscale@div\@tempa{\textheight}{\dimexpr\ht\pandoc@box+\dp\pandoc@box\relax}%
+  \Gscale@div\@tempb{\linewidth}{\wd\pandoc@box}%
+  \ifdim\@tempb\p@<\@tempa\p@\let\@tempa\@tempb\fi%
+  \ifdim\@tempa\p@<\p@\scalebox{\@tempa}{\usebox\pandoc@box}%
+  \else\usebox{\pandoc@box}%
+  \fi%
+}
+% Una figura de LaTeX «flota»: se va a donde quepa, y un diagrama puede acabar
+% dos páginas después del párrafo que lo explica. En un trabajo escolar eso
+% confunde más de lo que ayuda, así que con floatrow se fija donde se escribió.
+% La colocación «H» la trae el propio floatrow; cargar además el paquete `float`
+% es un error fatal, porque los dos hacen lo mismo. Sin floatrow se deja el
+% `htbp` que espera Pandoc, que es el único valor válido entonces.
+%
+% Esta línea va aquí y no junto a floatrow porque Pandoc la fija en este punto:
+% definida antes, la sobrescribiría y las figuras volverían a flotar.
+\@ifundefined{floatsetup}{\def\fps@figure{htbp}}{\def\fps@figure{H}}
+\makeatother
+
+% Resaltado de sintaxis de los bloques de código de Pandoc
+\newcommand{\VerbBar}{|}
+\newcommand{\VERB}{\Verb[commandchars=\\\{\}]}
+\DefineVerbatimEnvironment{Highlighting}{Verbatim}{commandchars=\\\{\}}
+% El código va sobre un fondo gris claro. `framed` es el paquete que la propia
+% plantilla de Pandoc usaba para esto: `snugshade` ajusta la caja al contenido y,
+% a diferencia de un \colorbox o un tcolorbox sin configurar, parte entre
+% páginas, que es lo que necesita un listado largo.
+\definecolor{FondoCodigo}{gray}{0.96}
+\ifdefined\snugshade
+  \colorlet{shadecolor}{FondoCodigo}
+  \newenvironment{Shaded}{\begin{snugshade}\singlespacing\small}{\end{snugshade}}
+\else
+  \newenvironment{Shaded}{\singlespacing\small}{}
+\fi
+% Un bloque de código sin lenguaje llega como `verbatim`, que no pasa por
+% Shaded y hereda el interlineado doble del documento: los diagramas de arte
+% ASCII salen estirados y los conectores verticales (│ y |) con hueco entre
+% renglón y renglón. Mismo tratamiento que Shaded.
+\AtBeginEnvironment{verbatim}{\singlespacing\small}
+\newcommand{\AlertTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\AnnotationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\AttributeTok}[1]{\textcolor[rgb]{0.49,0.56,0.16}{#1}}
+\newcommand{\BaseNTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\BuiltInTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{#1}}
+\newcommand{\CharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\CommentTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textit{#1}}}
+\newcommand{\CommentVarTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\ConstantTok}[1]{\textcolor[rgb]{0.53,0.00,0.00}{#1}}
+\newcommand{\ControlFlowTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\DataTypeTok}[1]{\textcolor[rgb]{0.56,0.13,0.00}{#1}}
+\newcommand{\DecValTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\DocumentationTok}[1]{\textcolor[rgb]{0.73,0.13,0.13}{\textit{#1}}}
+\newcommand{\ErrorTok}[1]{\textcolor[rgb]{1.00,0.00,0.00}{\textbf{#1}}}
+\newcommand{\ExtensionTok}[1]{#1}
+\newcommand{\FloatTok}[1]{\textcolor[rgb]{0.25,0.63,0.44}{#1}}
+\newcommand{\FunctionTok}[1]{\textcolor[rgb]{0.02,0.16,0.49}{#1}}
+\newcommand{\ImportTok}[1]{\textcolor[rgb]{0.00,0.50,0.00}{\textbf{#1}}}
+\newcommand{\InformationTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+\newcommand{\KeywordTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{\textbf{#1}}}
+\newcommand{\NormalTok}[1]{#1}
+\newcommand{\OperatorTok}[1]{\textcolor[rgb]{0.40,0.40,0.40}{#1}}
+\newcommand{\OtherTok}[1]{\textcolor[rgb]{0.00,0.44,0.13}{#1}}
+\newcommand{\PreprocessorTok}[1]{\textcolor[rgb]{0.74,0.48,0.00}{#1}}
+\newcommand{\RegionMarkerTok}[1]{#1}
+\newcommand{\SpecialCharTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\SpecialStringTok}[1]{\textcolor[rgb]{0.73,0.40,0.53}{#1}}
+\newcommand{\StringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\VariableTok}[1]{\textcolor[rgb]{0.10,0.09,0.49}{#1}}
+\newcommand{\VerbatimStringTok}[1]{\textcolor[rgb]{0.25,0.44,0.63}{#1}}
+\newcommand{\WarningTok}[1]{\textcolor[rgb]{0.38,0.63,0.69}{\textbf{\textit{#1}}}}
+
+% ==========================================
+% SÍMBOLOS UNICODE
+% ==========================================
+% pdflatex con inputenc solo entiende los caracteres que tenga declarados: uno
+% suelto como ≠ aborta la compilación con «Unicode character not set up for use
+% with LaTeX». Es un fallo habitual al pegar texto de una web o de una IA.
+%
+% Aquí se declaran los que faltaban de verdad; se comprobó cuáles compilando un
+% documento de prueba con todos los candidatos y leyendo los avisos del log, así
+% que los que ya funcionaban (→ ± × ÷ ° … — – « » ¿ ¡ € • ½) no se tocan.
+\IfFileExists{newunicodechar.sty}{%
+  \usepackage{newunicodechar}
+  % Relaciones y operadores
+  \newunicodechar{≠}{\ensuremath{\neq}}
+  \newunicodechar{≤}{\ensuremath{\leq}}
+  \newunicodechar{≥}{\ensuremath{\geq}}
+  \newunicodechar{≈}{\ensuremath{\approx}}
+  \newunicodechar{≡}{\ensuremath{\equiv}}
+  \newunicodechar{≅}{\ensuremath{\cong}}
+  \newunicodechar{∼}{\ensuremath{\sim}}
+  \newunicodechar{∝}{\ensuremath{\propto}}
+  \newunicodechar{∓}{\ensuremath{\mp}}
+  \newunicodechar{⋅}{\ensuremath{\cdot}}
+  \newunicodechar{∘}{\ensuremath{\circ}}
+  \newunicodechar{−}{\ensuremath{-}}
+  % Flechas que inputenc no trae
+  \newunicodechar{↔}{\ensuremath{\leftrightarrow}}
+  \newunicodechar{⇒}{\ensuremath{\Rightarrow}}
+  \newunicodechar{⇐}{\ensuremath{\Leftarrow}}
+  \newunicodechar{⇔}{\ensuremath{\Leftrightarrow}}
+  % Conjuntos y lógica
+  \newunicodechar{∈}{\ensuremath{\in}}
+  \newunicodechar{∉}{\ensuremath{\notin}}
+  \newunicodechar{⊂}{\ensuremath{\subset}}
+  \newunicodechar{⊃}{\ensuremath{\supset}}
+  \newunicodechar{⊆}{\ensuremath{\subseteq}}
+  \newunicodechar{⊇}{\ensuremath{\supseteq}}
+  \newunicodechar{∪}{\ensuremath{\cup}}
+  \newunicodechar{∩}{\ensuremath{\cap}}
+  \newunicodechar{∅}{\ensuremath{\emptyset}}
+  \newunicodechar{∀}{\ensuremath{\forall}}
+  \newunicodechar{∃}{\ensuremath{\exists}}
+  \newunicodechar{∧}{\ensuremath{\wedge}}
+  \newunicodechar{∨}{\ensuremath{\vee}}
+  % Cálculo
+  \newunicodechar{∑}{\ensuremath{\sum}}
+  \newunicodechar{∏}{\ensuremath{\prod}}
+  \newunicodechar{∫}{\ensuremath{\int}}
+  \newunicodechar{∂}{\ensuremath{\partial}}
+  \newunicodechar{∇}{\ensuremath{\nabla}}
+  \newunicodechar{√}{\ensuremath{\surd}}
+  \newunicodechar{∞}{\ensuremath{\infty}}
+  \newunicodechar{′}{\ensuremath{'}}
+  \newunicodechar{″}{\ensuremath{''}}
+  % Griegas
+  \newunicodechar{α}{\ensuremath{\alpha}}
+  \newunicodechar{β}{\ensuremath{\beta}}
+  \newunicodechar{γ}{\ensuremath{\gamma}}
+  \newunicodechar{δ}{\ensuremath{\delta}}
+  \newunicodechar{ε}{\ensuremath{\varepsilon}}
+  \newunicodechar{ζ}{\ensuremath{\zeta}}
+  \newunicodechar{η}{\ensuremath{\eta}}
+  \newunicodechar{θ}{\ensuremath{\theta}}
+  \newunicodechar{λ}{\ensuremath{\lambda}}
+  \newunicodechar{μ}{\ensuremath{\mu}}
+  \newunicodechar{π}{\ensuremath{\pi}}
+  \newunicodechar{ρ}{\ensuremath{\rho}}
+  \newunicodechar{σ}{\ensuremath{\sigma}}
+  \newunicodechar{τ}{\ensuremath{\tau}}
+  \newunicodechar{φ}{\ensuremath{\varphi}}
+  \newunicodechar{χ}{\ensuremath{\chi}}
+  \newunicodechar{ψ}{\ensuremath{\psi}}
+  \newunicodechar{ω}{\ensuremath{\omega}}
+  \newunicodechar{Γ}{\ensuremath{\Gamma}}
+  \newunicodechar{Δ}{\ensuremath{\Delta}}
+  \newunicodechar{Θ}{\ensuremath{\Theta}}
+  \newunicodechar{Λ}{\ensuremath{\Lambda}}
+  \newunicodechar{Π}{\ensuremath{\Pi}}
+  \newunicodechar{Σ}{\ensuremath{\Sigma}}
+  \newunicodechar{Φ}{\ensuremath{\Phi}}
+  \newunicodechar{Ψ}{\ensuremath{\Psi}}
+  \newunicodechar{Ω}{\ensuremath{\Omega}}
+  % Marcas de listas y de verificación
+  \newunicodechar{✓}{\ensuremath{\checkmark}}
+  \newunicodechar{✔}{\ensuremath{\checkmark}}
+  \newunicodechar{✗}{\ensuremath{\times}}
+  \newunicodechar{✘}{\ensuremath{\times}}
+  \newunicodechar{★}{\ensuremath{\bigstar}}
+  \newunicodechar{☆}{\ensuremath{\star}}
+  \newunicodechar{▪}{\ensuremath{\blacksquare}}
+  \newunicodechar{‣}{\textbullet}
+  % Figuras geométricas de los diagramas de arte ASCII. Las puntas de flecha
+  % (──►) y los triángulos son lo que más aparece en un esquema pegado dentro de
+  % un bloque de código; pmboxdraw solo cubre las líneas, no estas figuras.
+  \newunicodechar{►}{\ensuremath{\blacktriangleright}}
+  \newunicodechar{◄}{\ensuremath{\blacktriangleleft}}
+  \newunicodechar{▶}{\ensuremath{\blacktriangleright}}
+  \newunicodechar{◀}{\ensuremath{\blacktriangleleft}}
+  \newunicodechar{▲}{\ensuremath{\blacktriangle}}
+  \newunicodechar{▼}{\ensuremath{\blacktriangledown}}
+  \newunicodechar{△}{\ensuremath{\vartriangle}}
+  \newunicodechar{▽}{\ensuremath{\triangledown}}
+  \newunicodechar{●}{\ensuremath{\bullet}}
+  \newunicodechar{○}{\ensuremath{\circ}}
+  \newunicodechar{■}{\ensuremath{\blacksquare}}
+  \newunicodechar{□}{\ensuremath{\square}}
+  \newunicodechar{◆}{\ensuremath{\blacklozenge}}
+  \newunicodechar{◇}{\ensuremath{\lozenge}}
+  % Esquinas redondeadas: pmboxdraw declara las rectas (┌ ┐ └ ┘) pero no estas,
+  % así que se reutiliza el mismo dibujo.
+  \IfFileExists{pmboxdraw.sty}{%
+    \newunicodechar{╭}{\textSFi}%
+    \newunicodechar{╮}{\textSFiii}%
+    \newunicodechar{╰}{\textSFii}%
+    \newunicodechar{╯}{\textSFiv}%
+  }{}
+}{}
+
+% ------------------------------------------------------------------
+% Emoji
+% ------------------------------------------------------------------
+% Los emoji son parte de la sintaxis extendida de Markdown (pegados o escritos
+% como :joy:) y ninguna fuente de pdflatex los tiene. twemojis sí: trae los de
+% Twitter como páginas de un PDF y los inserta con \texttwemoji{<código hex>}.
+%
+% Declararlos uno por uno serían miles de líneas, así que en vez de una lista se
+% aprovecha que inputenc ya calculó el punto de código del carácter que no supo
+% componer: con él se arma el nombre del comando de twemojis y, si existe, se
+% dibuja el emoji. Si no existe se cae al aviso de siempre.
+%
+% Los selectores de variación (U+FE0F, el que convierte ⚠ en ⚠️) y el unificador
+% de emoji compuestos (U+200D) no se ven: se declaran vacíos para que no
+% aparezca un [?] al lado de cada emoji.
+\IfFileExists{newunicodechar.sty}{%
+  \newunicodechar{️}{}%   U+FE0F selector de variación
+  \newunicodechar{‍}{}%   U+200D unificador de ancho cero
+}{}
+
+\makeatletter
+% Punto de código decimal del carácter que inputenc no supo componer. El
+% \decode@UTFviii de utf8.def es el mismo que usa LaTeX para su propio mensaje
+% de error, así que el cálculo no lo inventa la plantilla.
+\def\PuntoCodigoUnicode#1:#2\relax{\the\numexpr\decode@UTFviii#2\relax}
+\ExplSyntaxOn
+\cs_new:Npn \HexadecimalMinusculas #1 { \str_lowercase:f { \int_to_Hex:n {#1} } }
+\ExplSyntaxOff
+
+% Aviso en el log y un [?] visible en el PDF. Mismo criterio que
+% validate_markdown(): avisar sin impedir que el trabajo se genere. El generador
+% lee esos avisos del log y los muestra en la terminal, para que el símbolo
+% perdido no pase inadvertido.
+\def\SimboloSinDefinir#1{%
+  \@latex@warning{Caracter Unicode sin definir:
+    \expandafter\UTFviii@splitcsname\string#1\relax}%
+  \textbf{[?]}%
+}
+
+% Red de seguridad: con las listas de arriba nunca se cubren TODOS los símbolos
+% posibles. Antes de rendirse se prueba si twemojis conoce el carácter.
+\@ifundefined{texttwemoji}{%
+  \let\UTFviii@undefined@err\SimboloSinDefinir
+}{%
+  \def\UTFviii@undefined@err#1{%
+    \begingroup
+    \edef\@tempa{\HexadecimalMinusculas{\expandafter\PuntoCodigoUnicode\string#1\relax}}%
+    \expandafter\ifcsname\expandafter t\expandafter w\expandafter e\expandafter m%
+      \expandafter o\expandafter j\expandafter i\expandafter\space\@tempa\endcsname
+      \expandafter\endgroup\expandafter\texttwemoji\expandafter{\@tempa}%
+    \else
+      \endgroup\SimboloSinDefinir{#1}%
+    \fi
+  }%
+}
+\makeatother
+
+% ==========================================
+% CONFIGURACIÓN APA 7.ª EDICIÓN (trabajo estudiantil)
+% ==========================================
+\doublespacing
+\setlength{\parindent}{1.27cm}  % Sangría de 1/2 pulgada
+\setlength{\parskip}{0pt}       % APA no añade espacio entre párrafos
+\setlength{\emergencystretch}{3em}
+\setcounter{secnumdepth}{0}     % Los encabezados APA no se numeran
+\setcounter{tocdepth}{3}
+% Babel fija los titulos en \begin{document}: hay que renombrar dentro de
+% \captionsspanish o el \renewcommand se pierde y sigue apareciendo "Índice".
+\addto\captionsspanish{\renewcommand{\contentsname}{Contenido}}
+
+% Las tablas largas se leen mejor a un espacio; APA lo permite.
+\AtBeginEnvironment{longtable}{\singlespacing}
+
+% ==========================================
+% DATOS EDITABLES DE LA PLANTILLA
+% ==========================================
+\newcommand{\NombreUniversidad}{%%UNIVERSIDAD%%}
+\newcommand{\NombreFacultad}{%%FACULTAD%%}
+\newcommand{\TituloTrabajo}{%%TITULO%%}
+\newcommand{\NombreAlumno}{%%ALUMNO%%}
+% Lista de integrantes del equipo: Python ya la entrega escapada y con los
+% nombres unidos por \\, para que caigan en renglones distintos. Puede quedar
+% vacía; la portada omite entonces la línea completa.
+\newcommand{\ListaIntegrantes}{%%INTEGRANTES%%}
+\newcommand{\NombreMateria}{%%MATERIA%%}
+\newcommand{\GrupoMateria}{%%GRUPO%%}
+\newcommand{\NombreMaestro}{%%DOCENTE%%}
+\newcommand{\SemestreActual}{%%SEMESTRE%%}
+\newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
+
+% Encabezados APA: nivel 1 centrado y niveles siguientes alineados a la izquierda
+\titleformat{\section}
+  {\normalfont\normalsize\bfseries\centering}{}{0pt}{}
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries}{}{0pt}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\itshape}{}{0pt}{}
+\titleformat{\paragraph}[runin]
+  {\normalfont\normalsize\bfseries}{}{\parindent}{}[.]
+\titleformat{\subparagraph}[runin]
+  {\normalfont\normalsize\bfseries\itshape}{}{\parindent}{}[.]
+\titlespacing*{\section}{0pt}{0pt}{0pt}
+\titlespacing*{\subsection}{0pt}{0pt}{0pt}
+\titlespacing*{\subsubsection}{0pt}{0pt}{0pt}
+\titlespacing*{\paragraph}{\parindent}{0pt}{1em}
+\titlespacing*{\subparagraph}{\parindent}{0pt}{1em}
+
+% Encabezado para un trabajo estudiantil APA: solo número de página
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\setlength{\headheight}{15pt}
+
+% hyperref se carga al final del preámbulo (requisito del paquete)
+\usepackage{hyperref}
+\usepackage{bookmark}
+\IfFileExists{xurl.sty}{\usepackage{xurl}}{}  % Corta URLs largas
+\urlstyle{same}
+
+% Permite notas al pie dentro de tablas largas (debe ir después de hyperref)
+\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
+\makesavenoteenv{longtable}
+
+% Autor de los metadatos del PDF: sigue el mismo criterio que la portada, los
+% integrantes si los hay y si no el alumno, para que los metadatos no firmen a
+% alguien que la portada ya no menciona. Como esa lista lleva \\ entre nombres y
+% hyperref no admite ese comando dentro de los metadatos, se traduce a comas
+% solo al construir la cadena del PDF.
+\pdfstringdefDisableCommands{\def\\{, }}
+\newcommand{\AutorPDF}{\ListaIntegrantes}
+\ifdefempty{\ListaIntegrantes}{\renewcommand{\AutorPDF}{\NombreAlumno}}{}
+
+% Quitar bordes rojos de los links
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,
+    urlcolor=black,
+    citecolor=black,
+    pdftitle={\TituloTrabajo},
+    pdfauthor={\AutorPDF},
+    pdfsubject={Plantilla para trabajo académico}
+}
+
+\begin{document}
+
+% ==========================================
+% PORTADA (Diseño Constructivista/Minimalista con TikZ)
+% ==========================================
+\begin{titlepage}
+    \thispagestyle{fancy}
+    \begin{tikzpicture}[remember picture, overlay, draw=black, line width=1.5pt]
+        
+        % --- ESQUINA SUPERIOR IZQUIERDA ---
+        \draw ([xshift=2cm, yshift=-4cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-2cm]current page.north west) -- 
+              ([xshift=4cm, yshift=-2cm]current page.north west);
+              
+        % Cortes superiores (|||)
+        \foreach \x in {9, 9.3, 9.6} 
+            \draw ([xshift=\x cm, yshift=-1.6cm]current page.north west) -- 
+                  ([xshift=\x cm, yshift=-2cm]current page.north west);
+                  
+        \draw ([xshift=5cm, yshift=-2cm]current page.north west) -- 
+              ([xshift=8cm, yshift=-2cm]current page.north west);
+        \draw ([xshift=10.6cm, yshift=-2cm]current page.north west) -- 
+              ([xshift=15cm, yshift=-2cm]current page.north west);
+
+        % --- ESQUINA SUPERIOR DERECHA (Arcos) ---
+        \draw ([xshift=-2cm, yshift=-6cm]current page.north east) arc (270:180:4cm);
+        \draw ([xshift=-2cm, yshift=-4.5cm]current page.north east) arc (270:180:2.5cm);
+        \draw ([xshift=-2cm, yshift=-3cm]current page.north east) arc (270:180:1cm);
+        \draw ([xshift=-2.5cm, yshift=-2.5cm]current page.north east) rectangle ++(0.4, 0.4);
+
+        % --- LADO IZQUIERDO ---
+        % Cortes izquierdos (|||)
+        \foreach \y in {-10, -10.3, -10.6} 
+            \draw ([xshift=1.6cm, yshift=\y cm]current page.north west) -- 
+                  ([xshift=2cm, yshift=\y cm]current page.north west);
+                  
+        \draw ([xshift=2cm, yshift=-5cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-9cm]current page.north west);
+        \draw ([xshift=2cm, yshift=-11.6cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-17cm]current page.north west);
+              
+        % Círculo izquierdo
+        \draw ([xshift=2cm, yshift=-18cm]current page.north west) circle (0.25cm);
+        \draw ([xshift=2cm, yshift=-18.5cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-21cm]current page.north west);
+
+        % --- ESQUINA INFERIOR IZQUIERDA (Arcos) ---
+        \draw ([xshift=2cm, yshift=6cm]current page.south west) arc (90:0:4cm);
+        \draw ([xshift=2cm, yshift=4.5cm]current page.south west) arc (90:0:2.5cm);
+        \draw ([xshift=2cm, yshift=3cm]current page.south west) arc (90:0:1cm);
+        \draw ([xshift=2.2cm, yshift=2.2cm]current page.south west) rectangle ++(0.4, 0.4);
+
+        % --- LADO DERECHO ---
+        % Círculo derecho
+        \draw ([xshift=-2cm, yshift=-9.5cm]current page.north east) circle (0.25cm);
+        \draw ([xshift=-2cm, yshift=-7.5cm]current page.north east) -- 
+              ([xshift=-2cm, yshift=-9cm]current page.north east);
+        \draw ([xshift=-2cm, yshift=-10cm]current page.north east) -- 
+              ([xshift=-2cm, yshift=-15cm]current page.north east);
+              
+        % Cortes derechos (|||)
+        \foreach \y in {-16, -16.3, -16.6} 
+            \draw ([xshift=-2cm, yshift=\y cm]current page.north east) -- 
+                  ([xshift=-1.6cm, yshift=\y cm]current page.north east);
+                  
+        \draw ([xshift=-2cm, yshift=-17.6cm]current page.north east) -- 
+              ([xshift=-2cm, yshift=-22cm]current page.north east);
+
+        % --- LADO INFERIOR ---
+        \draw ([xshift=7cm, yshift=2cm]current page.south west) -- 
+              ([xshift=9cm, yshift=2cm]current page.south west);
+        % Cortes inferiores (|||)
+        \foreach \x in {10, 10.3, 10.6} 
+            \draw ([xshift=\x cm, yshift=2cm]current page.south west) -- 
+                  ([xshift=\x cm, yshift=1.6cm]current page.south west);
+        \draw ([xshift=11.6cm, yshift=2cm]current page.south west) -- 
+              ([xshift=15cm, yshift=2cm]current page.south west);
+
+        % --- ESQUINA INFERIOR DERECHA ---
+        \draw ([xshift=-2cm, yshift=4cm]current page.south east) -- 
+              ([xshift=-2cm, yshift=2cm]current page.south east) -- 
+              ([xshift=-4cm, yshift=2cm]current page.south east);
+
+        % ==========================================
+        % LOGOS
+        % ==========================================
+        % Van dentro del marco (la línea superior está en yshift=-2cm) y por
+        % encima del nombre de la universidad, que empieza en yshift=-5.4cm.
+        %
+        % Se buscan dos archivos con nombre fijo: `logo-universidad.png` a la
+        % izquierda y `logo-facultad.png` a la derecha. Salen de la carpeta de
+        % logos (Latex/logos/ por omisión, o la que indique --logos), que
+        % generate_pdf() copia junto al .tex temporal y compile_pdf() agrega a
+        % TEXINPUTS; por eso aquí basta con el nombre, sin ruta ni extensión.
+        % Si faltan, la portada se compila igual (mismo criterio que los .sty
+        % opcionales del preámbulo).
+        %
+        % Se escalan por ALTURA y no por ancho porque sus proporciones suelen
+        % ser muy distintas: un escudo es casi cuadrado y el logotipo de una
+        % facultad suele ser una banda alargada. Si tus logos se ven
+        % descolocados, estos dos valores son los que hay que ajustar.
+        \IfFileExists{logo-universidad.png}{%
+            \node[anchor=north west, inner sep=0pt] at ([xshift=3.5cm, yshift=-2.6cm]current page.north west)
+                {\includegraphics[height=1.6cm]{logo-universidad}};}{}
+        \IfFileExists{logo-facultad.png}{%
+            \node[anchor=north west, inner sep=0pt] at ([xshift=11.3cm, yshift=-3.18cm]current page.north west)
+                {\includegraphics[height=0.88cm]{logo-facultad}};}{}
+
+        % ==========================================
+        % TEXTOS DE LA PORTADA
+        % ==========================================
+        \node[anchor=north west, font=\sffamily\bfseries\large] at ([xshift=3.5cm, yshift=-5.4cm]current page.north west) {\NombreUniversidad};
+
+        \node[anchor=north west, font=\sffamily\normalsize] at ([xshift=3.5cm, yshift=-6.2cm]current page.north west) {\NombreFacultad};
+        
+        \node[anchor=north west, font=\sffamily\bfseries\Huge, align=left,
+              text width=12cm] at ([xshift=3.5cm, yshift=-7.5cm]current page.north west) {%
+              \hyphenpenalty=10000\exhyphenpenalty=10000\TituloTrabajo};
+        
+        % Línea separadora de texto
+        \draw[line width=1.2pt] ([xshift=3.5cm, yshift=-14.3cm]current page.north west) -- ([xshift=14cm, yshift=-14.3cm]current page.north west);
+        
+        % Las dos primeras líneas son opcionales e independientes entre sí: el
+        % alumno, los integrantes, los dos o ninguno. El \\[0.25cm] de separación
+        % va DENTRO de cada condicional, porque un \\ suelto al inicio del nodo
+        % dejaría un renglón en blanco (o un error de TikZ) al omitir la línea.
+        % Los integrantes se meten en un tabular alineado por arriba para que el
+        % segundo nombre y los siguientes queden bajo el primero y no vuelvan al
+        % margen izquierdo; el \sffamily y el interlineado del nodo se heredan
+        % dentro del tabular. El \raisebox anula solo la ALTURA de ese tabular
+        % (conserva la profundidad, que es la que separa la última línea de
+        % MATERIA): sin eso, cuando los integrantes son la primera línea del
+        % nodo su fila alta supera el \topskip y todo el bloque baja ~8pt
+        % respecto a las demás portadas.
+        \node[anchor=north west, font=\sffamily\normalsize, align=left,
+              text width=11cm] at ([xshift=3.5cm, yshift=-14.8cm]current page.north west) {%
+              % Los integrantes SUSTITUYEN al alumno: en un trabajo de equipo la
+              % portada lista al equipo y no repite la firma individual, aunque
+              % ALUMNO siga puesto en el .env. Sin integrantes se muestra el
+              % alumno, y si tampoco lo hay no aparece ninguna de las dos.
+              \ifdefempty{\ListaIntegrantes}{%
+                  \ifdefempty{\NombreAlumno}{}{\textbf{ALUMNO:} \NombreAlumno\\[0.25cm]}%
+              }{%
+                  \textbf{INTEGRANTES:} %
+                  \raisebox{0pt}[0pt][\depth]{\begin{tabular}[t]{@{}l@{}}%
+                      \ListaIntegrantes\end{tabular}}\\[0.25cm]%
+              }%
+              % El orden de estas líneas es fijo y no depende del orden en que
+              % se hayan escrito las opciones del comando:
+              %   alumno (o integrantes), materia, docente, semestre y grupo.
+              \textbf{MATERIA:} \NombreMateria\\[0.25cm]
+              % El docente tambien es opcional: la materia y el semestre son los
+              % unicos datos que siempre aparecen.
+              \ifdefempty{\NombreMaestro}{}{\textbf{DOCENTE:} \NombreMaestro\\[0.25cm]}%
+              \textbf{SEMESTRE:} \SemestreActual%
+              % El grupo es opcional y cierra el bloque. El salto va DENTRO del
+              % condicional para no dejar un renglón vacío cuando no se indica.
+              \ifdefempty{\GrupoMateria}{}{\\[0.25cm]\textbf{GRUPO:} \GrupoMateria}};
+        
+        \node[anchor=south east, font=\sffamily\bfseries, align=right] at ([xshift=-3.5cm, yshift=3.5cm]current page.south east) {FECHA DE ENTREGA: \FechaEntrega};
+
+    \end{tikzpicture}
+\end{titlepage}
+
+% El entorno titlepage reinicia el contador; APA cuenta la portada como página 1.
+\setcounter{page}{2}
+
+% APA 7 recomienda texto alineado a la izquierda, con margen derecho irregular.
+\RaggedRight
+
+% ==========================================
+% ÍNDICE
+% ==========================================
+\tableofcontents
+\newpage
+
+% ==========================================
+% CONTENIDO CONVERTIDO DESDE MARKDOWN
+% ==========================================
+%%CONTENIDO_MARKDOWN%%
+
+\end{document}

@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "formato-investigaciones"
+version = "0.1.0"
+description = "Genera trabajos academicos en PDF a partir de Markdown y una plantilla APA en LaTeX."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = []
+license = { text = "GPL-3.0-or-later" }
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Text Processing :: Markup :: LaTeX",
+    "Natural Language :: Spanish",
+]
+
+[project.scripts]
+investigacion = "investigacion.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# El filtro Lua que rescata el HTML en linea viaja dentro del paquete, asi que
+# tiene que instalarse junto a los .py.
+[tool.setuptools.package-data]
+investigacion = ["filtros/*.lua"]
