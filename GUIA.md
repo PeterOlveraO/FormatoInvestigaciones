@@ -153,6 +153,15 @@ ellas el comando falla:
 investigacion trabajo.md --titulo Conceptos de costos --materia "M" --docente "D"
 ```
 
+## Menú de texto (TUI)
+
+`investigacion-tui` te guía en tres pasos: **1)** llena los campos obligatorios
+(marcados `[FALTA]` hasta que los des), **2)** ajusta los opcionales si quieres
+y **3)** escribe `g` para generar el PDF (`s` sale). Escribes el número de un
+campo y la pantalla te explica qué pide y te da un ejemplo. Título, materia y archivo son obligatorios; los campos que dejes vacíos
+se comportan como si no hubieras escrito la opción (se usa el `.env`). Las
+copias se separan con `;` y «Permitir LaTeX» se alterna con su número.
+
 ## La portada: alumno, integrantes y grupo
 
 El orden de la portada es **fijo** y no depende de cómo hayas escrito las

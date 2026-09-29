@@ -5,6 +5,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from investigacion.tui import build_argv, run as tui_run
 from investigacion.generator import (
     DocumentData,
     GenerationError,
@@ -855,6 +856,45 @@ class PdfGenerationTests(unittest.TestCase):
             source = Path(directory) / "trabajo.md"
             source.write_text("# Introducción\n\nRuta C:\\Users\\alumno\n", encoding="utf-8")
             self.assertTrue(generate_pdf(source, Path(directory) / "salida", data).is_file())
+
+
+class TuiTests(unittest.TestCase):
+    def test_build_argv_omits_empty_and_repeats_copies(self):
+        argv = build_argv(
+            {"markdown": "a.md", "titulo": "T", "materia": "M", "docente": "",
+             "copia": "x; y", "permitir_latex": "si"}
+        )
+        self.assertEqual(
+            argv,
+            ["a.md", "--titulo", "T", "--materia", "M", "--copia", "x", "--copia", "y", "--permitir-latex"],
+        )
+
+    def test_generate_requires_mandatory_fields(self):
+        answers = iter(["g", "s"])
+        with patch("investigacion.tui.cli_main") as fake:
+            tui_run(lambda _p: next(answers), lambda *a: None)
+        fake.assert_not_called()
+
+    def test_full_flow_calls_cli(self):
+        answers = iter(["1", "a.md", "2", "T", "3", "M", "g", "", "s"])
+        with patch("investigacion.tui.cli_main", return_value=0) as fake:
+            tui_run(lambda _p: next(answers), lambda *a: None)
+        fake.assert_called_once_with(["a.md", "--titulo", "T", "--materia", "M"])
+
+    def test_menu_marks_missing_fields_and_shows_help(self):
+        output = []
+        answers = iter(["2", "T", "s"])
+        tui_run(lambda _p: next(answers), lambda *a: output.append(" ".join(map(str, a))))
+        text = "\n".join(output)
+        self.assertIn("[FALTA]", text)
+        self.assertIn("Ejemplo:", text)
+        self.assertIn("Falta: Archivo Markdown, Materia", text)
+
+    def test_menu_says_ready_when_required_fields_are_filled(self):
+        output = []
+        answers = iter(["1", "a.md", "2", "T", "3", "M", "s"])
+        tui_run(lambda _p: next(answers), lambda *a: output.append(" ".join(map(str, a))))
+        self.assertIn("Listo. Escribe g", output[-1])
 
 
 if __name__ == "__main__":

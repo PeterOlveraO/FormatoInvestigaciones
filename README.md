@@ -108,6 +108,9 @@ investigacion mi-trabajo.md --titulo "Ecuaciones diferenciales" --materia "Cálc
 
 El resultado queda en `output/ecuaciones-diferenciales.pdf`.
 
+Si prefieres no escribir el comando, `investigacion-tui` abre un menú de texto
+con las mismas opciones.
+
 Solo **el título y la materia** son obligatorios; el resto de los datos son
 opcionales o salen del `.env`. Y no hace falta escribir la carpeta: los trabajos
 viven en `input/` y el comando los busca ahí solo, incluso dentro de subcarpetas

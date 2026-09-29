@@ -120,10 +120,14 @@
   \begingroup\setlength{\fboxsep}{1pt}\colorbox{ColorResaltado}{#1}\endgroup}
 \AtBeginEnvironment{longtable}{\let\hl\ResaltadoEnTabla}
 
-\captionsetup[table]{skip=6pt}
-% APA 7 pone el rótulo de la figura ARRIBA: «Figura 1» en negrita y, debajo, el
-% título en cursiva. El paquete caption solo cambia el formato, así que para
-% subir el pie hace falta floatrow.
+% APA 7 pide el mismo formato para tablas y figuras: el rótulo («Tabla 1» o
+% «Figura 1») en negrita en su propio renglón y, debajo, el título en cursiva.
+% Pandoc ya coloca el \caption de la tabla ANTES de las filas (ver el bloque de
+% arriba), así que con esto queda arriba, como exige APA; solo falta que el
+% documento traiga la línea «: Título» bajo la tabla en Markdown para que
+% Pandoc genere el \caption (y con él el número «Tabla 1»).
+\captionsetup[table]{skip=6pt, labelfont=bf, textfont=it, labelsep=newline,
+                     singlelinecheck=false, justification=raggedright}
 \captionsetup[figure]{labelfont=bf, textfont=it, labelsep=newline,
                       singlelinecheck=false, justification=raggedright}
 \IfFileExists{floatrow.sty}{%
@@ -328,6 +332,8 @@
   \newunicodechar{Φ}{\ensuremath{\Phi}}
   \newunicodechar{Ψ}{\ensuremath{\Psi}}
   \newunicodechar{Ω}{\ensuremath{\Omega}}
+  % Fin de demostración (QED)
+  \newunicodechar{∎}{\ensuremath{\blacksquare}}
   % Marcas de listas y de verificación
   \newunicodechar{✓}{\ensuremath{\checkmark}}
   \newunicodechar{✔}{\ensuremath{\checkmark}}
@@ -677,7 +683,11 @@
 \setcounter{page}{2}
 
 % APA 7 recomienda texto alineado a la izquierda, con margen derecho irregular.
+% \RaggedRight reinicia \parindent a 0 (lo trae puesto a \RaggedRightParindent,
+% que por omision vale \z@): sin esta linea la sangria de 1.27cm fijada arriba
+% desaparecia en todo el documento, aunque indentfirst siguiera cargado.
 \RaggedRight
+\setlength{\parindent}{1.27cm}
 
 % ==========================================
 % ÍNDICE

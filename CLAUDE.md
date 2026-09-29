@@ -261,6 +261,14 @@ Dos cosas que conviene recordar antes de tocar esto:
 - Pandoc no manda ningún `User-Agent` al descargar y hay sitios que por eso
   responden 400; de ahí el `--request-header` de `pandoc_to_latex()`.
 
+### La TUI
+
+`src/investigacion/tui.py` es un menú de `input()` (sin `curses`, que no existe
+en Windows). No duplica lógica: arma un `argv` con `build_argv()` y llama a
+`cli.main()`. Los campos vacíos no se pasan, para que siga valiendo el respaldo
+del `.env`. Al añadir una opción al CLI hay que añadirla también a `FIELDS` (cada `Field`
+lleva su ayuda, un ejemplo genérico y qué pasa si se deja vacío).
+
 ### Dónde se busca el Markdown
 
 `resolve_markdown_path()` delega en `find_markdown()`, que prueba tres cosas en

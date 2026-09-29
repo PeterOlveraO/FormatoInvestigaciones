@@ -19,6 +19,7 @@ classifiers = [
 
 [project.scripts]
 investigacion = "investigacion.cli:main"
+investigacion-tui = "investigacion.tui:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
