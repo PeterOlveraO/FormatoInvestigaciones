@@ -1,0 +1,126 @@
+# Comprueba que el proyecto funciona igual en Linux, Windows y macOS.
+#
+# Dos trabajos:
+#   - "pruebas": las pruebas unitarias en los tres sistemas, sin Pandoc ni LaTeX
+#     (las que los necesitan se saltan solas). Rapido; detecta rutas, separadores
+#     y codificaciones que solo fallan en un sistema.
+#   - "pdf-windows": la tuberia completa en Windows con las mismas herramientas
+#     que recomienda REQUISITOS.md (Pandoc, Graphviz y MiKTeX), genera el
+#     catalogo y lo publica como artefacto para revisarlo a ojo.
+
+name: Pruebas
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    name: Unitarias (${{ matrix.os }}, Python ${{ matrix.python }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+
+      - name: Instalar el paquete
+        run: python -m pip install -e .
+
+      - name: Pruebas
+        run: python -m unittest discover -s tests -v
+
+  pdf-windows:
+    name: PDF completo en Windows (MiKTeX)
+    runs-on: windows-latest
+    timeout-minutes: 60
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Instalar Pandoc
+        uses: pandoc/actions/setup@v1
+
+      - name: Instalar Graphviz y MiKTeX
+        run: |
+          choco install graphviz miktex --no-progress -y
+          "C:\Program Files\Graphviz\bin" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          "C:\Program Files\MiKTeX\miktex\bin\x64" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      # Lo mismo que marcar "Install missing packages on-the-fly: Yes" en el
+      # MiKTeX Console, que es lo que REQUISITOS.md le pide al alumno.
+      - name: Configurar MiKTeX
+        run: |
+          initexmf --admin --set-config-value="[MPM]AutoInstall=1"
+          initexmf --set-config-value="[MPM]AutoInstall=1"
+          miktex --admin packages update-package-database
+          miktex --admin packages update
+          pandoc --version
+          pdflatex --version
+          dot -V
+
+      # Mismos pasos que sigue el alumno en Windows segun REQUISITOS.md.
+      - name: Entorno virtual e instalacion
+        run: |
+          python -m venv .venv
+          .venv\Scripts\python -m pip install -e .
+          Copy-Item .env.example .env
+
+      # La primera compilacion con MiKTeX descarga los paquetes de la plantilla
+      # sobre la marcha y puede tardar mas que TOOL_TIMEOUT_SECONDS, asi que
+      # esta pasada sube el limite solo aqui. Deja todo instalado para las
+      # pruebas, que ya corren con el limite normal.
+      - name: Generar el catalogo (descarga los paquetes de LaTeX)
+        shell: bash
+        run: |
+          .venv/Scripts/python - <<'EOF'
+          from pathlib import Path
+
+          from investigacion import generator
+          from investigacion.generator import DocumentData, generate_pdf
+
+          generator.TOOL_TIMEOUT_SECONDS = 1800
+          data = DocumentData(
+              "Nombre de la universidad", "Nombre de la facultad", "Nombre del alumno",
+              "2026-2", "Catalogo de elementos", "Nombre de la materia",
+              "Nombre del docente", "Septiembre 30, 2026", grupo="7-A",
+          )
+          avisos = []
+          pdf = generate_pdf(
+              Path("ejemplo/catalogo.md"), Path("output"), data, on_warning=avisos.append
+          )
+          for aviso in avisos:
+              print("AVISO:", aviso)
+          print("PDF generado:", pdf, pdf.stat().st_size, "bytes")
+          EOF
+
+      - name: Probar el comando instalado
+        run: |
+          .venv\Scripts\investigacion.exe ejemplo\arboles-binarios.md --titulo "Arboles binarios" --materia "Estructuras de datos" --salida output
+          Get-ChildItem output
+
+      - name: Pruebas (incluidas las que compilan PDF)
+        run: .venv\Scripts\python -m unittest discover -s tests -v
+
+      - name: Publicar los PDF y los logs de error
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pdf-windows
+          path: |
+            output/
+            **/ultimo-error.*
+          if-no-files-found: warn

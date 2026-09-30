@@ -429,6 +429,11 @@ conviene no deshacer:
   la de por omisión no es UTF-8.
 - `.gitattributes` normaliza los finales de línea a LF.
 
+`.github/workflows/pruebas.yml` es la comprobación de todo esto: corre las
+pruebas unitarias en Linux, Windows y macOS, y en Windows además instala Pandoc,
+Graphviz y MiKTeX (lo que recomienda `REQUISITOS.md`), genera el catálogo con la
+tubería completa y lo publica como artefacto `pdf-windows` para revisarlo a ojo.
+
 ## Directorios
 
 - `Latex/base.ltx` — plantilla APA con portada TikZ.
