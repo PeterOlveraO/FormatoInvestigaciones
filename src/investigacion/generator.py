@@ -370,30 +370,30 @@ def find_template(explicit_path: Path | None = None) -> Path:
         return template
 
     candidates = (
-        Path.cwd() / "Latex" / "base.ltx",
-        Path(__file__).resolve().parents[2] / "Latex" / "base.ltx",
+        Path.cwd() / "templates" / "apa" / "template.ltx",
+        Path(__file__).resolve().parents[2] / "templates" / "apa" / "template.ltx",
     )
     for candidate in candidates:
         if candidate.is_file():
             return candidate
     raise GenerationError(
-        "No se encontro Latex/base.ltx. Ejecuta el comando desde el proyecto o usa --plantilla."
+        "No se encontro templates/apa/template.ltx. Ejecuta el comando desde el proyecto o usa --plantilla."
     )
 
 
 # Carpeta del proyecto donde se guardan las imagenes descargadas de la web y los
 # diagramas dibujados con Graphviz. Es una cache: se puede borrar entera y lo
 # unico que pasa es que la proxima generacion vuelva a bajarlos o dibujarlos.
-MEDIA_DIRECTORY = "imagenes"
-REMOTE_MEDIA = "remotas"
-DIAGRAM_MEDIA = "diagramas"
+MEDIA_DIRECTORY = "cache"
+REMOTE_MEDIA = "remote"
+DIAGRAM_MEDIA = "diagrams"
 
 
 def project_root() -> Path:
     """Raiz del proyecto, con el mismo criterio que find_template()."""
 
     for candidate in (Path.cwd(), Path(__file__).resolve().parents[2]):
-        if (candidate / "Latex" / "base.ltx").is_file():
+        if (candidate / "templates" / "apa" / "template.ltx").is_file():
             return candidate
     return Path.cwd()
 
@@ -431,8 +431,8 @@ MARKDOWN_EXTENSIONS = ("mark", "emoji", "autolink_bare_uris")
 #   diagramas      dibuja con Graphviz los bloques ```dot
 #   graficas       deja pasar a LaTeX los bloques ```pgfplot y ```tikz
 #   bloques        cajas de nota (::: nota) y sangria francesa en las referencias
-FILTERS_DIRECTORY = Path(__file__).parent / "filtros"
-LUA_FILTERS = ("html_en_linea", "imagenes", "diagramas", "graficas", "bloques")
+FILTERS_DIRECTORY = Path(__file__).resolve().parents[2] / "resources" / "filters"
+LUA_FILTERS = ("inline_html", "images", "diagrams", "charts", "blocks")
 # Prefijo con el que los filtros marcan sus avisos en la salida de error, para
 # distinguirlos de los mensajes de Pandoc.
 FILTER_WARNING_PREFIX = "[investigacion]"
@@ -493,10 +493,10 @@ def pandoc_to_latex(
     # Con barras normales aunque el sistema use contrabarras: estas rutas acaban
     # dentro de un \includegraphics, y en LaTeX la contrabarra empieza un
     # comando. TeX acepta la barra normal en todos los sistemas.
-    environment["INVESTIGACION_IMAGENES"] = remote_media.as_posix()
-    environment["INVESTIGACION_DIAGRAMAS"] = diagram_media.as_posix()
+    environment["INVESTIGACION_REMOTE_IMAGES"] = remote_media.as_posix()
+    environment["INVESTIGACION_DIAGRAMS"] = diagram_media.as_posix()
     # Una carpeta por linea: asi la ruta puede llevar espacios sin ambiguedad.
-    environment["INVESTIGACION_RECURSOS"] = "\n".join(path.as_posix() for path in resources)
+    environment["INVESTIGACION_RESOURCES"] = "\n".join(path.as_posix() for path in resources)
 
     try:
         result = subprocess.run(
@@ -630,8 +630,10 @@ def resolve_logos_directory(template_file: Path, explicit_path: Path | None = No
             raise GenerationError(f"No existe el directorio de logos: {directory}")
         return directory
 
-    default = template_file.parent / LOGOS_DIRECTORY
-    return default if default.is_dir() else None
+    for default in (template_file.parent / LOGOS_DIRECTORY, template_file.parent.parent / LOGOS_DIRECTORY):
+        if default.is_dir():
+            return default
+    return None
 
 
 def copy_template_assets(
@@ -646,6 +648,10 @@ def copy_template_assets(
     logos no pasa nada: la portada los envuelve en \\IfFileExists.
     """
 
+    common = template_file.parent.parent / "common"
+    if common.is_dir():
+        for asset in sorted(common.glob("*.sty")):
+            shutil.copy2(asset, destination / asset.name)
     assets = logos_directory if logos_directory is not None else template_file.parent / LOGOS_DIRECTORY
     if assets is None or not assets.is_dir():
         return

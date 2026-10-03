@@ -14,12 +14,12 @@ código, de modo que un diagrama que no cambió no se vuelve a compilar.
 
 Si Graphviz no está instalado el bloque se queda como código y se avisa una
 vez: el trabajo se genera igual. La carpeta de la caché llega en la variable
-INVESTIGACION_DIAGRAMAS.
+INVESTIGACION_DIAGRAMS.
 ]]
 
 local utils = require("pandoc.utils")
 
-local CACHE = os.getenv("INVESTIGACION_DIAGRAMAS")
+local CACHE = os.getenv("INVESTIGACION_DIAGRAMS")
 local CLASES = { dot = true, graphviz = true }
 
 local avisados = {}

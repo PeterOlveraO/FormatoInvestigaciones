@@ -1,0 +1,38 @@
+% investigacion-final.sty — cierre del preámbulo compartido.
+% hyperref tiene que cargarse al final del preámbulo y footnotehyper después de
+% él, así que cada plantilla carga este paquete justo antes de
+% \begin{document}, cuando ya definió sus datos (\ListaIntegrantes, etc.).
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{investigacion-final}[2026/10/03 Cierre del preambulo comun]
+
+% hyperref se carga al final del preámbulo (requisito del paquete)
+\RequirePackage{hyperref}
+\RequirePackage{bookmark}
+\IfFileExists{xurl.sty}{\RequirePackage{xurl}}{}  % Corta URLs largas
+\urlstyle{same}
+
+% Permite notas al pie dentro de tablas largas (debe ir después de hyperref)
+\IfFileExists{footnotehyper.sty}{\RequirePackage{footnotehyper}}{\RequirePackage{footnote}}
+\makesavenoteenv{longtable}
+
+% Autor de los metadatos del PDF: sigue el mismo criterio que la portada, los
+% integrantes si los hay y si no el alumno, para que los metadatos no firmen a
+% alguien que la portada ya no menciona. Como esa lista lleva \\ entre nombres y
+% hyperref no admite ese comando dentro de los metadatos, se traduce a comas
+% solo al construir la cadena del PDF.
+\pdfstringdefDisableCommands{\def\\{, }}
+\newcommand{\AutorPDF}{\ListaIntegrantes}
+\ifdefempty{\ListaIntegrantes}{\renewcommand{\AutorPDF}{\NombreAlumno}}{}
+
+% Quitar bordes rojos de los links
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,
+    urlcolor=black,
+    citecolor=black,
+    pdftitle={\TituloTrabajo},
+    pdfauthor={\AutorPDF},
+    pdfsubject={Plantilla para trabajo académico}
+}
+\endinput

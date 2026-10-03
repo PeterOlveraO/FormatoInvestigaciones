@@ -12,14 +12,14 @@ la compilación se avisa y queda el texto alternativo. Mismo criterio que el
 resto del proyecto: avisar sin impedir que el trabajo salga.
 
 El generador le pasa las rutas por dos variables de entorno:
-  INVESTIGACION_IMAGENES   carpeta donde se guardan las descargas
-  INVESTIGACION_RECURSOS   carpetas donde buscar una imagen local, una por línea
+  INVESTIGACION_REMOTE_IMAGES   carpeta donde se guardan las descargas
+  INVESTIGACION_RESOURCES   carpetas donde buscar una imagen local, una por línea
 ]]
 
 local utils = require("pandoc.utils")
 
-local CACHE = os.getenv("INVESTIGACION_IMAGENES")
-local RECURSOS = os.getenv("INVESTIGACION_RECURSOS") or ""
+local CACHE = os.getenv("INVESTIGACION_REMOTE_IMAGES")
+local RECURSOS = os.getenv("INVESTIGACION_RESOURCES") or ""
 
 -- pdflatex solo compone estos formatos. El resto (SVG, WEBP) necesitaría una
 -- conversión previa, que este proyecto no hace.

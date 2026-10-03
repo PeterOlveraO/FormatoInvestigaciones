@@ -24,7 +24,3 @@ investigacion-tui = "investigacion.tui:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
-# El filtro Lua que rescata el HTML en linea viaja dentro del paquete, asi que
-# tiene que instalarse junto a los .py.
-[tool.setuptools.package-data]
-investigacion = ["filtros/*.lua"]

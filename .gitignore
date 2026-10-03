@@ -14,19 +14,18 @@ ultimo-error.tex
 ultimo-error.log
 
 # Cache: imagenes descargadas de la web y diagramas dibujados con Graphviz.
-# Se vuelven a generar solos, no tiene sentido versionarlos. La barra inicial
-# ancla el patron a la raiz: sin ella tambien taparia docs/imagenes/, que son
-# las capturas del README.
-/imagenes/
+# Se vuelven a generar solos, no tiene sentido versionarlos.
+/cache/
 
 # Trabajos propios en Markdown, que no son parte del proyecto
 /input/
 
 # Los logos de tu institucion NO se suben: normalmente no son redistribuibles.
-# Cada quien deja los suyos en Latex/logos/ (ver el LEEME de esa carpeta) o en
-# la carpeta que indique --logos.
-Latex/logos/*
-!Latex/logos/LEEME.md
+# Cada quien deja los suyos en templates/logos/ (ver el LEEME de esa carpeta) o
+# en la carpeta que indique --logos.
+templates/logos/*
+!templates/logos/LEEME.md
+templates/*/logos/
 
 # Restos de editores y del sistema
 *.save

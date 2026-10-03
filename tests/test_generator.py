@@ -26,6 +26,22 @@ from investigacion.generator import (
 )
 
 
+ROOT = Path(__file__).parents[1]
+
+
+class _FullTemplate:
+    """La plantilla APA junto con el preambulo comun que carga."""
+
+    def read_text(self, encoding="utf-8"):
+        parts = [ROOT / "templates" / "common" / "investigacion.sty",
+                 ROOT / "templates" / "common" / "investigacion-final.sty",
+                 ROOT / "templates" / "apa" / "template.ltx"]
+        return "".join(part.read_text(encoding=encoding) for part in parts)
+
+
+TEMPLATE_PATH = _FullTemplate()
+
+
 class GeneratorTests(unittest.TestCase):
     def test_latex_escape_protects_special_characters(self):
         self.assertEqual(latex_escape(r"A&B_50%"), r"A\&B\_50\%")
@@ -57,7 +73,7 @@ class GeneratorTests(unittest.TestCase):
         self.assertEqual(render_template(template, r"\section{Texto}", data), "U \\section{Texto} Agosto 23, 2026")
 
     def test_base_template_replaces_all_markers(self):
-        template_path = Path(__file__).parents[1] / "Latex" / "base.ltx"
+        template_path = TEMPLATE_PATH
         template = template_path.read_text(encoding="utf-8")
         data = DocumentData("U", "F", "A", "S", "T", "M", "D", "Agosto 23, 2026")
         rendered = render_template(template, r"\section{Texto}", data)
@@ -145,7 +161,7 @@ class IntegrantesTests(unittest.TestCase):
         self.assertEqual(rendered, "[][]x")
 
     def test_base_template_compiles_the_markers_without_alumno(self):
-        template_path = Path(__file__).parents[1] / "Latex" / "base.ltx"
+        template_path = TEMPLATE_PATH
         template = template_path.read_text(encoding="utf-8")
         data = DocumentData("U", "F", "", "S", "T", "M", "D", "Agosto 23, 2026")
         rendered = render_template(template, r"\section{Texto}", data)
@@ -232,14 +248,14 @@ class UnicodeWarningTests(unittest.TestCase):
         self.assertEqual(unsupported_character_warnings("Output written on trabajo.pdf"), [])
 
     def test_base_template_declares_the_symbols_and_the_fallback(self):
-        template = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+        template = (TEMPLATE_PATH).read_text(encoding="utf-8")
         self.assertIn(r"\newunicodechar{≠}{\ensuremath{\neq}}".replace("\\u2260", "≠"), template)
         self.assertIn(r"\def\UTFviii@undefined@err", template)
 
     def test_base_template_covers_the_ascii_art_and_the_emoji(self):
         """El arte ASCII y los emoji son el fallo de caracteres mas comun."""
 
-        template = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+        template = (TEMPLATE_PATH).read_text(encoding="utf-8")
         self.assertIn("pmboxdraw", template)      # lineas de caja (└ ─ ┼)
         self.assertIn("twemojis", template)       # emoji como imagen
         self.assertIn("►", template)          # punta de flecha de los diagramas
@@ -248,19 +264,19 @@ class UnicodeWarningTests(unittest.TestCase):
     def test_base_template_replaces_the_fragile_commands_of_soul(self):
         """soul cuelga a pdflatex dentro de una tabla; los toma de ulem."""
 
-        template = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+        template = (TEMPLATE_PATH).read_text(encoding="utf-8")
         self.assertIn(r"\DeclareRobustCommand{\st}[1]{\sout{#1}}", template)
         self.assertIn(r"\DeclareRobustCommand{\ul}[1]{\uline{#1}}", template)
-        self.assertIn(r"\IfFileExists{ulem.sty}{\usepackage[normalem]{ulem}}", template)
+        self.assertIn(r"\IfFileExists{ulem.sty}{\RequirePackage[normalem]{ulem}}", template)
         self.assertIn(r"\AtBeginEnvironment{longtable}{\let\hl\ResaltadoEnTabla}", template)
 
     def test_base_template_defines_what_the_filters_produce(self):
         """Los filtros emiten estos entornos; sin ellos la compilacion falla."""
 
-        template = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+        template = (TEMPLATE_PATH).read_text(encoding="utf-8")
         self.assertIn(r"\newenvironment{CajaMarcada}[1]", template)
         self.assertIn(r"\newenvironment{ReferenciasAPA}", template)
-        self.assertIn(r"\usepackage{pgfplots}", template)
+        self.assertIn(r"\RequirePackage{pgfplots}", template)
         # Las barras tienen su propia paleta: sin esto salen de colores.
         self.assertIn(r"/pgfplots/bar cycle list/.style", template)
         self.assertIn(r"\floatsetup[figure]{capposition=top}", template)
@@ -272,7 +288,7 @@ class UnicodeWarningTests(unittest.TestCase):
     def test_base_template_keeps_code_blocks_single_spaced(self):
         """Con el interlineado doble del documento los diagramas salen estirados."""
 
-        template = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+        template = (TEMPLATE_PATH).read_text(encoding="utf-8")
         self.assertIn(r"\newenvironment{Shaded}{\singlespacing\small}{}", template)
         self.assertIn(r"\AtBeginEnvironment{verbatim}{\singlespacing\small}", template)
 
@@ -342,7 +358,7 @@ class GrupoTests(unittest.TestCase):
         self.assertEqual(rendered, "[]x")
 
     def test_base_template_defines_the_grupo_command(self):
-        template_path = Path(__file__).parents[1] / "Latex" / "base.ltx"
+        template_path = TEMPLATE_PATH
         template = template_path.read_text(encoding="utf-8")
         data = DocumentData(
             "U", "F", "A", "S", "T", "M", "D", "Agosto 23, 2026", grupo="7-A",
@@ -354,7 +370,7 @@ class GrupoTests(unittest.TestCase):
 class PortadaTests(unittest.TestCase):
     """El orden de la portada es fijo, venga como venga el comando."""
 
-    TEMPLATE = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+    TEMPLATE = (TEMPLATE_PATH).read_text(encoding="utf-8")
 
     def test_the_order_of_the_cover_is_alumno_materia_docente_semestre_grupo(self):
         posiciones = [
@@ -446,7 +462,7 @@ class DocenteTests(unittest.TestCase):
         self.assertIsNone(args.docente)
 
     def test_the_cover_omits_the_line_when_it_is_empty(self):
-        template = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+        template = (TEMPLATE_PATH).read_text(encoding="utf-8")
         self.assertIn(r"\ifdefempty{\NombreMaestro}{}{\textbf{DOCENTE:}", template)
 
     def test_render_template_accepts_an_empty_docente(self):
@@ -459,7 +475,7 @@ class LogoTests(unittest.TestCase):
     """Los logos son opcionales y su carpeta se puede cambiar."""
 
     def test_the_template_looks_for_the_generic_names(self):
-        template = (Path(__file__).parents[1] / "Latex" / "base.ltx").read_text(encoding="utf-8")
+        template = (TEMPLATE_PATH).read_text(encoding="utf-8")
         for nombre in ("logo-universidad.png", "logo-facultad.png"):
             self.assertIn(r"\IfFileExists{" + nombre + "}", template)
 
@@ -783,7 +799,7 @@ class MarkdownSyntaxTests(unittest.TestCase):
             '```{.dot caption="Un arbol"}\ndigraph { a -> b; }\n```\n'
         )
         self.assertIn(r"\includegraphics", latex)
-        self.assertIn("diagramas/", latex)
+        self.assertIn("diagrams/", latex)
         self.assertNotIn("digraph", latex)
 
     @unittest.skipIf(bool(shutil.which("dot")), "Comprueba el caso sin Graphviz")

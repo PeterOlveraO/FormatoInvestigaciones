@@ -1,0 +1,216 @@
+\documentclass[12pt, letterpaper]{article}
+
+% ==========================================
+% PREÁMBULO COMPARTIDO
+% ==========================================
+% Todo lo que necesitan la salida de Pandoc, los filtros y el formato APA vive
+% en templates/common/investigacion.sty, que el generador copia junto al .tex.
+% Esta plantilla solo aporta sus datos y su portada.
+\usepackage{investigacion}
+
+% ==========================================
+% DATOS EDITABLES DE LA PLANTILLA
+% ==========================================
+\newcommand{\NombreUniversidad}{%%UNIVERSIDAD%%}
+\newcommand{\NombreFacultad}{%%FACULTAD%%}
+\newcommand{\TituloTrabajo}{%%TITULO%%}
+\newcommand{\NombreAlumno}{%%ALUMNO%%}
+% Lista de integrantes del equipo: el generador ya la entrega escapada y con los
+% nombres unidos por \\, para que caigan en renglones distintos. Puede quedar
+% vacía; la portada omite entonces la línea completa.
+\newcommand{\ListaIntegrantes}{%%INTEGRANTES%%}
+\newcommand{\NombreMateria}{%%MATERIA%%}
+\newcommand{\GrupoMateria}{%%GRUPO%%}
+\newcommand{\NombreMaestro}{%%DOCENTE%%}
+\newcommand{\SemestreActual}{%%SEMESTRE%%}
+\newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
+
+% hyperref, footnotehyper y los metadatos del PDF: van al final del preámbulo.
+\usepackage{investigacion-final}
+
+\begin{document}
+
+% ==========================================
+% PORTADA (Diseño Constructivista/Minimalista con TikZ)
+% ==========================================
+\begin{titlepage}
+    \thispagestyle{fancy}
+    \begin{tikzpicture}[remember picture, overlay, draw=black, line width=1.5pt]
+        
+        % --- ESQUINA SUPERIOR IZQUIERDA ---
+        \draw ([xshift=2cm, yshift=-4cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-2cm]current page.north west) -- 
+              ([xshift=4cm, yshift=-2cm]current page.north west);
+              
+        % Cortes superiores (|||)
+        \foreach \x in {9, 9.3, 9.6} 
+            \draw ([xshift=\x cm, yshift=-1.6cm]current page.north west) -- 
+                  ([xshift=\x cm, yshift=-2cm]current page.north west);
+                  
+        \draw ([xshift=5cm, yshift=-2cm]current page.north west) -- 
+              ([xshift=8cm, yshift=-2cm]current page.north west);
+        \draw ([xshift=10.6cm, yshift=-2cm]current page.north west) -- 
+              ([xshift=15cm, yshift=-2cm]current page.north west);
+
+        % --- ESQUINA SUPERIOR DERECHA (Arcos) ---
+        \draw ([xshift=-2cm, yshift=-6cm]current page.north east) arc (270:180:4cm);
+        \draw ([xshift=-2cm, yshift=-4.5cm]current page.north east) arc (270:180:2.5cm);
+        \draw ([xshift=-2cm, yshift=-3cm]current page.north east) arc (270:180:1cm);
+        \draw ([xshift=-2.5cm, yshift=-2.5cm]current page.north east) rectangle ++(0.4, 0.4);
+
+        % --- LADO IZQUIERDO ---
+        % Cortes izquierdos (|||)
+        \foreach \y in {-10, -10.3, -10.6} 
+            \draw ([xshift=1.6cm, yshift=\y cm]current page.north west) -- 
+                  ([xshift=2cm, yshift=\y cm]current page.north west);
+                  
+        \draw ([xshift=2cm, yshift=-5cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-9cm]current page.north west);
+        \draw ([xshift=2cm, yshift=-11.6cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-17cm]current page.north west);
+              
+        % Círculo izquierdo
+        \draw ([xshift=2cm, yshift=-18cm]current page.north west) circle (0.25cm);
+        \draw ([xshift=2cm, yshift=-18.5cm]current page.north west) -- 
+              ([xshift=2cm, yshift=-21cm]current page.north west);
+
+        % --- ESQUINA INFERIOR IZQUIERDA (Arcos) ---
+        \draw ([xshift=2cm, yshift=6cm]current page.south west) arc (90:0:4cm);
+        \draw ([xshift=2cm, yshift=4.5cm]current page.south west) arc (90:0:2.5cm);
+        \draw ([xshift=2cm, yshift=3cm]current page.south west) arc (90:0:1cm);
+        \draw ([xshift=2.2cm, yshift=2.2cm]current page.south west) rectangle ++(0.4, 0.4);
+
+        % --- LADO DERECHO ---
+        % Círculo derecho
+        \draw ([xshift=-2cm, yshift=-9.5cm]current page.north east) circle (0.25cm);
+        \draw ([xshift=-2cm, yshift=-7.5cm]current page.north east) -- 
+              ([xshift=-2cm, yshift=-9cm]current page.north east);
+        \draw ([xshift=-2cm, yshift=-10cm]current page.north east) -- 
+              ([xshift=-2cm, yshift=-15cm]current page.north east);
+              
+        % Cortes derechos (|||)
+        \foreach \y in {-16, -16.3, -16.6} 
+            \draw ([xshift=-2cm, yshift=\y cm]current page.north east) -- 
+                  ([xshift=-1.6cm, yshift=\y cm]current page.north east);
+                  
+        \draw ([xshift=-2cm, yshift=-17.6cm]current page.north east) -- 
+              ([xshift=-2cm, yshift=-22cm]current page.north east);
+
+        % --- LADO INFERIOR ---
+        \draw ([xshift=7cm, yshift=2cm]current page.south west) -- 
+              ([xshift=9cm, yshift=2cm]current page.south west);
+        % Cortes inferiores (|||)
+        \foreach \x in {10, 10.3, 10.6} 
+            \draw ([xshift=\x cm, yshift=2cm]current page.south west) -- 
+                  ([xshift=\x cm, yshift=1.6cm]current page.south west);
+        \draw ([xshift=11.6cm, yshift=2cm]current page.south west) -- 
+              ([xshift=15cm, yshift=2cm]current page.south west);
+
+        % --- ESQUINA INFERIOR DERECHA ---
+        \draw ([xshift=-2cm, yshift=4cm]current page.south east) -- 
+              ([xshift=-2cm, yshift=2cm]current page.south east) -- 
+              ([xshift=-4cm, yshift=2cm]current page.south east);
+
+        % ==========================================
+        % LOGOS
+        % ==========================================
+        % Van dentro del marco (la línea superior está en yshift=-2cm) y por
+        % encima del nombre de la universidad, que empieza en yshift=-5.4cm.
+        %
+        % Se buscan dos archivos con nombre fijo: `logo-universidad.png` a la
+        % izquierda y `logo-facultad.png` a la derecha. Salen de la carpeta de
+        % logos (templates/logos/ por omisión, o la que indique --logos), que
+        % generate_pdf() copia junto al .tex temporal y compile_pdf() agrega a
+        % TEXINPUTS; por eso aquí basta con el nombre, sin ruta ni extensión.
+        % Si faltan, la portada se compila igual (mismo criterio que los .sty
+        % opcionales del preámbulo).
+        %
+        % Se escalan por ALTURA y no por ancho porque sus proporciones suelen
+        % ser muy distintas: un escudo es casi cuadrado y el logotipo de una
+        % facultad suele ser una banda alargada. Si tus logos se ven
+        % descolocados, estos dos valores son los que hay que ajustar.
+        \IfFileExists{logo-universidad.png}{%
+            \node[anchor=north west, inner sep=0pt] at ([xshift=3.5cm, yshift=-2.6cm]current page.north west)
+                {\includegraphics[height=1.6cm]{logo-universidad}};}{}
+        \IfFileExists{logo-facultad.png}{%
+            \node[anchor=north west, inner sep=0pt] at ([xshift=11.3cm, yshift=-3.18cm]current page.north west)
+                {\includegraphics[height=0.88cm]{logo-facultad}};}{}
+
+        % ==========================================
+        % TEXTOS DE LA PORTADA
+        % ==========================================
+        \node[anchor=north west, font=\sffamily\bfseries\large] at ([xshift=3.5cm, yshift=-5.4cm]current page.north west) {\NombreUniversidad};
+
+        \node[anchor=north west, font=\sffamily\normalsize] at ([xshift=3.5cm, yshift=-6.2cm]current page.north west) {\NombreFacultad};
+        
+        \node[anchor=north west, font=\sffamily\bfseries\Huge, align=left,
+              text width=12cm] at ([xshift=3.5cm, yshift=-7.5cm]current page.north west) {%
+              \hyphenpenalty=10000\exhyphenpenalty=10000\TituloTrabajo};
+        
+        % Línea separadora de texto
+        \draw[line width=1.2pt] ([xshift=3.5cm, yshift=-14.3cm]current page.north west) -- ([xshift=14cm, yshift=-14.3cm]current page.north west);
+        
+        % Las dos primeras líneas son opcionales e independientes entre sí: el
+        % alumno, los integrantes, los dos o ninguno. El \\[0.25cm] de separación
+        % va DENTRO de cada condicional, porque un \\ suelto al inicio del nodo
+        % dejaría un renglón en blanco (o un error de TikZ) al omitir la línea.
+        % Los integrantes se meten en un tabular alineado por arriba para que el
+        % segundo nombre y los siguientes queden bajo el primero y no vuelvan al
+        % margen izquierdo; el \sffamily y el interlineado del nodo se heredan
+        % dentro del tabular. El \raisebox anula solo la ALTURA de ese tabular
+        % (conserva la profundidad, que es la que separa la última línea de
+        % MATERIA): sin eso, cuando los integrantes son la primera línea del
+        % nodo su fila alta supera el \topskip y todo el bloque baja ~8pt
+        % respecto a las demás portadas.
+        \node[anchor=north west, font=\sffamily\normalsize, align=left,
+              text width=11cm] at ([xshift=3.5cm, yshift=-14.8cm]current page.north west) {%
+              % Los integrantes SUSTITUYEN al alumno: en un trabajo de equipo la
+              % portada lista al equipo y no repite la firma individual, aunque
+              % ALUMNO siga puesto en el .env. Sin integrantes se muestra el
+              % alumno, y si tampoco lo hay no aparece ninguna de las dos.
+              \ifdefempty{\ListaIntegrantes}{%
+                  \ifdefempty{\NombreAlumno}{}{\textbf{ALUMNO:} \NombreAlumno\\[0.25cm]}%
+              }{%
+                  \textbf{INTEGRANTES:} %
+                  \raisebox{0pt}[0pt][\depth]{\begin{tabular}[t]{@{}l@{}}%
+                      \ListaIntegrantes\end{tabular}}\\[0.25cm]%
+              }%
+              % El orden de estas líneas es fijo y no depende del orden en que
+              % se hayan escrito las opciones del comando:
+              %   alumno (o integrantes), materia, docente, semestre y grupo.
+              \textbf{MATERIA:} \NombreMateria\\[0.25cm]
+              % El docente tambien es opcional: la materia y el semestre son los
+              % unicos datos que siempre aparecen.
+              \ifdefempty{\NombreMaestro}{}{\textbf{DOCENTE:} \NombreMaestro\\[0.25cm]}%
+              \textbf{SEMESTRE:} \SemestreActual%
+              % El grupo es opcional y cierra el bloque. El salto va DENTRO del
+              % condicional para no dejar un renglón vacío cuando no se indica.
+              \ifdefempty{\GrupoMateria}{}{\\[0.25cm]\textbf{GRUPO:} \GrupoMateria}};
+        
+        \node[anchor=south east, font=\sffamily\bfseries, align=right] at ([xshift=-3.5cm, yshift=3.5cm]current page.south east) {FECHA DE ENTREGA: \FechaEntrega};
+
+    \end{tikzpicture}
+\end{titlepage}
+
+% El entorno titlepage reinicia el contador; APA cuenta la portada como página 1.
+\setcounter{page}{2}
+
+% APA 7 recomienda texto alineado a la izquierda, con margen derecho irregular.
+% \RaggedRight reinicia \parindent a 0 (lo trae puesto a \RaggedRightParindent,
+% que por omision vale \z@): sin esta linea la sangria de 1.27cm fijada arriba
+% desaparecia en todo el documento, aunque indentfirst siguiera cargado.
+\RaggedRight
+\setlength{\parindent}{1.27cm}
+
+% ==========================================
+% ÍNDICE
+% ==========================================
+\tableofcontents
+\newpage
+
+% ==========================================
+% CONTENIDO CONVERTIDO DESDE MARKDOWN
+% ==========================================
+%%CONTENIDO_MARKDOWN%%
+
+\end{document}

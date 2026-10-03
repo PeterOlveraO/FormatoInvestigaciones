@@ -1,22 +1,28 @@
-\documentclass[12pt, letterpaper]{article}
+% investigacion.sty — preámbulo compartido por todas las plantillas.
+% Contiene todo lo que la salida de Pandoc y los filtros dan por definido
+% (tablas, imágenes, código, Unicode, emoji, gráficas) y el formato APA del
+% cuerpo. Cada plantilla solo aporta su portada y sus datos; ver CLAUDE.md
+% antes de tocar el orden de este archivo.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{investigacion}[2026/10/03 Preambulo comun de las plantillas]
 
 % ==========================================
 % PAQUETES BASE
 % ==========================================
-\usepackage[utf8]{inputenc}
-\usepackage[T1]{fontenc}
-\usepackage{textcomp}                     % Simbolos (euro, grados, etc.)
-\usepackage[spanish, es-tabla]{babel}     % Idioma español
-\usepackage[margin=2.54cm]{geometry}      % Márgenes APA (1 pulgada)
-\usepackage{setspace}                     % Interlineado
-\usepackage{indentfirst}                  % Sangría en el primer párrafo
-\usepackage{titlesec}                     % Formato de títulos APA
-\usepackage{ragged2e}                     % Alineación a la izquierda sin justificar
-\usepackage{fancyhdr}                     % Número de página en el encabezado
-\usepackage{amsmath, amssymb}             % Matemáticas (debe ir antes de newtxmath)
-\usepackage{newtxtext, newtxmath}         % Times New Roman (clon libre) en texto y matemáticas
-\usepackage{xcolor}                       % Color (lo requiere el resaltado de código)
-\usepackage{tikz}                         % Para dibujar la portada geométrica
+\RequirePackage[utf8]{inputenc}
+\RequirePackage[T1]{fontenc}
+\RequirePackage{textcomp}                     % Simbolos (euro, grados, etc.)
+\RequirePackage[spanish, es-tabla]{babel}     % Idioma español
+\RequirePackage[margin=2.54cm]{geometry}      % Márgenes APA (1 pulgada)
+\RequirePackage{setspace}                     % Interlineado
+\RequirePackage{indentfirst}                  % Sangría en el primer párrafo
+\RequirePackage{titlesec}                     % Formato de títulos APA
+\RequirePackage{ragged2e}                     % Alineación a la izquierda sin justificar
+\RequirePackage{fancyhdr}                     % Número de página en el encabezado
+\RequirePackage{amsmath, amssymb}             % Matemáticas (debe ir antes de newtxmath)
+\RequirePackage{newtxtext, newtxmath}         % Times New Roman (clon libre) en texto y matemáticas
+\RequirePackage{xcolor}                       % Color (lo requiere el resaltado de código)
+\RequirePackage{tikz}                         % Para dibujar la portada geométrica
 
 % ==========================================
 % GRÁFICAS DE DATOS
@@ -30,7 +36,7 @@
 % APA. Cada gráfica puede cambiar lo que quiera en su propio `\begin{axis}[...]`:
 % estas opciones se aplican antes que las suyas.
 \IfFileExists{pgfplots.sty}{%
-  \usepackage{pgfplots}
+  \RequirePackage{pgfplots}
   \pgfplotsset{compat=1.18}
   \usepgfplotslibrary{statistics}         % Caja y bigotes
   \pgfplotsset{
@@ -65,32 +71,32 @@
     }},
   }
 }{}
-\IfFileExists{pgfplotstable.sty}{\usepackage{pgfplotstable}}{}  % Datos desde CSV
-\IfFileExists{pgf-pie.sty}{\usepackage{pgf-pie}}{}              % Gráfica de pastel
+\IfFileExists{pgfplotstable.sty}{\RequirePackage{pgfplotstable}}{}  % Datos desde CSV
+\IfFileExists{pgf-pie.sty}{\RequirePackage{pgf-pie}}{}              % Gráfica de pastel
 
 % ==========================================
 % PAQUETES QUE NECESITA LA SALIDA DE PANDOC
 % ==========================================
 % Cualquier cambio aquí debe mantenerse alineado con lo que Pandoc genera:
 %   pandoc archivo.md -s --to=latex   (revisar el preámbulo resultante)
-\usepackage{graphicx}                     % Imágenes incluidas desde Markdown
-\usepackage{longtable}                    % Tablas extensas de Markdown
-\usepackage{booktabs}                     % Líneas de tablas generadas por Pandoc
-\usepackage{array}                        % Columnas de tablas
-\usepackage{calc}                         % \real{} en los anchos de columna de Pandoc
-\usepackage{caption}                      % Pies de tabla y figura
-\usepackage{etoolbox}                     % Parches para longtable
-\usepackage{fancyvrb}                     % Bloques de código
-\IfFileExists{framed.sty}{\usepackage{framed}}{}  % Fondo del código y cajas de nota
-\usepackage{soul}                         % \hl{} para el resaltado (==texto==)
-\IfFileExists{ulem.sty}{\usepackage[normalem]{ulem}}{}  % \sout y \uline
-\IfFileExists{upquote.sty}{\usepackage{upquote}}{}  % Comillas rectas en verbatim
+\RequirePackage{graphicx}                     % Imágenes incluidas desde Markdown
+\RequirePackage{longtable}                    % Tablas extensas de Markdown
+\RequirePackage{booktabs}                     % Líneas de tablas generadas por Pandoc
+\RequirePackage{array}                        % Columnas de tablas
+\RequirePackage{calc}                         % \real{} en los anchos de columna de Pandoc
+\RequirePackage{caption}                      % Pies de tabla y figura
+\RequirePackage{etoolbox}                     % Parches para longtable
+\RequirePackage{fancyvrb}                     % Bloques de código
+\IfFileExists{framed.sty}{\RequirePackage{framed}}{}  % Fondo del código y cajas de nota
+\RequirePackage{soul}                         % \hl{} para el resaltado (==texto==)
+\IfFileExists{ulem.sty}{\RequirePackage[normalem]{ulem}}{}  % \sout y \uline
+\IfFileExists{upquote.sty}{\RequirePackage{upquote}}{}  % Comillas rectas en verbatim
 % Los diagramas de arte ASCII pegados dentro de un bloque de código usan los
 % caracteres de dibujo de caja (└ ─ ┼ │); pmboxdraw los compone como reglas del
 % ancho exacto de la letra monoespaciada, así que el dibujo no se desalinea.
-\IfFileExists{pmboxdraw.sty}{\usepackage{pmboxdraw}}{}
+\IfFileExists{pmboxdraw.sty}{\RequirePackage{pmboxdraw}}{}
 % Los emoji se componen como imagen; ver el bloque SÍMBOLOS UNICODE.
-\IfFileExists{twemojis.sty}{\usepackage{twemojis}}{}
+\IfFileExists{twemojis.sty}{\RequirePackage{twemojis}}{}
 
 % ------------------------------------------------------------------
 % Tachado, resaltado y subrayado: por qué no se usan los de soul
@@ -131,7 +137,7 @@
 \captionsetup[figure]{labelfont=bf, textfont=it, labelsep=newline,
                       singlelinecheck=false, justification=raggedright}
 \IfFileExists{floatrow.sty}{%
-  \usepackage{floatrow}
+  \RequirePackage{floatrow}
   \floatsetup[figure]{capposition=top}
   % floatrow deja las tablas largas pegadas al margen izquierdo; longtable las
   % centra con \LTleft y \LTright a \fill, que es como salian antes.
@@ -140,9 +146,7 @@
 \newcounter{none}                         % Pandoc usa \LTcaptype=none en tablas sin título
 
 % Orden correcto de las tablas después de \paragraph o \subparagraph
-\makeatletter
 \patchcmd\longtable{\par}{\if@noskipsec\mbox{}\fi\par}{}{}
-\makeatother
 
 % Comandos que Pandoc espera encontrar definidos
 \providecommand{\tightlist}{%
@@ -175,7 +179,6 @@
   {\par}
 
 % Imágenes que nunca exceden el ancho ni el alto del texto
-\makeatletter
 \newsavebox\pandoc@box
 \providecommand*\pandocbounded[1]{%
   \sbox\pandoc@box{#1}%
@@ -196,7 +199,6 @@
 % Esta línea va aquí y no junto a floatrow porque Pandoc la fija en este punto:
 % definida antes, la sobrescribiría y las figuras volverían a flotar.
 \@ifundefined{floatsetup}{\def\fps@figure{htbp}}{\def\fps@figure{H}}
-\makeatother
 
 % Resaltado de sintaxis de los bloques de código de Pandoc
 \newcommand{\VerbBar}{|}
@@ -261,7 +263,7 @@
 % documento de prueba con todos los candidatos y leyendo los avisos del log, así
 % que los que ya funcionaban (→ ± × ÷ ° … — – « » ¿ ¡ € • ½) no se tocan.
 \IfFileExists{newunicodechar.sty}{%
-  \usepackage{newunicodechar}
+  \RequirePackage{newunicodechar}
   % Relaciones y operadores
   \newunicodechar{≠}{\ensuremath{\neq}}
   \newunicodechar{≤}{\ensuremath{\leq}}
@@ -390,7 +392,6 @@
   \newunicodechar{‍}{}%   U+200D unificador de ancho cero
 }{}
 
-\makeatletter
 % Punto de código decimal del carácter que inputenc no supo componer. El
 % \decode@UTFviii de utf8.def es el mismo que usa LaTeX para su propio mensaje
 % de error, así que el cálculo no lo inventa la plantilla.
@@ -425,7 +426,6 @@
     \fi
   }%
 }
-\makeatother
 
 % ==========================================
 % CONFIGURACIÓN APA 7.ª EDICIÓN (trabajo estudiantil)
@@ -442,23 +442,6 @@
 
 % Las tablas largas se leen mejor a un espacio; APA lo permite.
 \AtBeginEnvironment{longtable}{\singlespacing}
-
-% ==========================================
-% DATOS EDITABLES DE LA PLANTILLA
-% ==========================================
-\newcommand{\NombreUniversidad}{%%UNIVERSIDAD%%}
-\newcommand{\NombreFacultad}{%%FACULTAD%%}
-\newcommand{\TituloTrabajo}{%%TITULO%%}
-\newcommand{\NombreAlumno}{%%ALUMNO%%}
-% Lista de integrantes del equipo: Python ya la entrega escapada y con los
-% nombres unidos por \\, para que caigan en renglones distintos. Puede quedar
-% vacía; la portada omite entonces la línea completa.
-\newcommand{\ListaIntegrantes}{%%INTEGRANTES%%}
-\newcommand{\NombreMateria}{%%MATERIA%%}
-\newcommand{\GrupoMateria}{%%GRUPO%%}
-\newcommand{\NombreMaestro}{%%DOCENTE%%}
-\newcommand{\SemestreActual}{%%SEMESTRE%%}
-\newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
 
 % Encabezados APA: nivel 1 centrado y niveles siguientes alineados a la izquierda
 \titleformat{\section}
@@ -483,221 +466,4 @@
 \fancyhead[R]{\thepage}
 \renewcommand{\headrulewidth}{0pt}
 \setlength{\headheight}{15pt}
-
-% hyperref se carga al final del preámbulo (requisito del paquete)
-\usepackage{hyperref}
-\usepackage{bookmark}
-\IfFileExists{xurl.sty}{\usepackage{xurl}}{}  % Corta URLs largas
-\urlstyle{same}
-
-% Permite notas al pie dentro de tablas largas (debe ir después de hyperref)
-\IfFileExists{footnotehyper.sty}{\usepackage{footnotehyper}}{\usepackage{footnote}}
-\makesavenoteenv{longtable}
-
-% Autor de los metadatos del PDF: sigue el mismo criterio que la portada, los
-% integrantes si los hay y si no el alumno, para que los metadatos no firmen a
-% alguien que la portada ya no menciona. Como esa lista lleva \\ entre nombres y
-% hyperref no admite ese comando dentro de los metadatos, se traduce a comas
-% solo al construir la cadena del PDF.
-\pdfstringdefDisableCommands{\def\\{, }}
-\newcommand{\AutorPDF}{\ListaIntegrantes}
-\ifdefempty{\ListaIntegrantes}{\renewcommand{\AutorPDF}{\NombreAlumno}}{}
-
-% Quitar bordes rojos de los links
-\hypersetup{
-    colorlinks=true,
-    linkcolor=black,
-    filecolor=black,
-    urlcolor=black,
-    citecolor=black,
-    pdftitle={\TituloTrabajo},
-    pdfauthor={\AutorPDF},
-    pdfsubject={Plantilla para trabajo académico}
-}
-
-\begin{document}
-
-% ==========================================
-% PORTADA (Diseño Constructivista/Minimalista con TikZ)
-% ==========================================
-\begin{titlepage}
-    \thispagestyle{fancy}
-    \begin{tikzpicture}[remember picture, overlay, draw=black, line width=1.5pt]
-        
-        % --- ESQUINA SUPERIOR IZQUIERDA ---
-        \draw ([xshift=2cm, yshift=-4cm]current page.north west) -- 
-              ([xshift=2cm, yshift=-2cm]current page.north west) -- 
-              ([xshift=4cm, yshift=-2cm]current page.north west);
-              
-        % Cortes superiores (|||)
-        \foreach \x in {9, 9.3, 9.6} 
-            \draw ([xshift=\x cm, yshift=-1.6cm]current page.north west) -- 
-                  ([xshift=\x cm, yshift=-2cm]current page.north west);
-                  
-        \draw ([xshift=5cm, yshift=-2cm]current page.north west) -- 
-              ([xshift=8cm, yshift=-2cm]current page.north west);
-        \draw ([xshift=10.6cm, yshift=-2cm]current page.north west) -- 
-              ([xshift=15cm, yshift=-2cm]current page.north west);
-
-        % --- ESQUINA SUPERIOR DERECHA (Arcos) ---
-        \draw ([xshift=-2cm, yshift=-6cm]current page.north east) arc (270:180:4cm);
-        \draw ([xshift=-2cm, yshift=-4.5cm]current page.north east) arc (270:180:2.5cm);
-        \draw ([xshift=-2cm, yshift=-3cm]current page.north east) arc (270:180:1cm);
-        \draw ([xshift=-2.5cm, yshift=-2.5cm]current page.north east) rectangle ++(0.4, 0.4);
-
-        % --- LADO IZQUIERDO ---
-        % Cortes izquierdos (|||)
-        \foreach \y in {-10, -10.3, -10.6} 
-            \draw ([xshift=1.6cm, yshift=\y cm]current page.north west) -- 
-                  ([xshift=2cm, yshift=\y cm]current page.north west);
-                  
-        \draw ([xshift=2cm, yshift=-5cm]current page.north west) -- 
-              ([xshift=2cm, yshift=-9cm]current page.north west);
-        \draw ([xshift=2cm, yshift=-11.6cm]current page.north west) -- 
-              ([xshift=2cm, yshift=-17cm]current page.north west);
-              
-        % Círculo izquierdo
-        \draw ([xshift=2cm, yshift=-18cm]current page.north west) circle (0.25cm);
-        \draw ([xshift=2cm, yshift=-18.5cm]current page.north west) -- 
-              ([xshift=2cm, yshift=-21cm]current page.north west);
-
-        % --- ESQUINA INFERIOR IZQUIERDA (Arcos) ---
-        \draw ([xshift=2cm, yshift=6cm]current page.south west) arc (90:0:4cm);
-        \draw ([xshift=2cm, yshift=4.5cm]current page.south west) arc (90:0:2.5cm);
-        \draw ([xshift=2cm, yshift=3cm]current page.south west) arc (90:0:1cm);
-        \draw ([xshift=2.2cm, yshift=2.2cm]current page.south west) rectangle ++(0.4, 0.4);
-
-        % --- LADO DERECHO ---
-        % Círculo derecho
-        \draw ([xshift=-2cm, yshift=-9.5cm]current page.north east) circle (0.25cm);
-        \draw ([xshift=-2cm, yshift=-7.5cm]current page.north east) -- 
-              ([xshift=-2cm, yshift=-9cm]current page.north east);
-        \draw ([xshift=-2cm, yshift=-10cm]current page.north east) -- 
-              ([xshift=-2cm, yshift=-15cm]current page.north east);
-              
-        % Cortes derechos (|||)
-        \foreach \y in {-16, -16.3, -16.6} 
-            \draw ([xshift=-2cm, yshift=\y cm]current page.north east) -- 
-                  ([xshift=-1.6cm, yshift=\y cm]current page.north east);
-                  
-        \draw ([xshift=-2cm, yshift=-17.6cm]current page.north east) -- 
-              ([xshift=-2cm, yshift=-22cm]current page.north east);
-
-        % --- LADO INFERIOR ---
-        \draw ([xshift=7cm, yshift=2cm]current page.south west) -- 
-              ([xshift=9cm, yshift=2cm]current page.south west);
-        % Cortes inferiores (|||)
-        \foreach \x in {10, 10.3, 10.6} 
-            \draw ([xshift=\x cm, yshift=2cm]current page.south west) -- 
-                  ([xshift=\x cm, yshift=1.6cm]current page.south west);
-        \draw ([xshift=11.6cm, yshift=2cm]current page.south west) -- 
-              ([xshift=15cm, yshift=2cm]current page.south west);
-
-        % --- ESQUINA INFERIOR DERECHA ---
-        \draw ([xshift=-2cm, yshift=4cm]current page.south east) -- 
-              ([xshift=-2cm, yshift=2cm]current page.south east) -- 
-              ([xshift=-4cm, yshift=2cm]current page.south east);
-
-        % ==========================================
-        % LOGOS
-        % ==========================================
-        % Van dentro del marco (la línea superior está en yshift=-2cm) y por
-        % encima del nombre de la universidad, que empieza en yshift=-5.4cm.
-        %
-        % Se buscan dos archivos con nombre fijo: `logo-universidad.png` a la
-        % izquierda y `logo-facultad.png` a la derecha. Salen de la carpeta de
-        % logos (Latex/logos/ por omisión, o la que indique --logos), que
-        % generate_pdf() copia junto al .tex temporal y compile_pdf() agrega a
-        % TEXINPUTS; por eso aquí basta con el nombre, sin ruta ni extensión.
-        % Si faltan, la portada se compila igual (mismo criterio que los .sty
-        % opcionales del preámbulo).
-        %
-        % Se escalan por ALTURA y no por ancho porque sus proporciones suelen
-        % ser muy distintas: un escudo es casi cuadrado y el logotipo de una
-        % facultad suele ser una banda alargada. Si tus logos se ven
-        % descolocados, estos dos valores son los que hay que ajustar.
-        \IfFileExists{logo-universidad.png}{%
-            \node[anchor=north west, inner sep=0pt] at ([xshift=3.5cm, yshift=-2.6cm]current page.north west)
-                {\includegraphics[height=1.6cm]{logo-universidad}};}{}
-        \IfFileExists{logo-facultad.png}{%
-            \node[anchor=north west, inner sep=0pt] at ([xshift=11.3cm, yshift=-3.18cm]current page.north west)
-                {\includegraphics[height=0.88cm]{logo-facultad}};}{}
-
-        % ==========================================
-        % TEXTOS DE LA PORTADA
-        % ==========================================
-        \node[anchor=north west, font=\sffamily\bfseries\large] at ([xshift=3.5cm, yshift=-5.4cm]current page.north west) {\NombreUniversidad};
-
-        \node[anchor=north west, font=\sffamily\normalsize] at ([xshift=3.5cm, yshift=-6.2cm]current page.north west) {\NombreFacultad};
-        
-        \node[anchor=north west, font=\sffamily\bfseries\Huge, align=left,
-              text width=12cm] at ([xshift=3.5cm, yshift=-7.5cm]current page.north west) {%
-              \hyphenpenalty=10000\exhyphenpenalty=10000\TituloTrabajo};
-        
-        % Línea separadora de texto
-        \draw[line width=1.2pt] ([xshift=3.5cm, yshift=-14.3cm]current page.north west) -- ([xshift=14cm, yshift=-14.3cm]current page.north west);
-        
-        % Las dos primeras líneas son opcionales e independientes entre sí: el
-        % alumno, los integrantes, los dos o ninguno. El \\[0.25cm] de separación
-        % va DENTRO de cada condicional, porque un \\ suelto al inicio del nodo
-        % dejaría un renglón en blanco (o un error de TikZ) al omitir la línea.
-        % Los integrantes se meten en un tabular alineado por arriba para que el
-        % segundo nombre y los siguientes queden bajo el primero y no vuelvan al
-        % margen izquierdo; el \sffamily y el interlineado del nodo se heredan
-        % dentro del tabular. El \raisebox anula solo la ALTURA de ese tabular
-        % (conserva la profundidad, que es la que separa la última línea de
-        % MATERIA): sin eso, cuando los integrantes son la primera línea del
-        % nodo su fila alta supera el \topskip y todo el bloque baja ~8pt
-        % respecto a las demás portadas.
-        \node[anchor=north west, font=\sffamily\normalsize, align=left,
-              text width=11cm] at ([xshift=3.5cm, yshift=-14.8cm]current page.north west) {%
-              % Los integrantes SUSTITUYEN al alumno: en un trabajo de equipo la
-              % portada lista al equipo y no repite la firma individual, aunque
-              % ALUMNO siga puesto en el .env. Sin integrantes se muestra el
-              % alumno, y si tampoco lo hay no aparece ninguna de las dos.
-              \ifdefempty{\ListaIntegrantes}{%
-                  \ifdefempty{\NombreAlumno}{}{\textbf{ALUMNO:} \NombreAlumno\\[0.25cm]}%
-              }{%
-                  \textbf{INTEGRANTES:} %
-                  \raisebox{0pt}[0pt][\depth]{\begin{tabular}[t]{@{}l@{}}%
-                      \ListaIntegrantes\end{tabular}}\\[0.25cm]%
-              }%
-              % El orden de estas líneas es fijo y no depende del orden en que
-              % se hayan escrito las opciones del comando:
-              %   alumno (o integrantes), materia, docente, semestre y grupo.
-              \textbf{MATERIA:} \NombreMateria\\[0.25cm]
-              % El docente tambien es opcional: la materia y el semestre son los
-              % unicos datos que siempre aparecen.
-              \ifdefempty{\NombreMaestro}{}{\textbf{DOCENTE:} \NombreMaestro\\[0.25cm]}%
-              \textbf{SEMESTRE:} \SemestreActual%
-              % El grupo es opcional y cierra el bloque. El salto va DENTRO del
-              % condicional para no dejar un renglón vacío cuando no se indica.
-              \ifdefempty{\GrupoMateria}{}{\\[0.25cm]\textbf{GRUPO:} \GrupoMateria}};
-        
-        \node[anchor=south east, font=\sffamily\bfseries, align=right] at ([xshift=-3.5cm, yshift=3.5cm]current page.south east) {FECHA DE ENTREGA: \FechaEntrega};
-
-    \end{tikzpicture}
-\end{titlepage}
-
-% El entorno titlepage reinicia el contador; APA cuenta la portada como página 1.
-\setcounter{page}{2}
-
-% APA 7 recomienda texto alineado a la izquierda, con margen derecho irregular.
-% \RaggedRight reinicia \parindent a 0 (lo trae puesto a \RaggedRightParindent,
-% que por omision vale \z@): sin esta linea la sangria de 1.27cm fijada arriba
-% desaparecia en todo el documento, aunque indentfirst siguiera cargado.
-\RaggedRight
-\setlength{\parindent}{1.27cm}
-
-% ==========================================
-% ÍNDICE
-% ==========================================
-\tableofcontents
-\newpage
-
-% ==========================================
-% CONTENIDO CONVERTIDO DESDE MARKDOWN
-% ==========================================
-%%CONTENIDO_MARKDOWN%%
-
-\end{document}
+\endinput
