@@ -13,7 +13,7 @@ interlineado doble, la sangría y los pies de figura los pone el programa.
 
 | | |
 |---|---|
-| ![Portada generada](docs/images/portada.png) | ![Página con un diagrama](docs/images/diagrama.png) |
+| ![Portada generada](docs/images/cover.png) | ![Página con un diagrama](docs/images/diagram.png) |
 
 ## Qué sabe hacer
 
@@ -35,7 +35,7 @@ interlineado doble, la sangría y los pies de figura los pone el programa.
   Graphviz no está instalado, el trabajo se genera igual y el comando te avisa
   en la terminal de qué pasó.
 
-![Página con gráficas](docs/images/graficas.png)
+![Página con gráficas](docs/images/charts.png)
 
 ## Requisitos
 
@@ -109,7 +109,7 @@ redistribuibles. Deja los tuyos en `templates/logos/` con estos nombres:
 Si prefieres tenerlos fuera del proyecto, indica la carpeta con `--logos` o deja
 la ruta fija en la variable `LOGOS` del `.env`. Los dos archivos son opcionales:
 sin ellos la portada se genera igual, solo que sin logos. Más detalles en
-[`templates/logos/LEEME.md`](templates/logos/LEEME.md).
+[`templates/logos/README.md`](templates/logos/README.md).
 
 ## Inicio rápido
 

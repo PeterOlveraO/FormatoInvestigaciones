@@ -596,7 +596,7 @@ APA prefiere las barras, pero el pastel sirve para unas pocas proporciones.
 
 ## Imágenes
 
-La ruta se busca desde la carpeta del Markdown y desde `imagenes/` del
+La ruta se busca desde la carpeta del Markdown y desde `cache/` del
 proyecto. Si es una dirección de internet, se descarga la primera vez y queda
 guardada para las siguientes. El tamaño se controla con `{width=...}`.
 
@@ -607,11 +607,11 @@ guardada para las siguientes. El tamaño se controla con `{width=...}`.
 
 Un PNG con fondo transparente, reducido al 30 % del ancho del texto:
 
-![El logotipo de GitHub](gh.png){width=30%}
+![La tubería del generador, pequeña](sample-image.png){width=30%}
 
 El mismo archivo al 60 %, para ver que el tamaño es lo único que cambia:
 
-![El logotipo de GitHub, más grande](gh.png){width=60%}
+![La tubería del generador, más grande](sample-image.png){width=60%}
 
 ## Fórmulas
 

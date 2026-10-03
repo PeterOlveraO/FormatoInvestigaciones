@@ -541,7 +541,7 @@ investigacion examples/catalog.md \
   --teacher "Nombre del docente" --group "7-A" \
   --env-file .env.example --logos /tmp/sinlogos --output /tmp/pub
 cp /tmp/pub/catalogo.pdf examples/catalog.pdf
-pdftoppm -r 110 -png -f 1 -l 1 examples/catalog.pdf docs/images/portada
+pdftoppm -r 110 -png -f 1 -l 1 examples/catalog.pdf docs/images/cover
 ```
 
 El `--env-file .env.example` es la clave: la portada sale con los mismos

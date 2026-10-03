@@ -1,43 +1,33 @@
-# Compilacion de Rust
+# Rust build output
 /target/
 
-# Entorno virtual y artefactos de Python
-.venv/
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
-
-# Datos personales: la configuracion real de cada quien
+# Personal data: everyone's own settings, papers and PDFs
 .env
-
-# PDFs generados y restos de una compilacion fallida
+/input/
 /output/
-last-error.tex
-last-error.log
-ultimo-error.tex
-ultimo-error.log
 
-# Cache: imagenes descargadas de la web y diagramas dibujados con Graphviz.
-# Se vuelven a generar solos, no tiene sentido versionarlos.
+# Course profiles hold teachers' names; only the example is shared
+/courses/*
+!/courses/example.toml
+!/courses/README.md
+
+# Institution logos are rarely redistributable; only the explanation is shared
+/templates/logos/*
+!/templates/logos/README.md
+/templates/*/logos/
+
+# Regenerable cache: downloaded images, diagrams and LaTeX state
 /cache/
 
-# Trabajos propios en Markdown, que no son parte del proyecto
-/input/
+# Leftovers of a failed build (saved next to the PDF)
+last-error.tex
+last-error.log
 
-# Los logos de tu institucion NO se suben: normalmente no son redistribuibles.
-# Cada quien deja los suyos en templates/logos/ (ver el LEEME de esa carpeta) o
-# en la carpeta que indique --logos.
-templates/logos/*
-!templates/logos/LEEME.md
-templates/*/logos/
-
-# Perfiles de materia: llevan nombres de docentes, son datos de cada quien.
-courses/*
-!courses/example.toml
-!courses/LEEME.md
-
-# Restos de editores y del sistema
+# Editors and operating systems
 *.save
+*.swp
 *~
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
