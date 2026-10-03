@@ -6,7 +6,7 @@ profesor, y lo que te devuelva se guarda tal cual en un `.md` dentro de `input/`
 y se genera con:
 
 ```bash
-investigacion mi-trabajo.md --titulo "El tema" --materia "La materia"
+investigacion mi-trabajo.md --title "El tema" --subject "La materia"
 ```
 
 El prompt le explica al modelo **todo** lo que el generador sabe componer, para

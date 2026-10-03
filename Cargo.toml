@@ -2,6 +2,7 @@
 name = "investigacion"
 version = "0.2.0"
 edition = "2024"
+rust-version = "1.88"
 description = "Generates academic papers in PDF from Markdown and an APA LaTeX template."
 license = "GPL-3.0-or-later"
 readme = "README.md"

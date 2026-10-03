@@ -29,7 +29,7 @@
 % ==========================================
 % pgfplots dibuja dentro del propio pdflatex: la gráfica sale vectorial y con la
 % misma tipografía que el texto, en vez de pegada como imagen de otro programa.
-% Los bloques ```pgfplot del Markdown llegan aquí por filtros/graficas.lua.
+% Los bloques ```pgfplot del Markdown llegan aquí por resources/filters/charts.lua.
 %
 % El estilo por omisión es deliberadamente sobrio —escala de grises, rejilla
 % tenue, línea de eje fina— porque el criterio del proyecto es no salirse de
@@ -157,7 +157,7 @@
 % Entornos que producen los filtros del generador
 % ------------------------------------------------------------------
 % `::: nota` y sus hermanas (aviso, ejemplo, definición) llegan aquí envueltas
-% por filtros/bloques.lua. El marco es un filete fino y negro, sin color: una
+% por resources/filters/blocks.lua. El marco es un filete fino y negro, sin color: una
 % caja de colores desentonaría en un trabajo APA.
 \ifdefined\FrameRule
   \newenvironment{CajaMarcada}[1]%

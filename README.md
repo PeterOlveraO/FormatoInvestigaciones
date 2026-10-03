@@ -39,50 +39,67 @@ interlineado doble, la sangría y los pies de figura los pone el programa.
 
 ## Requisitos
 
-Python 3.10 o superior, **Pandoc** y una distribución de **TeX** con `pdflatex`.
-Graphviz es opcional y solo hace falta para los diagramas. Funciona en Linux,
-Windows y macOS.
+**Rust 1.88 o posterior** (para compilar el programa una vez), **Pandoc** y una distribución de
+**TeX** con `pdflatex`. Graphviz es opcional y solo hace falta para los
+diagramas. Funciona en Linux, Windows y macOS.
 
 ```bash
+# Rust, en cualquier sistema: https://rustup.rs
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+
 # Arch o Manjaro
-sudo pacman -S python pandoc graphviz texlive-basic texlive-latexextra \
+sudo pacman -S pandoc graphviz texlive-basic texlive-latexextra \
   texlive-fontsextra texlive-langspanish texlive-pictures texlive-plaingeneric
 
 # Debian o Ubuntu
-sudo apt install python3 python3-venv pandoc graphviz \
+sudo apt install pandoc graphviz \
   texlive-latex-recommended texlive-latex-extra texlive-fonts-extra \
   texlive-lang-spanish texlive-pictures texlive-plain-generic
 
 # Windows
-winget install Python.Python.3.12 JohnMacFarlane.Pandoc Graphviz.Graphviz MiKTeX.MiKTeX
+winget install Rustlang.Rustup JohnMacFarlane.Pandoc Graphviz.Graphviz MiKTeX.MiKTeX
 
 # macOS
-brew install python pandoc graphviz && brew install --cask mactex-no-gui
+brew install rustup pandoc graphviz && brew install --cask mactex-no-gui
 ```
 
 Las instrucciones completas, con Fedora, openSUSE, la lista de paquetes de LaTeX
 y cómo comprobar que no falta nada, están en **[REQUISITOS.md](REQUISITOS.md)**.
-
-El paquete de Python **no tiene dependencias**: solo biblioteca estándar.
 
 ## Instalación
 
 ```bash
 git clone <url-del-repositorio>
 cd FormatoInvestigaciones
-python -m venv .venv
-source .venv/bin/activate        # En Windows: .venv\Scripts\activate
-python -m pip install -e .
+cargo install --path .           # deja `investigacion` en ~/.cargo/bin
 cp .env.example .env             # En Windows: copy .env.example .env
 ```
 
 Edita `.env` con los datos que no cambian entre trabajos (universidad, facultad,
 semestre y tu nombre).
 
+El programa recuerda dónde está el proyecto, así que funciona desde cualquier
+carpeta. Si mueves el repositorio, vuelve a ejecutar `cargo install --path .` o
+indica la ruta en la variable `INVESTIGACION_HOME`.
+
+### Las carpetas del proyecto
+
+```
+input/       tus trabajos en Markdown, en subcarpetas por materia (IA/, IS/...)
+output/      los PDF generados (output/IA/... si usas un perfil con carpeta)
+subjects/    perfiles de materia: nombre, docente, grupo, plantilla y carpeta
+templates/   diseños de portada (apa, apa-simple), el preámbulo común y los logos
+cache/       imágenes descargadas, diagramas y el estado de LaTeX; se puede borrar
+ejemplo/     ejemplos y el catálogo de elementos
+```
+
+En el menú interactivo, la tecla `f` abre cualquiera de estas carpetas en el
+explorador de archivos.
+
 ### Los logos de tu institución
 
 El repositorio **no incluye ningún logo**: los de una universidad rara vez son
-redistribuibles. Deja los tuyos en `Latex/logos/` con estos nombres:
+redistribuibles. Deja los tuyos en `templates/logos/` con estos nombres:
 
 | Archivo | Dónde sale |
 |---|---|
@@ -92,9 +109,20 @@ redistribuibles. Deja los tuyos en `Latex/logos/` con estos nombres:
 Si prefieres tenerlos fuera del proyecto, indica la carpeta con `--logos` o deja
 la ruta fija en la variable `LOGOS` del `.env`. Los dos archivos son opcionales:
 sin ellos la portada se genera igual, solo que sin logos. Más detalles en
-[`Latex/logos/LEEME.md`](Latex/logos/LEEME.md).
+[`templates/logos/LEEME.md`](templates/logos/LEEME.md).
 
 ## Inicio rápido
+
+La forma más cómoda es el menú interactivo:
+
+```bash
+investigacion
+```
+
+Eliges el perfil de la materia, el Markdown de una lista (flechas y Enter, sin
+escribir rutas), escribes el título y pulsas `g`.
+
+Desde la línea de comandos:
 
 ```bash
 # 1. Parte del esqueleto incluido
@@ -103,13 +131,11 @@ cp ejemplo/investigacion.md input/mi-trabajo.md
 # 2. Escribe el contenido en Markdown
 
 # 3. Genera el PDF
-investigacion mi-trabajo.md --titulo "Ecuaciones diferenciales" --materia "Cálculo"
+investigacion mi-trabajo.md --title "Ecuaciones diferenciales" --subject "Cálculo"
 ```
 
-El resultado queda en `output/ecuaciones-diferenciales.pdf`.
-
-Si prefieres no escribir el comando, `investigacion-tui` abre un menú de texto
-con las mismas opciones.
+El resultado queda en `output/mi-trabajo.pdf`: el nombre del archivo sale del
+Markdown y es **independiente del título**. Para cambiarlo, `--file-name`.
 
 Solo **el título y la materia** son obligatorios; el resto de los datos son
 opcionales o salen del `.env`. Y no hace falta escribir la carpeta: los trabajos
@@ -122,6 +148,33 @@ input/
   Economia.md        →  investigacion Economia.md
 ```
 
+### Perfiles de materia
+
+Los datos que se repiten en todos los trabajos de una materia se guardan una vez
+en `subjects/<clave>.toml` (hay un `subjects/example.toml` para copiar):
+
+```toml
+subject = "Inteligencia artificial"
+teacher = "Nombre del docente"
+group = "7-A"
+template = "apa"      # o apa-simple
+folder = "IA"         # input/IA y output/IA
+```
+
+```bash
+investigacion Tarea1.md -p ia --title "Búsqueda heurística"
+```
+
+### Plantillas
+
+`--template apa` (la de siempre, con la portada geométrica) o
+`--template apa-simple` (portada clásica centrada). Cada plantilla es una
+carpeta de `templates/` con un `template.ltx`; todas comparten el preámbulo de
+`templates/common/`, así que una nueva solo tiene que diseñar su portada.
+
+Las opciones de antes en español (`--titulo`, `--materia`, `--docente`…) siguen
+funcionando.
+
 ## El catálogo
 
 [`ejemplo/catalogo.md`](ejemplo/catalogo.md) reúne un ejemplo de **cada cosa que
@@ -133,7 +186,7 @@ El PDF que genera está en el repositorio para verlo sin instalar nada:
 [`ejemplo/catalogo.pdf`](ejemplo/catalogo.pdf) (23 páginas).
 
 ```bash
-investigacion ejemplo/catalogo.md --titulo "Catalogo" --materia "Ejemplo" --docente "Ejemplo"
+investigacion ejemplo/catalogo.md --title "Catalogo" --subject "Ejemplo" --teacher "Ejemplo"
 ```
 
 ## Pedirle el trabajo a una IA
@@ -155,6 +208,7 @@ párrafos sueltos.
   comando, la sintaxis completa que acepta y qué hacer cuando algo falla.
 - **[PROMPT-IA.md](PROMPT-IA.md)** — el prompt para que una IA te redacte el
   trabajo en este formato.
+- **[MEJORAS.md](MEJORAS.md)** — qué cambió con la versión en Rust y por qué.
 - **[CLAUDE.md](CLAUDE.md)** — notas de arquitectura para quien vaya a tocar el
   código: los contratos entre las piezas y las trampas encontradas.
 
@@ -173,8 +227,7 @@ repositorio.
 ## Pruebas
 
 ```bash
-source .venv/bin/activate        # En Windows: .venv\Scripts\activate
-python -m unittest discover -s tests
+cargo test
 ```
 
 Las que generan un PDF real se omiten solas si Pandoc, pdflatex o Graphviz no

@@ -10,6 +10,9 @@ que instalar en cada sistema operativo, [REQUISITOS.md](REQUISITOS.md).
 - [Configuración](#configuración)
 - [Dónde van los archivos](#dónde-van-los-archivos)
 - [El comando](#el-comando)
+- [Perfiles de materia](#perfiles-de-materia)
+- [Plantillas](#plantillas)
+- [Menú interactivo (TUI)](#menú-interactivo-tui)
 - [La portada: alumno, integrantes y grupo](#la-portada-alumno-integrantes-y-grupo)
 - [Estructura del trabajo](#estructura-del-trabajo)
 - [Qué puedes escribir en el Markdown](#qué-puedes-escribir-en-el-markdown)
@@ -17,6 +20,7 @@ que instalar en cada sistema operativo, [REQUISITOS.md](REQUISITOS.md).
 - [Copias en otros directorios](#copias-en-otros-directorios)
 - [Cuando algo falla](#cuando-algo-falla)
 - [Personalizar la plantilla](#personalizar-la-plantilla)
+- [Pruebas](#pruebas)
 
 ## Cómo funciona
 
@@ -40,23 +44,31 @@ mi-trabajo.md
    │        · las gráficas ```pgfplot, que se dibujan en el propio PDF
    │        · las cajas ::: nota y la sangría francesa de las referencias
    │
-   ├─ 4. El fragmento se inserta en Latex/base.ltx, que aporta la portada,
-   │     el formato APA y todo el preámbulo
+   ├─ 4. El fragmento se inserta en la plantilla elegida
+   │     (templates/<nombre>/template.ltx), que aporta la portada; el
+   │     formato APA y el preámbulo vienen de templates/common/
    │
    ├─ 5. pdflatex compila en un directorio temporal, repitiendo las pasadas
-   │     necesarias hasta que el índice se estabiliza
+   │     necesarias hasta que el índice se estabiliza (con el índice de la
+   │     generación anterior, casi siempre basta una)
    │
    └─ 6. El PDF se copia a output/ y, si se pidió, a otros directorios
 ```
 
 Lo importante de este diseño: **ningún paso intermedio deja archivos** en el
-proyecto salvo la caché de `imagenes/`. Si algo falla en la compilación, se
-guardan `ultimo-error.tex` y `ultimo-error.log` en el directorio de salida para
+proyecto salvo la caché de `cache/`. Si algo falla en la compilación, se
+guardan `last-error.tex` y `last-error.log` en el directorio de salida para
 poder revisarlos.
 
-El código vive en dos archivos: `src/investigacion/generator.py` tiene toda la
-lógica y `src/investigacion/cli.py` solo traduce argumentos. Los filtros de
-Pandoc están en `src/investigacion/filtros/`.
+El programa está escrito en Rust (`src/`): `generate.rs` arma la tubería,
+`cli.rs` solo traduce argumentos y `tui/` es el menú interactivo. Los filtros de
+Pandoc están en `resources/filters/` y viajan dentro del binario.
+
+**¿Dónde se va el tiempo?** Casi todo en pdflatex (alrededor de 1.7 s por pasada
+en el catálogo) y unas décimas en Pandoc. Por eso la primera generación de un
+trabajo hace 2 o 3 pasadas y las siguientes, si no cambió la estructura, una
+sola: el `.aux` y el `.toc` de la vez anterior se guardan en `cache/latex/`.
+Con `INVESTIGACION_TIMING=1` el comando imprime cuánto tardó cada paso.
 
 ## Configuración
 
@@ -81,6 +93,9 @@ opcionales: `ALUMNO` e `INTEGRANTES` pueden faltar las dos, y `DOCENTE` y
 `GRUPO` son el respaldo de las opciones del mismo nombre, pensados para no
 repetirlos en cada trabajo del semestre.
 
+Cada variable acepta también su nombre en inglés (`UNIVERSITY`, `FACULTY`,
+`SEMESTER`, `STUDENT`, `MEMBERS`, `TEACHER`, `GROUP`).
+
 También puedes definirlas en el entorno del shell: si ya existen ahí, tienen
 prioridad sobre `.env`. El archivo `.env` está en `.gitignore`, así que tus
 datos no se suben a ningún lado.
@@ -88,10 +103,16 @@ datos no se suben a ningún lado.
 ## Dónde van los archivos
 
 ```
-input/     tus trabajos en Markdown (ignorado por git)
-output/    los PDF generados (ignorado por git)
-imagenes/  cache de imagenes descargadas y diagramas (ignorado por git)
+input/       tus trabajos en Markdown, en subcarpetas por materia (ignorado por git)
+output/      los PDF generados (ignorado por git)
+subjects/    perfiles de materia *.toml (ignorado por git salvo example.toml)
+templates/   plantillas: apa/, apa-simple/, common/ (preámbulo común) y logos/
+cache/       imágenes descargadas, diagramas y estado de LaTeX (ignorado por git)
 ```
+
+Todas son relativas a la raíz del proyecto, no a la carpeta desde la que
+ejecutes el comando: `investigacion` encuentra el proyecto solo (o lo lee de la
+variable `INVESTIGACION_HOME`).
 
 **No hace falta escribir la carpeta `input/` en el comando.** El archivo se busca
 en tres sitios, en este orden:
@@ -107,32 +128,42 @@ dice y te pide que indiques cuál, con su subcarpeta.
 ## El comando
 
 ```bash
-investigacion mi-trabajo.md --titulo "Ecuaciones diferenciales" --materia "Cálculo"
+investigacion mi-trabajo.md --title "Ecuaciones diferenciales" --subject "Cálculo"
 ```
 
-Solo el título y la materia son obligatorios. El resultado es
-`output/ecuaciones-diferenciales.pdf`: el nombre sale del título, en minúsculas,
-sin acentos y con guiones. Si vuelves a generar el mismo título, el PDF anterior
-se reemplaza. La fecha de entrega es la del día en que ejecutas el comando.
+Solo el título y la materia son obligatorios (la materia puede venir de un
+perfil). El resultado es `output/mi-trabajo.pdf`: **el nombre del PDF sale del
+nombre del Markdown, no del título**, en minúsculas, sin acentos y con guiones.
+Así el título de la portada puede ser largo sin que el archivo se llame igual;
+para otro nombre usa `--file-name`. Si vuelves a generar, el PDF anterior se
+reemplaza. La fecha de entrega es la del día en que ejecutas el comando.
+
+Sin argumentos, `investigacion` abre el menú interactivo (ver más abajo).
 
 ### Opciones
 
-| Opción | Obligatoria | Descripción |
-|---|---|---|
-| `markdown` | Sí | Archivo `.md` con el contenido del trabajo |
-| `--titulo` | Sí | Título del trabajo; define el nombre del PDF |
-| `--materia` | Sí | Nombre de la materia |
-| `--docente` | No | Nombre del docente; respaldo en la variable `DOCENTE` |
-| `--integrantes` | No | Nombres del equipo en un solo argumento, separados por comas o punto y coma |
-| `--grupo` | No | Grupo de la materia; cierra el bloque de datos de la portada |
-| `--salida` | No | Directorio donde se genera el PDF (por omisión `output`) |
-| `--copia` | No | Directorio adicional para una copia; puede repetirse |
-| `--permitir-latex` | No | Interpreta los comandos LaTeX escritos en el Markdown |
-| `--env-file` | No | Archivo dotenv alternativo (por omisión `.env`) |
-| `--plantilla` | No | Plantilla LaTeX alternativa a `Latex/base.ltx` |
-| `--logos` | No | Carpeta con los logos de la portada |
+| Opción | Alias anterior | Obligatoria | Descripción |
+|---|---|---|---|
+| `markdown` | | Sí | Archivo `.md` con el contenido del trabajo |
+| `--title` | `--titulo` | Sí | Título del trabajo (solo la portada) |
+| `--subject` | `--materia` | Sí, salvo con perfil | Nombre de la materia |
+| `-p`, `--subject-profile` | `--perfil` | No | Perfil de `subjects/` con los datos de la materia |
+| `--file-name` | `--nombre` | No | Nombre del PDF; por omisión, el del Markdown |
+| `--teacher` | `--docente` | No | Nombre del docente; respaldo en la variable `DOCENTE` |
+| `--members` | `--integrantes` | No | Nombres del equipo en un solo argumento, separados por comas o punto y coma |
+| `--group` | `--grupo` | No | Grupo de la materia; cierra el bloque de datos de la portada |
+| `--output` | `--salida` | No | Directorio del PDF (por omisión `output/`, u `output/<folder>` del perfil) |
+| `--copy` | `--copia` | No | Directorio adicional para una copia; puede repetirse |
+| `--template` | `--plantilla` | No | Plantilla: un nombre de `templates/` (`apa`, `apa-simple`) o una ruta |
+| `--allow-latex` | `--permitir-latex` | No | Interpreta los comandos LaTeX escritos en el Markdown |
+| `--env-file` | | No | Archivo dotenv alternativo (por omisión el `.env` del proyecto) |
+| `--logos` | | No | Carpeta con los logos de la portada |
 
-`investigacion --help` muestra lo mismo desde la terminal.
+`investigacion --help` muestra lo mismo desde la terminal. Las opciones de la
+columna «Alias anterior» siguen funcionando, para no romper comandos que ya
+tengas escritos.
+
+Prioridad de los datos: **opción del comando > perfil de materia > `.env`**.
 
 ### El orden de los argumentos no importa
 
@@ -140,9 +171,9 @@ El archivo `.md` puede ir en cualquier posición. Estas tres líneas hacen lo
 mismo:
 
 ```bash
-investigacion trabajo.md --titulo "Tema" --materia "Materia" --docente "Docente"
-investigacion --titulo "Tema" --materia "Materia" --docente "Docente" trabajo.md
-investigacion --docente "Docente" trabajo.md --materia "Materia" --titulo "Tema"
+investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente"
+investigacion --title "Tema" --subject "Materia" --teacher "Docente" trabajo.md
+investigacion --teacher "Docente" trabajo.md --subject "Materia" --title "Tema"
 ```
 
 Lo único que importa es que cada valor con espacios vaya **entre comillas**. Sin
@@ -150,17 +181,69 @@ ellas el comando falla:
 
 ```bash
 # Mal: "de" y "costos" se toman como argumentos sueltos
-investigacion trabajo.md --titulo Conceptos de costos --materia "M" --docente "D"
+investigacion trabajo.md --title Conceptos de costos --subject "M"
 ```
 
-## Menú de texto (TUI)
+## Perfiles de materia
 
-`investigacion-tui` te guía en tres pasos: **1)** llena los campos obligatorios
-(marcados `[FALTA]` hasta que los des), **2)** ajusta los opcionales si quieres
-y **3)** escribe `g` para generar el PDF (`s` sale). Escribes el número de un
-campo y la pantalla te explica qué pide y te da un ejemplo. Título, materia y archivo son obligatorios; los campos que dejes vacíos
-se comportan como si no hubieras escrito la opción (se usa el `.env`). Las
-copias se separan con `;` y «Permitir LaTeX» se alterna con su número.
+Un perfil guarda los datos que se repiten en todos los trabajos de una materia.
+Es un archivo `subjects/<clave>.toml`:
+
+```toml
+subject = "Inteligencia artificial"   # obligatorio
+teacher = "Nombre del docente"
+group = "M"
+members = "Ana Ruiz, Luis Paz"        # opcional
+template = "apa-simple"               # plantilla de templates/
+folder = "IA"                         # input/IA y output/IA
+```
+
+```bash
+investigacion Tarea1.md -p ia --title "Búsqueda heurística"
+```
+
+Con `folder`, el Markdown se busca primero en `input/IA/` (así dos materias
+pueden tener cada una su `Tarea1.md`) y el PDF se guarda en `output/IA/`.
+Cualquier opción del comando sigue ganando sobre el perfil. Los perfiles están
+en `.gitignore` (llevan nombres de docentes); `subjects/example.toml` es la
+plantilla para copiar.
+
+## Plantillas
+
+Cada carpeta de `templates/` con un `template.ltx` es un diseño de portada:
+
+| Plantilla | Portada |
+|---|---|
+| `apa` | La geométrica con TikZ (la de siempre, por omisión) |
+| `apa-simple` | Clásica, centrada y sin adornos |
+
+Las dos comparten `templates/common/investigacion.sty` (el formato APA y todo lo
+que necesita la salida de Pandoc) e `investigacion-final.sty` (hyperref y los
+metadatos), así que el cuerpo del trabajo sale idéntico y solo cambia la
+portada. Ver «Personalizar la plantilla» para crear una nueva.
+
+## Menú interactivo (TUI)
+
+`investigacion` sin argumentos (o `investigacion-tui`) abre un menú a pantalla
+completa que funciona igual en Linux, macOS y Windows:
+
+- **↑ ↓** recorren los campos; **Enter** edita el campo o abre su lista.
+- Los campos con **▸** se eligen de una lista en vez de escribirse: el
+  **perfil**, el **Markdown** y la **plantilla**. En la lista, las flechas
+  mueven, Enter (o →) entra en una carpeta o elige, Retroceso (o ←) sube una
+  carpeta y escribir filtra. El Markdown se busca empezando en la carpeta de la
+  materia del perfil.
+- Elegir un perfil rellena materia, docente, grupo, plantilla y carpeta de
+  salida; elegir el Markdown propone el nombre del PDF.
+- **g** genera el PDF; los avisos y errores salen en el panel «Result».
+- **o** abre el último PDF y **f** abre una carpeta del proyecto (`input`,
+  `output`, `subjects`, `templates`, `cache`) en el explorador de archivos.
+- **Supr** vacía un campo y **q** sale.
+
+Los campos vacíos se comportan como si no hubieras escrito la opción (se usa el
+perfil o el `.env`). El menú ya no pregunta por el archivo `.env`, «permitir
+LaTeX», la plantilla por ruta ni la carpeta de logos: siguen disponibles como
+opciones del comando.
 
 ## La portada: alumno, integrantes y grupo
 
@@ -180,12 +263,12 @@ integrantes, docente y grupo son opcionales: si faltan, no dejan hueco.
 
 La portada firma el trabajo de una sola forma: **los integrantes sustituyen al
 alumno**. No hay que vaciar nada ni editar el `.env` para cambiar de un trabajo
-individual a uno de equipo, basta con usar o no usar `--integrantes`.
+individual a uno de equipo, basta con usar o no usar `--members`.
 
 | Qué usas | Qué sale en la portada |
 |---|---|
 | Nada | Solo `ALUMNO:`, con el nombre del `.env` |
-| `--integrantes` | Solo `INTEGRANTES:`; `ALUMNO:` no aparece aunque esté en el `.env` |
+| `--members` | Solo `INTEGRANTES:`; `ALUMNO:` no aparece aunque esté en el `.env` |
 | Ninguno de los dos | Ninguna de las dos líneas, sin dejar hueco |
 
 **Trabajo individual.** El nombre sale de `ALUMNO` en el `.env`:
@@ -199,8 +282,8 @@ MATERIA: Economía
 (también valen los punto y coma):
 
 ```bash
-investigacion trabajo.md --titulo "Tema" --materia "Materia" --docente "Docente" \
-  --integrantes "Ana Ruiz, Luis Paz, Sofia Vela"
+investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente" \
+  --members "Ana Ruiz, Luis Paz, Sofia Vela"
 ```
 
 Aparecen uno por renglón, alineados bajo el primero, y el `ALUMNO` del `.env` se
@@ -214,12 +297,12 @@ MATERIA: Economía
 ```
 
 Si el equipo es siempre el mismo, puedes dejarlo fijo en el `.env` con la
-variable `INTEGRANTES`; `--integrantes` tiene prioridad cuando se usa.
+variable `INTEGRANTES`; `--members` tiene prioridad cuando se usa.
 
 El autor que se guarda en los metadatos del PDF sigue el mismo criterio: los
 integrantes si los hay y, si no, el alumno.
 
-**Grupo.** `--grupo` añade la última línea del bloque:
+**Grupo.** `--group` añade la última línea del bloque:
 
 ```
 MATERIA: Economía
@@ -231,7 +314,7 @@ GRUPO: 7-A
 Si no lo indicas se lee `GRUPO` del `.env`, y si tampoco está ahí la línea no
 aparece.
 
-**Docente.** Funciona igual: `--docente` gana sobre la variable `DOCENTE` del
+**Docente.** Funciona igual: `--teacher` gana sobre la variable `DOCENTE` del
 `.env`, y sin ninguno de los dos la línea desaparece de la portada.
 
 ## Estructura del trabajo
@@ -316,7 +399,7 @@ bloque (`<div>`, `<table>`, `<p>`) no tiene equivalente en el PDF y se descarta.
 
 ### Imágenes
 
-La ruta se busca desde la carpeta del `.md` y desde `imagenes/` del proyecto,
+La ruta se busca desde la carpeta del `.md` y desde `cache/` del proyecto,
 así que una imagen que uses en varios trabajos basta con dejarla ahí una vez:
 
 ```markdown
@@ -324,7 +407,7 @@ así que una imagen que uses en varios trabajos basta con dejarla ahí una vez:
 ```
 
 **También funcionan las imágenes de la web.** Se descargan la primera vez a
-`imagenes/remotas/` y a partir de ahí el trabajo se genera sin internet:
+`cache/remote/` y a partir de ahí el trabajo se genera sin internet:
 
 ```markdown
 ![Diagrama del modelo OSI](https://ejemplo.com/osi.png)
@@ -346,7 +429,7 @@ Si una imagen no se encuentra o no se puede descargar, el PDF se genera igual:
 en su lugar queda el texto alternativo y el comando avisa. pdflatex compone PNG,
 JPG y PDF; un SVG hay que convertirlo antes.
 
-`imagenes/` es una caché: se puede borrar entera y lo único que pasa es que la
+`cache/` es una caché: se puede borrar entera y lo único que pasa es que la
 siguiente vez se vuelva a descargar.
 
 ### Diagramas con Graphviz
@@ -363,7 +446,7 @@ digraph {
 ````
 
 El `caption` es opcional y pone el pie de figura. El resultado se guarda en
-`imagenes/diagramas/`, así que un diagrama que no cambió no se vuelve a dibujar.
+`cache/diagrams/`, así que un diagrama que no cambió no se vuelve a dibujar.
 Si Graphviz no está instalado, el bloque se queda como código y el comando
 avisa: el trabajo se genera igual.
 
@@ -427,12 +510,12 @@ Si usas un símbolo que la plantilla no conoce, **el PDF se genera igual**: en s
 lugar aparece `[?]` y el comando te avisa:
 
 ```
-Advertencia: El simbolo ∮ (U+222E) no se pudo componer y salio como [?] en el PDF.
-Reemplazalo en el Markdown o declaralo en Latex/base.ltx.
+Warning: The symbol ∮ (U+222E) could not be typeset and shows as [?] in the PDF.
+Replace it in the Markdown or declare it in templates/common/investigacion.sty.
 ```
 
 Para añadirlo de forma permanente, agrégalo al bloque `SÍMBOLOS UNICODE` de
-`Latex/base.ltx` siguiendo el patrón de los que ya están:
+`templates/common/investigacion.sty` siguiendo el patrón de los que ya están:
 
 ```latex
 \newunicodechar{∮}{\ensuremath{\oint}}
@@ -448,7 +531,7 @@ de que la compilación falle sin motivo aparente.
 Las fórmulas con `$...$` y `$$...$$` funcionan siempre, en los dos modos.
 
 Si necesitas escribir LaTeX a propósito (`\newpage`, `\vspace`, un entorno
-propio), agrega `--permitir-latex`. Con esa opción, un error de sintaxis en tu
+propio), agrega `--allow-latex`. Con esa opción, un error de sintaxis en tu
 LaTeX sí detiene la compilación.
 
 ## Texto pegado de otras herramientas
@@ -472,29 +555,29 @@ también documentos antiguos con acentos.
 
 ## Copias en otros directorios
 
-`--salida` define dónde se genera el PDF. `--copia` deja además una copia en
+`--output` define dónde se genera el PDF. `--copy` deja además una copia en
 otro directorio, que se crea si no existe:
 
 ```bash
-investigacion trabajo.md --titulo "Tema" --materia "Materia" --docente "Docente" \
-  --copia ~/Documentos/Escuela/Economia
+investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente" \
+  --copy ~/Documentos/Escuela/Economia
 ```
 
 Puede repetirse para dejar varias copias, por ejemplo en una memoria USB y en
 una carpeta sincronizada:
 
 ```bash
-investigacion trabajo.md --titulo "Tema" --materia "Materia" --docente "Docente" \
-  --copia /media/usb \
-  --copia ~/Nextcloud/Tareas
+investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente" \
+  --copy /media/usb \
+  --copy ~/Nextcloud/Tareas
 ```
 
-Si un directorio de copia coincide con el de `--salida`, se omite.
+Si un directorio de copia coincide con el de `--output`, se omite.
 
 ## Cuando algo falla
 
 El comando muestra únicamente el error real de LaTeX, no todo el registro de
-carga de paquetes, y guarda `ultimo-error.tex` y `ultimo-error.log` en el
+carga de paquetes, y guarda `last-error.tex` y `last-error.log` en el
 directorio de salida.
 
 | Síntoma | Causa más probable |
@@ -508,8 +591,21 @@ directorio de salida.
 
 ## Personalizar la plantilla
 
-`Latex/base.ltx` contiene la portada con TikZ, el formato APA y un bloque con
-los paquetes y macros que **necesita la salida de Pandoc**: `calc` y
+Las plantillas están repartidas en dos niveles:
+
+- `templates/common/investigacion.sty` — el formato APA y el bloque con los
+  paquetes y macros que **necesita la salida de Pandoc**. Lo comparten todas.
+- `templates/common/investigacion-final.sty` — hyperref, las notas en tablas y
+  los metadatos del PDF; va justo antes de `\begin{document}`.
+- `templates/<nombre>/template.ltx` — solo los datos (`%%TITULO%%`…) y la
+  portada.
+
+**Para crear un diseño nuevo**, copia `templates/apa-simple/` a
+`templates/mi-diseno/` y cambia solo la portada: aparece sola en el menú y se
+usa con `--template mi-diseno`. Los `.sty` que pongas junto a tu
+`template.ltx` también se copian al compilar.
+
+El preámbulo común trae lo que la salida de Pandoc da por supuesto: `calc` y
 `\newcounter{none}` para las tablas, `\pandocbounded` para las imágenes, los
 comandos de resaltado de sintaxis para el código, `soul` y `ulem` para el
 tachado y el resaltado, `amsmath` para las fórmulas. Si quitas alguno, los
@@ -524,7 +620,7 @@ pandoc trabajo.md -s --to=latex | sed -n '/documentclass/,/begin{document}/p'
 Los datos de la portada llegan como marcadores `%%TITULO%%`, `%%ALUMNO%%`,
 `%%INTEGRANTES%%`, `%%GRUPO%%`, `%%FECHA_ENTREGA%%`, etc., y el trabajo
 convertido entra en `%%CONTENIDO_MARKDOWN%%`. Para probar cambios sin tocar el
-original, usa `--plantilla mi-copia.ltx`.
+original, usa `--template ruta/a/mi-copia.ltx`.
 
 La regla de que los integrantes sustituyan al alumno vive en la plantilla, no en
 el programa: es un `\ifdefempty{\ListaIntegrantes}` que en su rama vacía
@@ -534,7 +630,7 @@ esos dos `\ifdefempty` en la portada.
 ### Los logos de la portada
 
 El repositorio **no trae logos**: los de una institución rara vez son
-redistribuibles, así que `Latex/logos/` está en `.gitignore` y cada quien pone
+redistribuibles, así que `templates/logos/` está en `.gitignore` y cada quien pone
 los suyos. La plantilla busca dos nombres fijos:
 
 | Archivo | Dónde sale | Altura a la que se escala |
@@ -552,15 +648,16 @@ la portada es blanca, así que un logo blanco sería invisible.
 el código— indica la carpeta al generar:
 
 ```bash
-investigacion trabajo.md --titulo "Tema" --materia "M" --docente "D" \
+investigacion trabajo.md --title "Tema" --subject "M" --teacher "D" \
   --logos ~/Documentos/logos-de-mi-universidad
 ```
 
 O déjalo fijo en el `.env` con `LOGOS="/ruta/a/la/carpeta"`, que es lo cómodo
-cuando son siempre los mismos.
+cuando son siempre los mismos. Sin nada de eso se usa la carpeta `logos/` de la
+plantilla, si existe, y si no la compartida `templates/logos/`.
 
 Si quedan descolocados, las posiciones y alturas están en el bloque `LOGOS` de
-`Latex/base.ltx`: son dos nodos de TikZ con su `xshift`, `yshift` y `height`.
+`templates/apa/template.ltx`: son dos nodos de TikZ con su `xshift`, `yshift` y `height`.
 
 Por dentro esto funciona así: pdflatex se ejecuta con el directorio del Markdown
 como directorio de trabajo, no con el de la plantilla, de modo que una ruta
@@ -572,16 +669,10 @@ ruta ni extensión.
 ## Pruebas
 
 ```bash
-source .venv/bin/activate        # En Windows: .venv\Scripts\activate
-python -m unittest discover -s tests
+cargo test                       # todas
+cargo test --lib markdown        # solo las de un módulo
+cargo test --test pdf            # solo las que generan PDF reales
 ```
 
-Hay que usar el Python del entorno virtual: las pruebas importan el paquete
-instalado en modo editable. Para una sola clase:
-
-```bash
-python -m unittest tests.test_generator.CopyTests
-```
-
-Las que generan un PDF real se omiten solas si Pandoc, pdflatex o Graphviz no
-están instalados.
+Las que generan un PDF real o llaman a Pandoc se omiten solas si Pandoc,
+pdflatex o Graphviz no están instalados.

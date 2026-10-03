@@ -43,5 +43,5 @@ LOGOS="/home/usuario/Documentos/logos-de-mi-universidad"
 
 ## Si quedan descolocados
 
-Las posiciones y alturas están en el bloque `LOGOS` de `Latex/base.ltx`, dentro
+Las posiciones y alturas están en el bloque `LOGOS` de `templates/apa/template.ltx`, dentro
 de la portada. Son dos `\node` de TikZ con su `xshift`, `yshift` y `height`.

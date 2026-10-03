@@ -1,14 +1,14 @@
 # Requisitos e instalación
 
-El programa en sí es Python puro sin dependencias, pero necesita tres
-herramientas externas para hacer su trabajo. Funciona en **Linux, Windows y
+El programa es un binario de Rust que se compila una vez con `cargo`, y
+necesita tres herramientas externas para hacer su trabajo. Funciona en **Linux, Windows y
 macOS**: no usa nada específico de un sistema operativo.
 
 ## Qué hace falta
 
 | Herramienta | ¿Obligatoria? | Para qué | Si falta |
 |---|---|---|---|
-| **Python 3.10 o superior** | Sí | Ejecutar el programa | No arranca |
+| **Rust** (`cargo`, vía [rustup](https://rustup.rs)) | Sí, para compilarlo | Compilar el programa una vez | No se puede instalar |
 | **Pandoc** | Sí | Convertir el Markdown a LaTeX | Error claro al generar |
 | **Una distribución de TeX** con `pdflatex` | Sí | Componer el PDF | Error claro al generar |
 | **Graphviz** | No | Dibujar los bloques ```` ```dot ```` | El diagrama se queda como código y el comando avisa |
@@ -19,10 +19,19 @@ los caracteres de dibujo…) pero el PDF se genera igual.
 
 ## Linux
 
+### Rust (todas las distribuciones)
+
+El programa necesita Rust 1.88 o posterior. Los paquetes `cargo` de Debian y
+Ubuntu suelen ser más viejos, así que conviene instalarlo con **rustup**:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
 ### Arch, Manjaro, EndeavourOS
 
 ```bash
-sudo pacman -S python pandoc graphviz \
+sudo pacman -S pandoc graphviz \
   texlive-basic texlive-latexextra texlive-fontsextra \
   texlive-langspanish texlive-pictures texlive-plaingeneric
 ```
@@ -31,7 +40,7 @@ sudo pacman -S python pandoc graphviz \
 
 ```bash
 sudo apt update
-sudo apt install python3 python3-venv pandoc graphviz \
+sudo apt install pandoc graphviz \
   texlive-latex-recommended texlive-latex-extra texlive-fonts-extra \
   texlive-lang-spanish texlive-pictures texlive-plain-generic
 ```
@@ -39,7 +48,7 @@ sudo apt install python3 python3-venv pandoc graphviz \
 ### Fedora
 
 ```bash
-sudo dnf install python3 pandoc graphviz \
+sudo dnf install pandoc graphviz \
   texlive-scheme-medium texlive-collection-latexextra \
   texlive-collection-fontsextra texlive-collection-langspanish
 ```
@@ -47,7 +56,7 @@ sudo dnf install python3 pandoc graphviz \
 ### openSUSE
 
 ```bash
-sudo zypper install python3 pandoc graphviz \
+sudo zypper install pandoc graphviz \
   texlive-latex texlive-latexextra texlive-fontsextra texlive-babel-spanish
 ```
 
@@ -56,7 +65,7 @@ sudo zypper install python3 pandoc graphviz \
 La forma más corta es con `winget`, que ya viene en Windows 10 y 11:
 
 ```powershell
-winget install Python.Python.3.12
+winget install Rustlang.Rustup
 winget install JohnMacFarlane.Pandoc
 winget install Graphviz.Graphviz
 winget install MiKTeX.MiKTeX
@@ -71,21 +80,23 @@ todo de una vez y ocupa varios gigabytes.
 Después de instalar, **cierra y vuelve a abrir la terminal** para que se
 actualice el `PATH`.
 
-La instalación del proyecto es igual, cambiando solo cómo se activa el entorno:
+La instalación del proyecto es la misma que en Linux:
 
 ```powershell
-python -m venv .venv
-.venv\Scripts\activate
-python -m pip install -e .
+cargo install --path .
 copy .env.example .env
 ```
+
+`rustup` puede pedir las «Build Tools» de Visual Studio la primera vez; acepta
+la instalación que propone.
 
 ## macOS
 
 Con [Homebrew](https://brew.sh):
 
 ```bash
-brew install python pandoc graphviz
+brew install rustup pandoc graphviz
+rustup-init -y
 brew install --cask mactex-no-gui
 ```
 
@@ -103,7 +114,7 @@ sudo tlmgr install newtx pgfplots pgf-pie twemojis pmboxdraw floatrow \
 ## Comprobar que todo está
 
 ```bash
-python --version     # 3.10 o superior
+cargo --version
 pandoc --version
 pdflatex --version
 dot -V               # opcional
@@ -112,7 +123,7 @@ dot -V               # opcional
 Y la prueba de fuego, que usa absolutamente todo:
 
 ```bash
-investigacion ejemplo/catalogo.md --titulo "Catalogo" --materia "Prueba"
+investigacion ejemplo/catalogo.md --title "Catalogo" --subject "Prueba"
 ```
 
 Si termina sin advertencias, no falta nada. Si avisa de algo —un símbolo, una
@@ -149,5 +160,6 @@ quieres añadir lo justo. Todos están en CTAN y se instalan con
   los acentos en los nombres de archivo.
 - El proyecto se desarrolló y se prueba en Linux. El código no contiene nada
   específico de un sistema —las rutas, los separadores y las codificaciones se
-  resuelven con la biblioteca estándar— pero si encuentras algo que falle en
+  resuelven con la biblioteca estándar de Rust, y el menú usa crossterm, que
+  funciona igual en las tres consolas— pero si encuentras algo que falle en
   Windows o macOS, es un fallo que merece la pena reportar.
