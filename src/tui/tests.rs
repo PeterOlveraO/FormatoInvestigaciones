@@ -35,10 +35,10 @@ fn sample_project() -> (tempfile::TempDir, Project) {
     std::fs::create_dir_all(root.join("input/IA")).unwrap();
     std::fs::write(root.join("input/IA/Tarea 1.md"), "# Introducción\n").unwrap();
     std::fs::write(root.join("input/suelto.md"), "# Introducción\n").unwrap();
-    std::fs::create_dir_all(root.join("subjects")).unwrap();
+    std::fs::create_dir_all(root.join("courses")).unwrap();
     std::fs::write(
-        root.join("subjects/ia.toml"),
-        "subject = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"apa-simple\"\nfolder = \"IA\"\n",
+        root.join("courses/ia.toml"),
+        "name = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"apa-simple\"\nfolder = \"IA\"\n",
     )
     .unwrap();
     let project = Project::at(root);
@@ -80,7 +80,7 @@ fn choosing_a_profile_fills_the_form_and_the_markdown_picker_starts_in_its_folde
     press(&mut app, KeyCode::Enter);
     type_text(&mut app, "ia");
     press(&mut app, KeyCode::Enter);
-    assert_eq!(app.value(FieldKey::Subject), "Inteligencia artificial");
+    assert_eq!(app.value(FieldKey::Course), "Inteligencia artificial");
     assert_eq!(app.value(FieldKey::Teacher), "Docente IA");
     assert_eq!(app.value(FieldKey::Template), "apa-simple");
     assert_eq!(Path::new(app.value(FieldKey::Output)), Path::new("output/IA"));
@@ -163,12 +163,12 @@ fn the_form_becomes_the_same_arguments_as_the_cli() {
     let mut app = App::new(project);
     app.values[index_of(FieldKey::Markdown)] = "a.md".into();
     app.values[index_of(FieldKey::Title)] = "T".into();
-    app.values[index_of(FieldKey::Subject)] = "M".into();
+    app.values[index_of(FieldKey::Course)] = "M".into();
     app.values[index_of(FieldKey::Copies)] = "x; ; y".into();
     app.values[index_of(FieldKey::Output)] = "output/IA".into();
     let args = app.build_args();
     assert_eq!(args.title, "T");
-    assert_eq!(args.subject.as_deref(), Some("M"));
+    assert_eq!(args.course.as_deref(), Some("M"));
     // Lo vacío no se pasa, para que valgan el perfil y el .env.
     assert!(args.teacher.is_none() && args.group.is_none() && args.file_name.is_none());
     assert_eq!(args.copy.len(), 2);
@@ -178,6 +178,10 @@ fn the_form_becomes_the_same_arguments_as_the_cli() {
 
 #[test]
 fn quitting() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    press(&mut app, KeyCode::Char('s'));
+    assert!(app.should_quit);
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
     press(&mut app, KeyCode::Char('q'));

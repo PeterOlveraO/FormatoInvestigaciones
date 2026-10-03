@@ -60,8 +60,8 @@ impl Project {
     pub fn common_dir(&self) -> PathBuf {
         self.templates_dir().join("common")
     }
-    pub fn subjects_dir(&self) -> PathBuf {
-        self.root.join("subjects")
+    pub fn courses_dir(&self) -> PathBuf {
+        self.root.join("courses")
     }
     pub fn cache_dir(&self) -> PathBuf {
         self.root.join("cache")

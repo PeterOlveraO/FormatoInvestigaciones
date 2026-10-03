@@ -13,7 +13,7 @@ interlineado doble, la sangría y los pies de figura los pone el programa.
 
 | | |
 |---|---|
-| ![Portada generada](docs/imagenes/portada.png) | ![Página con un diagrama](docs/imagenes/diagrama.png) |
+| ![Portada generada](docs/images/portada.png) | ![Página con un diagrama](docs/images/diagrama.png) |
 
 ## Qué sabe hacer
 
@@ -35,7 +35,7 @@ interlineado doble, la sangría y los pies de figura los pone el programa.
   Graphviz no está instalado, el trabajo se genera igual y el comando te avisa
   en la terminal de qué pasó.
 
-![Página con gráficas](docs/imagenes/graficas.png)
+![Página con gráficas](docs/images/graficas.png)
 
 ## Requisitos
 
@@ -87,10 +87,10 @@ indica la ruta en la variable `INVESTIGACION_HOME`.
 ```
 input/       tus trabajos en Markdown, en subcarpetas por materia (IA/, IS/...)
 output/      los PDF generados (output/IA/... si usas un perfil con carpeta)
-subjects/    perfiles de materia: nombre, docente, grupo, plantilla y carpeta
+courses/    perfiles de materia: nombre, docente, grupo, plantilla y carpeta
 templates/   diseños de portada (apa, apa-simple), el preámbulo común y los logos
 cache/       imágenes descargadas, diagramas y el estado de LaTeX; se puede borrar
-ejemplo/     ejemplos y el catálogo de elementos
+examples/     ejemplos y el catálogo de elementos
 ```
 
 En el menú interactivo, la tecla `f` abre cualquiera de estas carpetas en el
@@ -126,12 +126,12 @@ Desde la línea de comandos:
 
 ```bash
 # 1. Parte del esqueleto incluido
-cp ejemplo/investigacion.md input/mi-trabajo.md
+cp examples/paper-template.md input/mi-trabajo.md
 
 # 2. Escribe el contenido en Markdown
 
 # 3. Genera el PDF
-investigacion mi-trabajo.md --title "Ecuaciones diferenciales" --subject "Cálculo"
+investigacion mi-trabajo.md --title "Ecuaciones diferenciales" --course "Cálculo"
 ```
 
 El resultado queda en `output/mi-trabajo.pdf`: el nombre del archivo sale del
@@ -151,10 +151,10 @@ input/
 ### Perfiles de materia
 
 Los datos que se repiten en todos los trabajos de una materia se guardan una vez
-en `subjects/<clave>.toml` (hay un `subjects/example.toml` para copiar):
+en `courses/<clave>.toml` (hay un `courses/example.toml` para copiar):
 
 ```toml
-subject = "Inteligencia artificial"
+name = "Inteligencia artificial"
 teacher = "Nombre del docente"
 group = "7-A"
 template = "apa"      # o apa-simple
@@ -177,16 +177,16 @@ funcionando.
 
 ## El catálogo
 
-[`ejemplo/catalogo.md`](ejemplo/catalogo.md) reúne un ejemplo de **cada cosa que
+[`examples/catalog.md`](examples/catalog.md) reúne un ejemplo de **cada cosa que
 el programa sabe componer**: los cinco niveles de encabezado APA, las cuatro
 clases de lista, cinco variantes de tabla, siete diagramas de Graphviz, doce
 gráficas y las fórmulas, cada uno con el código que lo produce.
 
 El PDF que genera está en el repositorio para verlo sin instalar nada:
-[`ejemplo/catalogo.pdf`](ejemplo/catalogo.pdf) (23 páginas).
+[`examples/catalog.pdf`](examples/catalog.pdf) (23 páginas).
 
 ```bash
-investigacion ejemplo/catalogo.md --title "Catalogo" --subject "Ejemplo" --teacher "Ejemplo"
+investigacion examples/catalog.md --title "Catalogo" --course "Ejemplo" --teacher "Ejemplo"
 ```
 
 ## Pedirle el trabajo a una IA
@@ -216,10 +216,10 @@ párrafos sueltos.
 
 | Archivo | Qué es |
 |---|---|
-| `ejemplo/investigacion.md` | Esqueleto vacío para empezar un trabajo |
-| `ejemplo/sintaxis.md` | Referencia breve de la sintaxis de Markdown |
-| `ejemplo/catalogo.md` | Muestrario completo de todos los elementos |
-| `ejemplo/arboles-binarios.md` | Un trabajo real de ejemplo, con diagramas |
+| `examples/paper-template.md` | Esqueleto vacío para empezar un trabajo |
+| `examples/syntax.md` | Referencia breve de la sintaxis de Markdown |
+| `examples/catalog.md` | Muestrario completo de todos los elementos |
+| `examples/binary-trees.md` | Un trabajo real de ejemplo, con diagramas |
 
 Tus propios trabajos van en `input/`, que está en `.gitignore`: no se suben al
 repositorio.

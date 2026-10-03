@@ -6,7 +6,7 @@ profesor, y lo que te devuelva se guarda tal cual en un `.md` dentro de `input/`
 y se genera con:
 
 ```bash
-investigacion mi-trabajo.md --title "El tema" --subject "La materia"
+investigacion mi-trabajo.md --title "El tema" --course "La materia"
 ```
 
 El prompt le explica al modelo **todo** lo que el generador sabe componer, para
@@ -14,7 +14,7 @@ que aproveche las tablas, los diagramas y las gráficas en vez de entregar
 párrafos sueltos.
 
 > Si quieres que además vea ejemplos reales de cada elemento, adjunta también
-> [`ejemplo/catalogo.md`](ejemplo/catalogo.md).
+> [`examples/catalog.md`](examples/catalog.md).
 
 ---
 

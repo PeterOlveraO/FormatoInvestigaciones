@@ -33,9 +33,9 @@ templates/logos/*
 templates/*/logos/
 
 # Perfiles de materia: llevan nombres de docentes, son datos de cada quien.
-subjects/*
-!subjects/example.toml
-!subjects/LEEME.md
+courses/*
+!courses/example.toml
+!courses/LEEME.md
 
 # Restos de editores y del sistema
 *.save

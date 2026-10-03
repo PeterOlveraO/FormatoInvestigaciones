@@ -173,9 +173,9 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
             ("Enter", "edit/choose"),
             ("Del", "clear"),
             ("g", "generate"),
-            ("o", "open PDF"),
-            ("f", "folders"),
-            ("q", "quit"),
+            ("v", "view PDF"),
+            ("c", "folders"),
+            ("s", "quit"),
         ],
         Mode::Editing(_) => &[("Enter", "save"), ("Esc", "cancel")],
         Mode::Picking(_) => &[

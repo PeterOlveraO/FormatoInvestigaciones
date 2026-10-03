@@ -105,7 +105,7 @@ datos no se suben a ningún lado.
 ```
 input/       tus trabajos en Markdown, en subcarpetas por materia (ignorado por git)
 output/      los PDF generados (ignorado por git)
-subjects/    perfiles de materia *.toml (ignorado por git salvo example.toml)
+courses/    perfiles de materia *.toml (ignorado por git salvo example.toml)
 templates/   plantillas: apa/, apa-simple/, common/ (preámbulo común) y logos/
 cache/       imágenes descargadas, diagramas y estado de LaTeX (ignorado por git)
 ```
@@ -128,7 +128,7 @@ dice y te pide que indiques cuál, con su subcarpeta.
 ## El comando
 
 ```bash
-investigacion mi-trabajo.md --title "Ecuaciones diferenciales" --subject "Cálculo"
+investigacion mi-trabajo.md --title "Ecuaciones diferenciales" --course "Cálculo"
 ```
 
 Solo el título y la materia son obligatorios (la materia puede venir de un
@@ -146,8 +146,8 @@ Sin argumentos, `investigacion` abre el menú interactivo (ver más abajo).
 |---|---|---|---|
 | `markdown` | | Sí | Archivo `.md` con el contenido del trabajo |
 | `--title` | `--titulo` | Sí | Título del trabajo (solo la portada) |
-| `--subject` | `--materia` | Sí, salvo con perfil | Nombre de la materia |
-| `-p`, `--subject-profile` | `--perfil` | No | Perfil de `subjects/` con los datos de la materia |
+| `--course` | `--materia` | Sí, salvo con perfil | Nombre de la materia |
+| `-p`, `--profile` | `--perfil` | No | Perfil de `courses/` con los datos de la materia |
 | `--file-name` | `--nombre` | No | Nombre del PDF; por omisión, el del Markdown |
 | `--teacher` | `--docente` | No | Nombre del docente; respaldo en la variable `DOCENTE` |
 | `--members` | `--integrantes` | No | Nombres del equipo en un solo argumento, separados por comas o punto y coma |
@@ -171,9 +171,9 @@ El archivo `.md` puede ir en cualquier posición. Estas tres líneas hacen lo
 mismo:
 
 ```bash
-investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente"
-investigacion --title "Tema" --subject "Materia" --teacher "Docente" trabajo.md
-investigacion --teacher "Docente" trabajo.md --subject "Materia" --title "Tema"
+investigacion trabajo.md --title "Tema" --course "Materia" --teacher "Docente"
+investigacion --title "Tema" --course "Materia" --teacher "Docente" trabajo.md
+investigacion --teacher "Docente" trabajo.md --course "Materia" --title "Tema"
 ```
 
 Lo único que importa es que cada valor con espacios vaya **entre comillas**. Sin
@@ -181,16 +181,16 @@ ellas el comando falla:
 
 ```bash
 # Mal: "de" y "costos" se toman como argumentos sueltos
-investigacion trabajo.md --title Conceptos de costos --subject "M"
+investigacion trabajo.md --title Conceptos de costos --course "M"
 ```
 
 ## Perfiles de materia
 
 Un perfil guarda los datos que se repiten en todos los trabajos de una materia.
-Es un archivo `subjects/<clave>.toml`:
+Es un archivo `courses/<clave>.toml`:
 
 ```toml
-subject = "Inteligencia artificial"   # obligatorio
+name = "Inteligencia artificial"   # obligatorio
 teacher = "Nombre del docente"
 group = "M"
 members = "Ana Ruiz, Luis Paz"        # opcional
@@ -205,7 +205,7 @@ investigacion Tarea1.md -p ia --title "Búsqueda heurística"
 Con `folder`, el Markdown se busca primero en `input/IA/` (así dos materias
 pueden tener cada una su `Tarea1.md`) y el PDF se guarda en `output/IA/`.
 Cualquier opción del comando sigue ganando sobre el perfil. Los perfiles están
-en `.gitignore` (llevan nombres de docentes); `subjects/example.toml` es la
+en `.gitignore` (llevan nombres de docentes); `courses/example.toml` es la
 plantilla para copiar.
 
 ## Plantillas
@@ -237,7 +237,7 @@ completa que funciona igual en Linux, macOS y Windows:
   salida; elegir el Markdown propone el nombre del PDF.
 - **g** genera el PDF; los avisos y errores salen en el panel «Result».
 - **o** abre el último PDF y **f** abre una carpeta del proyecto (`input`,
-  `output`, `subjects`, `templates`, `cache`) en el explorador de archivos.
+  `output`, `courses`, `templates`, `cache`) en el explorador de archivos.
 - **Supr** vacía un campo y **q** sale.
 
 Los campos vacíos se comportan como si no hubieras escrito la opción (se usa el
@@ -282,7 +282,7 @@ MATERIA: Economía
 (también valen los punto y coma):
 
 ```bash
-investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente" \
+investigacion trabajo.md --title "Tema" --course "Materia" --teacher "Docente" \
   --members "Ana Ruiz, Luis Paz, Sofia Vela"
 ```
 
@@ -347,8 +347,8 @@ Funciona la sintaxis completa de Markdown, básica y extendida, tal como la
 describe la [Markdown Guide](https://www.markdownguide.org).
 
 > Para ver cada elemento compuesto en un PDF real, genera
-> [`ejemplo/catalogo.md`](ejemplo/catalogo.md) o abre
-> [`ejemplo/catalogo.pdf`](ejemplo/catalogo.pdf).
+> [`examples/catalog.md`](examples/catalog.md) o abre
+> [`examples/catalog.pdf`](examples/catalog.pdf).
 
 **La regla de oro:** cada bloque va separado por una línea en blanco. Antes y
 después de un encabezado, una lista, una tabla o un bloque de código. De ahí
@@ -472,7 +472,7 @@ dibujar cualquier otra cosa.
 
 A diferencia de los diagramas `dot`, aquí **la sintaxis tiene que ser correcta**:
 un error detiene la compilación y el comando indica la línea.
-[`ejemplo/catalogo.md`](ejemplo/catalogo.md) trae una gráfica de cada tipo,
+[`examples/catalog.md`](examples/catalog.md) trae una gráfica de cada tipo,
 lista para copiar.
 
 ### Cajas destacadas
@@ -559,7 +559,7 @@ también documentos antiguos con acentos.
 otro directorio, que se crea si no existe:
 
 ```bash
-investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente" \
+investigacion trabajo.md --title "Tema" --course "Materia" --teacher "Docente" \
   --copy ~/Documentos/Escuela/Economia
 ```
 
@@ -567,7 +567,7 @@ Puede repetirse para dejar varias copias, por ejemplo en una memoria USB y en
 una carpeta sincronizada:
 
 ```bash
-investigacion trabajo.md --title "Tema" --subject "Materia" --teacher "Docente" \
+investigacion trabajo.md --title "Tema" --course "Materia" --teacher "Docente" \
   --copy /media/usb \
   --copy ~/Nextcloud/Tareas
 ```
@@ -648,7 +648,7 @@ la portada es blanca, así que un logo blanco sería invisible.
 el código— indica la carpeta al generar:
 
 ```bash
-investigacion trabajo.md --title "Tema" --subject "M" --teacher "D" \
+investigacion trabajo.md --title "Tema" --course "M" --teacher "D" \
   --logos ~/Documentos/logos-de-mi-universidad
 ```
 

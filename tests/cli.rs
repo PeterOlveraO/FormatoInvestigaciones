@@ -20,7 +20,7 @@ fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
         directory.path().join("no-existe.md").to_str().unwrap(),
         "--title",
         "T",
-        "--subject",
+        "--course",
         "M",
         "--env-file",
         env.to_str().unwrap(),

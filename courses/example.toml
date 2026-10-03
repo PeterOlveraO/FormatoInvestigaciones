@@ -3,7 +3,7 @@
 # o elígelo en el menú interactivo.
 
 # Nombre de la materia tal como sale en la portada (obligatorio).
-subject = "Nombre de la materia"
+name = "Nombre de la materia"
 
 # Opcionales: si faltan se usan las variables del .env, y si tampoco están,
 # la línea no aparece en la portada.

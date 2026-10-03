@@ -8,8 +8,8 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose};
 use crate::cli::{Args, Reporter, execute};
+use crate::courses::{Course, list_courses};
 use crate::project::Project;
-use crate::subjects::{Subject, list_subjects};
 
 /// Campos del formulario, en el orden en que se muestran.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -18,7 +18,7 @@ pub enum FieldKey {
     Markdown,
     Title,
     FileName,
-    Subject,
+    Course,
     Teacher,
     Members,
     Group,
@@ -52,10 +52,10 @@ pub struct Field {
 pub const FIELDS: [Field; 11] = [
     Field {
         key: FieldKey::Profile,
-        label: "Subject profile",
+        label: "Course profile",
         kind: FieldKind::Pick(PickerPurpose::Profile),
         required: false,
-        help: "Saved data of a subject (subjects/*.toml). Choosing one fills subject, teacher, group, template and output folder.",
+        help: "Saved data of a course (courses/*.toml). Choosing one fills course, teacher, group, template and output folder.",
         example: "ia",
         empty: "fill the fields by hand",
     },
@@ -87,11 +87,11 @@ pub const FIELDS: [Field; 11] = [
         empty: "the name of the Markdown file",
     },
     Field {
-        key: FieldKey::Subject,
-        label: "Subject",
+        key: FieldKey::Course,
+        label: "Course",
         kind: FieldKind::Text,
         required: true,
-        help: "Name of the subject, as shown on the cover.",
+        help: "Name of the course, as shown on the cover.",
         example: "Inteligencia artificial",
         empty: "",
     },
@@ -118,7 +118,7 @@ pub const FIELDS: [Field; 11] = [
         label: "Group",
         kind: FieldKind::Text,
         required: false,
-        help: "Group of the subject.",
+        help: "Group of the course.",
         example: "7-A",
         empty: "GRUPO from .env; if missing, omitted",
     },
@@ -224,7 +224,7 @@ pub struct App {
     pub mode: Mode,
     pub log: Vec<LogLine>,
     pub last_pdf: Option<PathBuf>,
-    pub subjects: Vec<Subject>,
+    pub courses: Vec<Course>,
     pub should_quit: bool,
     /// El nombre del PDF se propone a partir del Markdown mientras la persona
     /// no lo haya escrito a mano.
@@ -237,7 +237,7 @@ pub fn index_of(key: FieldKey) -> usize {
 
 impl App {
     pub fn new(project: Project) -> Self {
-        let (subjects, errors) = list_subjects(&project);
+        let (courses, errors) = list_courses(&project);
         let log = errors.into_iter().map(|e| LogLine::Warning(e.0)).collect();
         Self {
             project,
@@ -246,7 +246,7 @@ impl App {
             mode: Mode::Form,
             log,
             last_pdf: None,
-            subjects,
+            courses,
             should_quit: false,
             file_name_is_auto: true,
         }
@@ -272,9 +272,9 @@ impl App {
             .unwrap_or_else(|_| path.to_owned())
     }
 
-    fn current_subject(&self) -> Option<&Subject> {
+    fn current_course(&self) -> Option<&Course> {
         let key = self.value(FieldKey::Profile);
-        self.subjects.iter().find(|s| s.key == key)
+        self.courses.iter().find(|s| s.key == key)
     }
 
     /// Arma los mismos argumentos que recibiría el CLI. Los campos vacíos no
@@ -285,8 +285,8 @@ impl App {
             markdown: PathBuf::from(self.value(FieldKey::Markdown)),
             title: self.value(FieldKey::Title).to_owned(),
             file_name: optional(FieldKey::FileName),
-            subject: optional(FieldKey::Subject),
-            subject_profile: optional(FieldKey::Profile),
+            course: optional(FieldKey::Course),
+            profile: optional(FieldKey::Profile),
             teacher: optional(FieldKey::Teacher),
             members: optional(FieldKey::Members),
             group: optional(FieldKey::Group),
@@ -341,9 +341,10 @@ impl App {
                 }
             }
             KeyCode::Char('g') | KeyCode::F(5) => self.start_generation(),
-            KeyCode::Char('f') => self.open_folders(),
-            KeyCode::Char('o') => self.open_last_pdf(),
-            KeyCode::Char('q') | KeyCode::Esc => self.should_quit = true,
+            // Las letras de cada acción en los dos idiomas: c/f carpetas, s/q salir.
+            KeyCode::Char('c' | 'f') => self.open_folders(),
+            KeyCode::Char('v') => self.open_last_pdf(),
+            KeyCode::Char('s' | 'q') | KeyCode::Esc => self.should_quit = true,
             _ => {}
         }
     }
@@ -361,7 +362,7 @@ impl App {
             PickerPurpose::Markdown => {
                 // Empieza en la carpeta de la materia elegida, si existe.
                 let start = self
-                    .current_subject()
+                    .current_course()
                     .and_then(|s| s.input_dir(&self.project))
                     .or_else(|| Some(self.project.input_dir()).filter(|d| d.is_dir()))
                     .unwrap_or_else(|| self.project.root.clone());
@@ -373,12 +374,12 @@ impl App {
                     detail: "fill the fields by hand".into(),
                     value: PickValue::Choice(String::new()),
                 }];
-                items.extend(self.subjects.iter().map(|s| Item {
+                items.extend(self.courses.iter().map(|s| Item {
                     label: s.key.clone(),
-                    detail: s.profile.subject.clone(),
+                    detail: s.profile.name.clone(),
                     value: PickValue::Choice(s.key.clone()),
                 }));
-                Picker::choices(purpose, "Choose a subject profile", items)
+                Picker::choices(purpose, "Choose a course profile", items)
             }
             PickerPurpose::Template => {
                 let items = self
@@ -398,7 +399,7 @@ impl App {
                 let folders = [
                     ("input", project.input_dir(), "your papers in Markdown"),
                     ("output", project.output_dir(), "generated PDFs"),
-                    ("subjects", project.subjects_dir(), "subject profiles (*.toml)"),
+                    ("courses", project.courses_dir(), "course profiles (*.toml)"),
                     ("templates", project.templates_dir(), "LaTeX templates and logos"),
                     ("cache", project.cache_dir(), "downloaded images, diagrams, LaTeX state"),
                     ("project", project.root.clone(), "project root"),
@@ -507,9 +508,9 @@ impl App {
     /// gana, igual que una opción del CLI gana sobre el perfil.
     fn apply_profile(&mut self, key: &str) {
         self.set(FieldKey::Profile, key);
-        let Some(subject) = self.subjects.iter().find(|s| s.key == key).cloned() else { return };
-        let profile = &subject.profile;
-        self.set(FieldKey::Subject, profile.subject.trim());
+        let Some(course) = self.courses.iter().find(|s| s.key == key).cloned() else { return };
+        let profile = &course.profile;
+        self.set(FieldKey::Course, profile.name.trim());
         for (field, value) in [
             (FieldKey::Teacher, &profile.teacher),
             (FieldKey::Members, &profile.members),
@@ -521,7 +522,7 @@ impl App {
             }
         }
         if !profile.folder.trim().is_empty() {
-            let output = subject.output_dir(&self.project);
+            let output = course.output_dir(&self.project);
             self.set(FieldKey::Output, self.display_path(&output.display().to_string()));
         }
     }
@@ -558,7 +559,7 @@ impl App {
         };
         match finished {
             Ok(pdf) => {
-                self.log.push(LogLine::Info("Done. Press o to open the PDF or f to open a folder.".into()));
+                self.log.push(LogLine::Info("Done. Press v to view the PDF or c to open a folder.".into()));
                 self.last_pdf = Some(pdf);
             }
             Err(error) => self.log.push(LogLine::Error(error)),

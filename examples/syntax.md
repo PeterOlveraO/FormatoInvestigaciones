@@ -152,7 +152,7 @@ se busca desde la carpeta donde está el archivo Markdown y desde la carpeta
 primera vez. El tamaño se controla con `{width=...}` y el pie sale en formato
 APA, encima de la imagen.
 
-![La tubería que sigue el documento hasta el PDF](imagen-ejemplo.png){width=85%}
+![La tubería que sigue el documento hasta el PDF](sample-image.png){width=85%}
 
 ## Diagramas dibujados
 

@@ -123,7 +123,7 @@ dot -V               # opcional
 Y la prueba de fuego, que usa absolutamente todo:
 
 ```bash
-investigacion ejemplo/catalogo.md --title "Catalogo" --subject "Prueba"
+investigacion examples/catalog.md --title "Catalogo" --course "Prueba"
 ```
 
 Si termina sin advertencias, no falta nada. Si avisa de algo —un símbolo, una

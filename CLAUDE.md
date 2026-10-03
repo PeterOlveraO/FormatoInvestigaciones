@@ -23,11 +23,11 @@ cargo test --lib markdown             # las de un módulo
 cargo test --test pdf                 # las que compilan PDF reales
 
 # Ejecutar el CLI (sin argumentos abre la TUI)
-cargo run --release -- Economia.md --title "Tema" --subject "Materia" --teacher "Docente"
+cargo run --release -- Economia.md --title "Tema" --course "Materia" --teacher "Docente"
 cargo run --release -- Tarea1.md -p ia --title "Tema"
 
 # Medir cuánto tarda cada herramienta
-INVESTIGACION_TIMING=1 target/release/investigacion ejemplo/catalogo.md --title T --subject M
+INVESTIGACION_TIMING=1 target/release/investigacion examples/catalog.md --title T --course M
 ```
 
 Dependencias del crate: `clap`, `regex`, `unicode-normalization`, `tempfile`,
@@ -65,7 +65,7 @@ Módulos de `src/` (biblioteca `investigacion` + binarios):
 | `generate.rs` | `generate_pdf` (la tubería), `copy_pdf_to`, nombre del PDF |
 | `project.rs` | raíz del proyecto, carpetas, plantillas y logos |
 | `settings.rs` | `.env` + entorno, sin modificar el entorno del proceso |
-| `subjects.rs` | perfiles de materia (`subjects/*.toml`) |
+| `courses.rs` | perfiles de materia (`courses/*.toml`) |
 | `cli.rs` | `Args` (clap) y `execute()`, que usan el CLI y la TUI |
 | `tui/` | menú a pantalla completa: `app.rs` (estado), `picker.rs`, `ui.rs` |
 | `process.rs` | ejecutar herramientas con timeout |
@@ -145,7 +145,7 @@ solo renglón.
 
 ### Datos opcionales de la portada: alumno, integrantes y grupo
 
-Del comando solo son obligatorios `--title` y `--subject` (y la materia puede
+Del comando solo son obligatorios `--title` y `--course` (y la materia puede
 venir de un perfil). `--teacher` sigue el mismo patrón que `--group` (`Option`
 en `Args`; la opción gana, luego el perfil y luego la variable del `.env`, ver
 `pick()` en `cli.rs`) y su línea se omite cuando queda vacío, así que en la
@@ -318,11 +318,11 @@ se pasan, para que sigan valiendo el perfil y el `.env`.
 
 ### Perfiles de materia y nombre del PDF
 
-`subjects/<clave>.toml` (`SubjectProfile`, con `deny_unknown_fields` para que
+`courses/<clave>.toml` (`SubjectProfile`, con `deny_unknown_fields` para que
 un campo mal escrito sea error y no se ignore) guarda materia, docente, grupo,
 integrantes, plantilla y carpeta. Con `folder`, `locate_markdown()` busca
 primero en `input/<folder>` y la salida por omisión es `output/<folder>`.
-`subjects/` está en `.gitignore` salvo `example.toml` y `LEEME.md`.
+`courses/` está en `.gitignore` salvo `example.toml` y `LEEME.md`.
 
 El nombre del PDF **no sale del título**: `output_file_name()` usa el nombre del
 Markdown, o `--file-name` si se da. En la TUI se propone al elegir el Markdown
@@ -426,8 +426,8 @@ la carpeta `logos/` que esté junto a la plantilla, y esa sobre la compartida
 `templates/logos/`. Una ruta inexistente es `GenerationError`; que no
 haya carpeta por omisión, en cambio, no es error: devuelve `None`.
 
-Los documentos de `ejemplo/` **no pueden depender de los logos** por esa misma
-razón; usan `ejemplo/imagen-ejemplo.png`, que sí se versiona.
+Los documentos de `examples/` **no pueden depender de los logos** por esa misma
+razón; usan `examples/sample-image.png`, que sí se versiona.
 
 ### Los logos y TEXINPUTS
 
@@ -514,34 +514,34 @@ conviene no deshacer:
   (`apa/`, `apa-simple/`, cada una con su `template.ltx`) y `logos/`, ignorada
   por git salvo su `LEEME.md`.
 - `resources/filters/` — filtros Lua para Pandoc, embebidos en el binario.
-- `subjects/` — perfiles de materia; ignorada salvo `example.toml` y `LEEME.md`.
+- `courses/` — perfiles de materia; ignorada salvo `example.toml` y `LEEME.md`.
 - `cache/` — imágenes descargadas (`remote/`), diagramas (`diagrams/`) y estado
   de LaTeX (`latex/`). Se crea sola, se puede borrar y está en `.gitignore`.
-- `ejemplo/investigacion.md` — esqueleto con la estructura recomendada.
-- `ejemplo/sintaxis.md` — referencia breve del Markdown que se soporta.
-- `ejemplo/arboles-binarios.md` — un trabajo completo de ejemplo, con diagramas.
-- `ejemplo/catalogo.md` — muestrario completo: un ejemplo de cada tabla,
+- `examples/paper-template.md` — esqueleto con la estructura recomendada.
+- `examples/syntax.md` — referencia breve del Markdown que se soporta.
+- `examples/binary-trees.md` — un trabajo completo de ejemplo, con diagramas.
+- `examples/catalog.md` — muestrario completo: un ejemplo de cada tabla,
   diagrama, gráfica y caja. Es el **banco de pruebas visual** del proyecto:
   si se toca la plantilla o un filtro, generarlo y revisar las páginas es la
-  forma más rápida de ver qué se rompió. `ejemplo/catalogo.pdf` es su salida,
+  forma más rápida de ver qué se rompió. `examples/catalog.pdf` es su salida,
   versionada para poder verla sin instalar nada.
-- `docs/imagenes/` — capturas del PDF que usa el README.
+- `docs/images/` — capturas del PDF que usa el README.
 - `REQUISITOS.md` y `PROMPT-IA.md` — instalación por sistema operativo y el
   prompt con el que se le pide el trabajo a una IA. Si cambia la sintaxis que
   acepta el generador, el prompt hay que actualizarlo también: es la
   especificación que lee el modelo.
 
-`ejemplo/catalogo.pdf` y esas capturas son lo único generado que se versiona, y
+`examples/catalog.pdf` y esas capturas son lo único generado que se versiona, y
 **no deben llevar datos personales ni logos de nadie**. Se rehacen así:
 
 ```bash
 mkdir -p /tmp/sinlogos
-investigacion ejemplo/catalogo.md \
-  --title "Catalogo de elementos" --subject "Nombre de la materia" \
+investigacion examples/catalog.md \
+  --title "Catalogo de elementos" --course "Nombre de la materia" \
   --teacher "Nombre del docente" --group "7-A" \
   --env-file .env.example --logos /tmp/sinlogos --output /tmp/pub
-cp /tmp/pub/catalogo.pdf ejemplo/catalogo.pdf
-pdftoppm -r 110 -png -f 1 -l 1 ejemplo/catalogo.pdf docs/imagenes/portada
+cp /tmp/pub/catalogo.pdf examples/catalog.pdf
+pdftoppm -r 110 -png -f 1 -l 1 examples/catalog.pdf docs/images/portada
 ```
 
 El `--env-file .env.example` es la clave: la portada sale con los mismos

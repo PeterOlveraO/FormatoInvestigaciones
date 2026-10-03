@@ -57,7 +57,7 @@ pub fn data(title: &str) -> DocumentData {
         student: "A".into(),
         semester: "2026-2".into(),
         title: title.into(),
-        subject: "M".into(),
+        course: "M".into(),
         teacher: "D".into(),
         date: "Agosto 23, 2026".into(),
         ..Default::default()

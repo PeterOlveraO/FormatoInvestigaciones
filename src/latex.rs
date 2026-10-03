@@ -43,7 +43,7 @@ pub fn render_template(template: &str, content: &str, data: &DocumentData) -> Re
         ("%%TITULO%%", latex_escape(&data.title)),
         ("%%ALUMNO%%", latex_escape(&data.student)),
         ("%%INTEGRANTES%%", members),
-        ("%%MATERIA%%", latex_escape(&data.subject)),
+        ("%%MATERIA%%", latex_escape(&data.course)),
         ("%%GRUPO%%", latex_escape(&data.group)),
         ("%%DOCENTE%%", latex_escape(&data.teacher)),
         ("%%SEMESTRE%%", latex_escape(&data.semester)),
@@ -132,7 +132,7 @@ mod tests {
             student: "A".into(),
             semester: "S".into(),
             title: "T".into(),
-            subject: "M".into(),
+            course: "M".into(),
             teacher: "D".into(),
             date: "Agosto 23, 2026".into(),
             ..Default::default()

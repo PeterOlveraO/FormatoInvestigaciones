@@ -9,9 +9,9 @@ decidí por mi cuenta y qué conviene que revises. Todo está en la rama
 | # | Pedido | Resultado |
 |---|---|---|
 | 1 | Pasarlo a Rust para reducir tiempos | Port completo a Rust. Regenerar un trabajo tarda **hasta 64 % menos** |
-| 2 | Mejor organización de carpetas y acceso fácil | `templates/`, `subjects/`, `resources/`, `cache/`; la tecla `f` del menú abre cualquier carpeta |
+| 2 | Mejor organización de carpetas y acceso fácil | `templates/`, `courses/`, `resources/`, `cache/`; la tecla `f` del menú abre cualquier carpeta |
 | 3 | Elegir archivos de una lista, sin escribir rutas | Selector navegable con flechas y filtro al escribir |
-| 4 | Varias plantillas y datos de cada materia, con el mismo selector | Plantillas `apa` y `apa-simple` + perfiles de materia en `subjects/*.toml` |
+| 4 | Varias plantillas y datos de cada materia, con el mismo selector | Plantillas `apa` y `apa-simple` + perfiles de materia en `courses/*.toml` |
 | 5 | Nombre del archivo distinto del título | El PDF se llama como el Markdown (o `--file-name`); el título solo va en la portada |
 | 6 | Quitar las opciones 9 a 12 de la TUI | Fuera `.env`, «permitir LaTeX», plantilla por ruta y logos (siguen en el CLI) |
 
@@ -61,8 +61,8 @@ pdflatex ~1.7 s. Por eso el port a Rust, por sí solo, no cambió nada (5.5 s �
 
 | Documento | Python | Rust, 1.ª vez | Rust, al regenerar |
 |---|---|---|---|
-| `ejemplo/catalogo.md` (23 págs.) | 5.5 s | 5.5 s (3 pasadas) | **2.0 s** (1 pasada) |
-| `ejemplo/arboles-binarios.md` (12 págs.) | 1.85 s | 1.9 s (2 pasadas) | **1.1 s** (1 pasada) |
+| `examples/catalog.md` (23 págs.) | 5.5 s | 5.5 s (3 pasadas) | **2.0 s** (1 pasada) |
+| `examples/binary-trees.md` (12 págs.) | 1.85 s | 1.9 s (2 pasadas) | **1.1 s** (1 pasada) |
 
 Regenerar es justo el caso de todos los días (corriges algo y vuelves a
 generar), así que ahí está la ganancia real. Comprobé que un trabajo editado
@@ -85,7 +85,7 @@ disponible en `main`.
 ```
 input/       tus trabajos (sin cambios; tus subcarpetas IA/, IS/... siguen igual)
 output/      PDFs (sin cambios; con un perfil van a output/<carpeta>/)
-subjects/    NUEVO: perfiles de materia
+courses/    NUEVO: perfiles de materia
 templates/   antes Latex/: apa/, apa-simple/, common/ (preámbulo común) y logos/
 resources/   los filtros Lua (antes src/investigacion/filtros/)
 cache/       antes imagenes/: remote/, diagrams/ y latex/ (todo borrable)
@@ -99,7 +99,7 @@ src/, tests/ el código Rust y sus pruebas
   comparten las plantillas: formato APA, compatibilidad con Pandoc, símbolos,
   emoji, gráficas) e `investigacion-final.sty` (hyperref). Cada plantilla queda
   en ~200 líneas y solo diseña su portada.
-- **Acceso fácil:** en el menú, `f` abre `input`, `output`, `subjects`,
+- **Acceso fácil:** en el menú, `f` abre `input`, `output`, `courses`,
   `templates`, `cache` o la raíz del proyecto en el explorador de archivos, y
   `o` abre el último PDF generado.
 
@@ -118,10 +118,10 @@ en la carpeta de esa materia (`input/IA/`, por ejemplo).
 los datos opcionales. Para crear otra: copia `templates/apa-simple/` con otro
 nombre y cambia solo la portada; aparece sola en el menú.
 
-**Perfiles de materia** (`subjects/<clave>.toml`):
+**Perfiles de materia** (`courses/<clave>.toml`):
 
 ```toml
-subject = "Inteligencia artificial"
+name = "Inteligencia artificial"
 teacher = "..."
 group = "M"
 template = "apa"
@@ -145,7 +145,7 @@ portadas de tus PDF de `output/`:
 
 Revísalos: en PM aparecían dos grupos (`7K` y `M`) y tomé el del PDF más
 reciente; en IE e IS no había grupo. **Estos archivos no se suben a GitHub**
-(`subjects/` está en `.gitignore` salvo `example.toml`), igual que tu `.env`.
+(`courses/` está en `.gitignore` salvo `example.toml`), igual que tu `.env`.
 
 ## 5. Nombre del archivo ≠ título
 
@@ -174,7 +174,7 @@ quedaba sin espacio.
 
 ## Decisiones que tomé sin poder preguntarte
 
-- **Opciones del CLI en inglés** (`--title`, `--subject`, `--teacher`…), pero
+- **Opciones del CLI en inglés** (`--title`, `--course`, `--teacher`…), pero
   las de antes en español **siguen funcionando** como alias ocultos: tus
   comandos guardados no se rompen.
 - **Mensajes del programa en inglés**, por la indicación de «proyecto en
@@ -192,7 +192,7 @@ quedaba sin espacio.
 1. **Instalar:** `cargo install --path .` (deja `investigacion` en
    `~/.cargo/bin`). No lo ejecuté para no tocar tu `PATH`. La carpeta `.venv/`
    de Python ya no hace falta y se puede borrar.
-2. **Los perfiles** de `subjects/` (sobre todo el grupo de PM).
+2. **Los perfiles** de `courses/` (sobre todo el grupo de PM).
 3. **Windows y macOS:** el código no tiene nada específico de un sistema y la
    TUI usa crossterm, pero solo lo probé en Linux.
 4. En Debian/Ubuntu el `cargo` de `apt` es demasiado viejo (hace falta Rust

@@ -6,13 +6,13 @@ use std::path::PathBuf;
 
 use clap::Parser;
 
+use crate::courses::{Course, find_course};
 use crate::document::{DocumentData, parse_members, today};
 use crate::error::{GenerationError, Result};
 use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf};
 use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
 use crate::project::Project;
 use crate::settings::Settings;
-use crate::subjects::{Subject, find_subject};
 
 /// Variables obligatorias del `.env` (nombre en español y en inglés).
 pub const REQUIRED_ENV: [[&str; 2]; 3] =
@@ -39,13 +39,13 @@ pub struct Args {
     #[arg(long, alias = "nombre")]
     pub file_name: Option<String>,
 
-    /// Subject name. Optional when a subject profile gives it.
-    #[arg(long, alias = "materia")]
-    pub subject: Option<String>,
+    /// Course name. Optional when a course profile gives it.
+    #[arg(long, aliases = ["materia", "subject"])]
+    pub course: Option<String>,
 
-    /// Subject profile from subjects/ (e.g. ia): fills subject, teacher, group, template and folders.
-    #[arg(long, short = 'p', alias = "perfil", value_name = "PROFILE")]
-    pub subject_profile: Option<String>,
+    /// Course profile from courses/ (e.g. ia): fills course, teacher, group, template and folders.
+    #[arg(long, short = 'p', aliases = ["perfil", "subject-profile"], value_name = "PROFILE")]
+    pub profile: Option<String>,
 
     /// Teacher name. Falls back to DOCENTE in the .env; if empty the line is omitted.
     #[arg(long, alias = "docente")]
@@ -59,7 +59,7 @@ pub struct Args {
     #[arg(long, alias = "grupo")]
     pub group: Option<String>,
 
-    /// Directory for the PDF (default: output/, or output/<folder> of the subject profile).
+    /// Directory for the PDF (default: output/, or output/<folder> of the course profile).
     #[arg(long, alias = "salida")]
     pub output: Option<PathBuf>,
 
@@ -113,8 +113,8 @@ fn pick(option: Option<&str>, profile: Option<&str>, settings: &Settings, names:
 
 /// Primero se busca el Markdown en la carpeta de la materia (así dos materias
 /// pueden tener una `Tarea1.md` cada una) y luego en todo `input/`.
-fn locate_markdown(args: &Args, project: &Project, subject: Option<&Subject>) -> Result<PathBuf> {
-    if let Some(dir) = subject.and_then(|s| s.input_dir(project))
+fn locate_markdown(args: &Args, project: &Project, course: Option<&Course>) -> Result<PathBuf> {
+    if let Some(dir) = course.and_then(|s| s.input_dir(project))
         && !args.markdown.exists()
         && let Ok(found) = resolve_markdown_path(&args.markdown, &dir)
     {
@@ -139,9 +139,9 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         )));
     }
 
-    let subject = args.subject_profile.as_deref().map(|key| find_subject(project, key)).transpose()?;
-    let profile = subject.as_ref().map(|s| &s.profile);
-    let markdown_path = locate_markdown(args, project, subject.as_ref())?;
+    let course = args.profile.as_deref().map(|key| find_course(project, key)).transpose()?;
+    let profile = course.as_ref().map(|s| &s.profile);
+    let markdown_path = locate_markdown(args, project, course.as_ref())?;
     let markdown = read_markdown(&markdown_path)?;
     for warning in validate_markdown(&markdown) {
         reporter.warning(warning);
@@ -153,7 +153,7 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         student: settings.get(&["ALUMNO", "STUDENT"]),
         semester: settings.get(&["SEMESTRE", "SEMESTER"]),
         title: args.title.trim().to_owned(),
-        subject: pick(args.subject.as_deref(), profile.map(|p| p.subject.as_str()), &settings, &[]),
+        course: pick(args.course.as_deref(), profile.map(|p| p.name.as_str()), &settings, &[]),
         teacher: pick(
             args.teacher.as_deref(),
             profile.map(|p| p.teacher.as_str()),
@@ -169,9 +169,9 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         )),
         group: pick(args.group.as_deref(), profile.map(|p| p.group.as_str()), &settings, &["GRUPO", "GROUP"]),
     };
-    if data.title.is_empty() || data.subject.is_empty() {
+    if data.title.is_empty() || data.course.is_empty() {
         return Err(GenerationError::new(
-            "The title and the subject cannot be empty (give --subject or a --subject-profile).",
+            "The title and the course cannot be empty (give --course or a --course-profile).",
         ));
     }
 
@@ -190,8 +190,8 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         file_name: args.file_name.clone(),
         markdown: Some(markdown),
     };
-    let output_dir = args.output.clone().unwrap_or_else(|| match &subject {
-        Some(subject) => subject.output_dir(project),
+    let output_dir = args.output.clone().unwrap_or_else(|| match &course {
+        Some(course) => course.output_dir(project),
         None => project.output_dir(),
     });
     let pdf =
@@ -236,20 +236,28 @@ mod tests {
     #[test]
     fn option_order_does_not_matter() {
         let orders: [&[&str]; 5] = [
-            &["t.md", "--title", "T", "--subject", "M", "--teacher", "D"],
-            &["--title", "T", "--subject", "M", "--teacher", "D", "t.md"],
-            &["--teacher", "D", "t.md", "--title", "T", "--subject", "M"],
-            &["--subject", "M", "--title", "T", "t.md", "--teacher", "D"],
-            &["--copy", "otro", "--title", "T", "t.md", "--teacher", "D", "--subject", "M"],
+            &["t.md", "--title", "T", "--course", "M", "--teacher", "D"],
+            &["--title", "T", "--course", "M", "--teacher", "D", "t.md"],
+            &["--teacher", "D", "t.md", "--title", "T", "--course", "M"],
+            &["--course", "M", "--title", "T", "t.md", "--teacher", "D"],
+            &["--copy", "otro", "--title", "T", "t.md", "--teacher", "D", "--course", "M"],
         ];
         for argv in orders {
             let args = parse(argv);
             assert_eq!(args.markdown, PathBuf::from("t.md"));
             assert_eq!(
-                (args.title.as_str(), args.subject.as_deref(), args.teacher.as_deref()),
+                (args.title.as_str(), args.course.as_deref(), args.teacher.as_deref()),
                 ("T", Some("M"), Some("D"))
             );
         }
+    }
+
+    #[test]
+    fn the_old_option_names_still_work() {
+        let args = parse(&["t.md", "--title", "T", "--subject", "M", "--subject-profile", "ia"]);
+        assert_eq!((args.course.as_deref(), args.profile.as_deref()), (Some("M"), Some("ia")));
+        let args = parse(&["t.md", "--title", "T", "--perfil", "pm"]);
+        assert_eq!(args.profile.as_deref(), Some("pm"));
     }
 
     #[test]
@@ -281,19 +289,19 @@ mod tests {
 
     #[test]
     fn optional_values_default_to_none() {
-        let args = parse(&["t.md", "--title", "T", "--subject", "M"]);
+        let args = parse(&["t.md", "--title", "T", "--course", "M"]);
         assert!(args.teacher.is_none() && args.members.is_none() && args.group.is_none());
         assert!(args.copy.is_empty());
-        let args = parse(&["t.md", "--title", "T", "--subject", "M", "--copy", "a", "--copy", "b"]);
+        let args = parse(&["t.md", "--title", "T", "--course", "M", "--copy", "a", "--copy", "b"]);
         assert_eq!(args.copy, [PathBuf::from("a"), PathBuf::from("b")]);
     }
 
     #[test]
     fn the_file_name_is_its_own_option() {
-        let args = parse(&["t.md", "--title", "Un titulo largo", "--subject", "M", "--file-name", "entrega"]);
+        let args = parse(&["t.md", "--title", "Un titulo largo", "--course", "M", "--file-name", "entrega"]);
         assert_eq!(args.file_name.as_deref(), Some("entrega"));
         assert_eq!(
-            parse(&["t.md", "--title", "T", "--subject", "M", "--nombre", "x"]).file_name.as_deref(),
+            parse(&["t.md", "--title", "T", "--course", "M", "--nombre", "x"]).file_name.as_deref(),
             Some("x")
         );
     }

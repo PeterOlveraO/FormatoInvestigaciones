@@ -30,7 +30,7 @@ pub struct DocumentData {
     pub student: String,
     pub semester: String,
     pub title: String,
-    pub subject: String,
+    pub course: String,
     pub teacher: String,
     pub date: String,
     pub members: Vec<String>,
