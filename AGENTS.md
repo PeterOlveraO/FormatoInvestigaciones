@@ -1,20 +1,21 @@
 # AGENTS.md
 
-Proyecto en Rust (CLI + menú interactivo) que convierte una investigación
-escrita en Markdown al formato APA en PDF.
+Rust project (CLI and full-screen menu) that turns a paper written in Markdown
+into an APA PDF.
 
-Reglas que no se negocian al añadir código:
+Rules that are not negotiable when adding code:
 
-- **Proyecto en inglés, comentarios en español.** Identificadores, módulos,
-  archivos, carpetas, opciones y mensajes del CLI/TUI van en inglés; los
-  comentarios, en español y breves (uno por bloque, y por línea solo en casos
-  especiales). Lo que lee el lector del PDF (plantillas) sigue en español.
-- **Dependencias mínimas.** Cada crate nuevo tiene que justificarse; Pandoc,
-  pdflatex y Graphviz son dependencias del sistema, no del crate.
-- **Nada específico de un sistema operativo**: el programa tiene que funcionar
-  igual en Linux, Windows y macOS.
-- Antes de terminar: `cargo fmt`, `cargo clippy --all-targets -- -D warnings` y
-  `cargo test`.
+- **Code in English, comments in Spanish.** Identifiers, modules, files,
+  folders, CLI options and profile keys are in English. Comments are in
+  Spanish and short.
+- **Bilingual interface.** Every user-facing text has both versions through
+  `tr!(es: …, en: …)` or `Text::new(es, en)` (see `src/i18n.rs`). The PDF
+  stays in Spanish.
+- **Minimal dependencies.** Every new crate must be justified. Pandoc, pdflatex
+  and Graphviz are system dependencies.
+- **Nothing system-specific.** It must work the same on Linux, Windows and
+  macOS.
+- **Before finishing,** run `cargo fmt`, `cargo clippy --all-targets -- -D
+  warnings` and `cargo test`.
 
-El resto de las convenciones —arquitectura y los contratos entre las piezas—
-está en `CLAUDE.md`.
+Architecture, internal contracts and the known traps are in `CLAUDE.md`.

@@ -1,23 +1,21 @@
-# Perfiles de materia
+# Course profiles
 
-Cada archivo `.toml` de esta carpeta guarda los datos que se repiten en todos
-los trabajos de una materia, para no escribirlos cada vez:
+Each `.toml` file here stores what repeats in every paper of a course, so you
+do not type it each time:
 
-| Campo      | Qué es                                                | ¿Obligatorio? |
-|------------|-------------------------------------------------------|---------------|
-| `name`  | Nombre de la materia (sale en la portada)             | Sí            |
-| `teacher`  | Docente                                               | No            |
-| `group`    | Grupo                                                 | No            |
-| `members`  | Integrantes del equipo, separados por comas           | No            |
-| `template` | Plantilla de `templates/` (`apa`, `apa-simple`…)      | No (`apa`)    |
-| `folder`   | Subcarpeta de `input/` y de `output/` de la materia   | No            |
+| Field | Meaning | Required |
+|---|---|---|
+| `name` | Course name, as shown on the cover | Yes |
+| `teacher` | Teacher | No |
+| `group` | Group | No |
+| `members` | Team members, separated by commas | No |
+| `template` | Template from `templates/` (`apa`, `apa-simple`…) | No (`apa`) |
+| `folder` | Subfolder of `input/` and `output/` for this course | No |
 
-El nombre del archivo es la clave del perfil: `ia.toml` se usa con
-`-p ia` (o `--profile ia`), y en el menú interactivo aparece en la
-lista de perfiles.
+The file name is the profile's key: `ia.toml` is used with `-p ia`, and it
+appears in the menu's profile list. Copy `example.toml` to start.
 
-Prioridad de los datos: lo que se escriba en el comando gana sobre el perfil, y
-el perfil gana sobre el `.env`.
+Precedence: what you type on the command line > the profile > `.env`.
 
-Esta carpeta está en `.gitignore` salvo `example.toml` y este archivo: los
-nombres de tus docentes son datos tuyos y no se suben al repositorio.
+This folder is ignored by git except for `example.toml` and this file, because
+your teachers' names are your own data.

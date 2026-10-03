@@ -2,566 +2,511 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Idioma
+## Language rules
 
-El proyecto es de un estudiante hispanohablante, pero **el código va en
-inglés**: identificadores, módulos, archivos, carpetas, opciones del CLI y
-mensajes del CLI y de la TUI. Los **comentarios van en español**, breves: uno
-por bloque y por línea solo en casos especiales (trampas de LaTeX, portabilidad).
-La documentación para el usuario (README, GUIA, REQUISITOS, MEJORAS) y lo que
-sale en el PDF (plantillas) siguen en español. Las opciones antiguas en español
-(`--titulo`, `--materia`…) se conservan como alias ocultos de clap.
+The project belongs to a Spanish-speaking student:
 
-## Comandos
+- **Code is in English:** identifiers, modules, files, folders, CLI options and
+  course-profile keys. The old Spanish option names (`--titulo`, `--materia`,
+  `--subject`…) stay as hidden clap aliases, and the old profile key `subject`
+  as a serde alias.
+- **Comments are in Spanish**, short: one per block, and per line only for
+  special cases (LaTeX traps, portability).
+- **The interface is bilingual** (Spanish/English): menu, messages, help and
+  warnings. Every user-facing string goes through `tr!` or `Text` (see
+  `i18n.rs`). Spanish is written with accents; Rust writes Unicode to the
+  Windows console, so the old Python "no accents" rule no longer applies.
+- **The PDF is always Spanish** (templates, "Contenido", dates). That is the
+  paper's language, not the interface's.
+- **Docs are in English** (README, INSTALL, GUIDE, CHANGELOG, AI-PROMPT, this
+  file). `examples/` are Spanish papers.
+
+## Commands
 
 ```bash
-cargo build --release                 # binario en target/release/investigacion
-cargo install --path .                # lo instala en ~/.cargo/bin
+cargo build --release                 # target/release/investigacion
+cargo install --path .                # installs into ~/.cargo/bin
 cargo fmt && cargo clippy --all-targets -- -D warnings
-cargo test                            # todas las pruebas
-cargo test --lib markdown             # las de un módulo
-cargo test --test pdf                 # las que compilan PDF reales
+cargo test                            # all tests
+cargo test --lib markdown             # one module
+cargo test --test pdf                 # the ones that build real PDFs
 
-# Ejecutar el CLI (sin argumentos abre la TUI)
-cargo run --release -- Economia.md --title "Tema" --course "Materia" --teacher "Docente"
+# Run (no arguments opens the TUI)
+cargo run --release -- Economia.md --title "Tema" --course "Materia" --lang en
 cargo run --release -- Tarea1.md -p ia --title "Tema"
 
-# Medir cuánto tarda cada herramienta
+# Where the time goes
 INVESTIGACION_TIMING=1 target/release/investigacion examples/catalog.md --title T --course M
 ```
 
-Dependencias del crate: `clap`, `regex`, `unicode-normalization`, `tempfile`,
-`thiserror`, `chrono`, `serde` + `toml` (perfiles), `ratatui` + `crossterm`
-(TUI) y `opener` (abrir carpetas y PDF). Pandoc, pdflatex y Graphviz son
-dependencias **del sistema**. Rust mínimo: 1.88 (`rust-version` en Cargo.toml;
-el código usa let-chains de la edición 2024).
+Crate dependencies: `clap`, `regex`, `unicode-normalization`, `tempfile`,
+`thiserror`, `chrono`, `serde` + `toml` (profiles), `ratatui` + `crossterm`
+(TUI), `opener` (open folders and PDFs), `sys-locale` (system language).
+Pandoc, pdflatex and Graphviz are **system** dependencies. Minimum Rust: 1.88
+(`rust-version`; the code uses edition 2024 let-chains).
 
-## Arquitectura
+## Architecture
 
-Tubería de una sola dirección, sin estado intermedio persistente:
+One-way pipeline, no persistent intermediate state (except the caches):
 
 ```
-archivo.md
-  → read_markdown()      decodifica UTF-8 con respaldo CP1252
-  → normalize_markdown() quita el espacio invisible (lo llama read_markdown)
-  → validate_markdown()  solo advertencias, nunca bloquea
-  → pandoc_to_latex()    Pandoc emite un FRAGMENTO de LaTeX (sin preámbulo);
-                         con las extensiones de MARKDOWN_EXTENSIONS y los
-                         filtros Lua de resources/filters/
-  → render_template()    sustituye los marcadores %%NOMBRE%% de la plantilla
-  → compile_pdf()        pdflatex en un directorio temporal, varias pasadas
-  → copy_pdf_to()        copias opcionales en otros directorios
+paper.md
+  → read_markdown()      UTF-8 with CP1252 fallback
+  → normalize_markdown() strips invisible spaces (called by read_markdown)
+  → validate_markdown()  warnings only, never blocks
+  → pandoc_to_latex()    Pandoc emits a LaTeX FRAGMENT (no preamble), with
+                         MARKDOWN_EXTENSIONS and the Lua filters
+  → render_template()    replaces the %%NAME%% markers of the template
+  → compile_pdf()        pdflatex in a temp dir, as many passes as needed
+  → copy_pdf_to()        optional copies
 ```
 
-Módulos de `src/` (biblioteca `investigacion` + binarios):
-
-| Módulo | Qué hace |
+| Module | Role |
 |---|---|
-| `encoding.rs` | UTF-8 con respaldo Windows-1252; el log de pdflatex línea a línea |
-| `markdown.rs` | `read_markdown`, `normalize_markdown`, búsqueda en `input/`, validación |
-| `latex.rs` | `latex_escape`, `render_template`, lectura del log |
-| `pandoc.rs` | `pandoc_to_latex`; los filtros Lua van **embebidos** con `include_str!` |
-| `compile.rs` | pasadas de pdflatex, TEXINPUTS, caché del `.aux`/`.toc` |
-| `generate.rs` | `generate_pdf` (la tubería), `copy_pdf_to`, nombre del PDF |
-| `project.rs` | raíz del proyecto, carpetas, plantillas y logos |
-| `settings.rs` | `.env` + entorno, sin modificar el entorno del proceso |
-| `courses.rs` | perfiles de materia (`courses/*.toml`) |
-| `cli.rs` | `Args` (clap) y `execute()`, que usan el CLI y la TUI |
-| `tui/` | menú a pantalla completa: `app.rs` (estado), `picker.rs`, `ui.rs` |
-| `process.rs` | ejecutar herramientas con timeout |
+| `i18n.rs` | Interface language: thread-local `Lang`, `tr!`, `Text`, `detect()`, `resolve()` |
+| `encoding.rs` | UTF-8 with Windows-1252 fallback; pdflatex log decoded line by line |
+| `markdown.rs` | `read_markdown`, `normalize_markdown`, lookup in `input/`, validation |
+| `latex.rs` | `latex_escape`, `render_template`, log parsing |
+| `pandoc.rs` | `pandoc_to_latex`; the Lua filters are **embedded** with `include_str!` |
+| `compile.rs` | pdflatex passes, TEXINPUTS, `.aux`/`.toc` cache |
+| `generate.rs` | `generate_pdf` (the pipeline), `copy_pdf_to`, PDF name |
+| `project.rs` | project root, folders, templates and logos |
+| `settings.rs` | `.env` + environment (never mutates the process env); `save_value` |
+| `courses.rs` | course profiles (`courses/*.toml`) |
+| `cli.rs` | `Args` (clap), localized help/errors, `execute()` shared with the TUI |
+| `tui/` | full-screen menu: `app.rs` (state), `picker.rs`, `ui.rs` |
+| `process.rs` | running tools with a timeout |
 
-Todo fallo esperado es `GenerationError` (un mensaje para mostrar tal cual);
-`cli::main_with_args` lo imprime y devuelve 1. `execute()` informa por un
-`Reporter` (consola en el CLI, canal hacia la TUI), así que la lógica no
-imprime nada por su cuenta.
+Every expected failure is a `GenerationError` (a message to show as-is);
+`cli::main_with_args` prints it and returns 1. `execute()` reports through a
+`Reporter` (console in the CLI, a channel in the TUI); the library never prints
+by itself.
 
-### El contrato crítico: plantilla ↔ salida de Pandoc
+### The interface language
 
-Pandoc genera un **fragmento**, no un documento completo, así que la plantilla
-tiene que aportar por su cuenta todo el preámbulo que la salida
-de Pandoc da por supuesto. Es la fuente de fallos más habitual del proyecto: un
-documento con tablas, imágenes o bloques de código falla mientras uno de solo
-texto compila bien.
+- **Resolution:** `--lang` > `IDIOMA` (env var or `.env`, also
+  `INTERFACE_LANGUAGE`) > `sys-locale` (`es*` → Spanish, anything else →
+  English).
+- **Thread-local language:** each test thread sets its own, so parallel tests
+  never race. The TUI copies it into the worker thread that generates the PDF.
+- **`tr!(es: "…", en: "…", args)`** requires both versions at the call site, so
+  a message cannot be added untranslated. **`Text { es, en }`** holds constant
+  labels. clap's help template uses `Text`, never `format!`, because its
+  `{usage}`-style placeholders would be eaten.
+- **CLI:** `main_with_args` pre-scans argv for `--lang`/`--env-file` before
+  parsing, so `--help` and argument errors already come out in the right
+  language.
+  - `localized_command()` rebuilds the help per language (`mut_arg` over
+    `ARG_HELP`, custom `-h`/`-V`).
+  - `describe_clap_error()` translates the common error kinds.
+- **TUI:** with no `IDIOMA` saved it opens `Mode::ChooseLanguage` (system
+  language preselected), and Enter saves the choice with
+  `Settings::save_value`. `l` switches and saves.
+- **Lua filters:** they receive `INVESTIGACION_LANG` and pick their warning
+  text with `texto(es, en)`.
 
-Las plantillas están en dos niveles. `templates/common/investigacion.sty` es el
-preámbulo compartido (todo lo de abajo) y `templates/common/investigacion-final.sty`
-el cierre (hyperref, footnotehyper, `\AutorPDF`); cada `templates/<nombre>/template.ltx`
-solo pone los datos y la portada y carga los dos con `\usepackage`.
-`copy_template_assets()` copia los `.sty` de `common/` (y los que traiga la
-propia plantilla) al temporal, que está en `TEXINPUTS`. Dentro de un `.sty` no
-hay `\makeatletter` (la arroba ya es letra) y se usa `\RequirePackage`.
+### The critical contract: template ↔ Pandoc output
 
-El bloque `PAQUETES QUE NECESITA LA SALIDA DE PANDOC` de `investigacion.sty` cubre
-hoy tablas (`calc`, `\newcounter{none}`, parche de `longtable`), imágenes
-(`\pandocbounded`), código (`Shaded`/`Highlighting` y los comandos `\...Tok`),
-tachado (`soul`), matemáticas (`amsmath`) y notas al pie en tablas
-(`footnotehyper`). **No quites nada de ese bloque.** Antes de tocarlo, compara
-con lo que espera la versión instalada de Pandoc:
+Pandoc produces a **fragment**, not a full document, so the template must
+provide the whole preamble that Pandoc's output assumes. This is the project's
+most common source of failures: a document with tables, images or code blocks
+fails while a text-only one compiles fine.
+
+The templates have two levels:
+
+- **`templates/common/investigacion.sty`:** the shared preamble (everything
+  below).
+- **`templates/common/investigacion-final.sty`:** the closing part (hyperref,
+  footnotehyper, `\AutorPDF`).
+- **`templates/<name>/template.ltx`:** only the data and the cover; it loads
+  both files with `\usepackage`.
+
+`copy_template_assets()` copies the `.sty` files of `common/` (and any the
+template brings) into the temp dir, which is first in `TEXINPUTS`. Inside a
+`.sty` there is no `\makeatletter` (`@` is already a letter) and packages are
+loaded with `\RequirePackage`.
+
+The `PAQUETES QUE NECESITA LA SALIDA DE PANDOC` block of `investigacion.sty`
+currently covers:
+
+- tables: `calc`, `\newcounter{none}`, the `longtable` patch;
+- images: `\pandocbounded`;
+- code: `Shaded`/`Highlighting` and the `\...Tok` commands;
+- strikethrough: `soul`;
+- math: `amsmath`;
+- footnotes in tables: `footnotehyper`.
+
+**Do not remove anything from that block.** Before touching it, compare with
+what the installed Pandoc expects:
 
 ```bash
-pandoc archivo.md -s --to=latex | sed -n '/documentclass/,/begin{document}/p'
+pandoc file.md -s --to=latex | sed -n '/documentclass/,/begin{document}/p'
 ```
 
-Un bloque de código sin lenguaje no llega como `Shaded` sino como `verbatim`,
-que no pasa por esa definición y hereda el `\doublespacing` del documento: el
-arte ASCII sale estirado y los conectores verticales con hueco. Por eso
-`\AtBeginEnvironment{verbatim}{\singlespacing\small}` le da el mismo trato.
+A code block without a language arrives as `verbatim`, not `Shaded`, so it
+inherits the document's `\doublespacing`: ASCII art comes out stretched with
+gaps in the vertical connectors. `\AtBeginEnvironment{verbatim}{\singlespacing\small}`
+gives it the same treatment.
 
-Tres avisos sobre las figuras, que ahora pasan por `floatrow`:
+Figures go through `floatrow`:
 
-- `floatrow` y el paquete `float` **no pueden convivir**: cargar los dos aborta
-  la compilación. La colocación `H` (la figura se queda donde se escribió, en
-  vez de flotar) la trae el propio `floatrow`.
-- Esa colocación se fija en la línea `\@ifundefined{floatsetup}...\fps@figure`,
-  que va **donde Pandoc define la suya**; puesta antes, Pandoc la sobrescribe y
-  las figuras vuelven a flotar.
-- `floatrow` deja las tablas largas pegadas al margen izquierdo, de ahí el
-  `\LTleft`/`\LTright` a `\fill` dentro de su bloque.
+- **`floatrow` and `float` cannot coexist.** Loading both aborts the build.
+  The `H` placement (the figure stays where it was written) comes from
+  `floatrow` itself.
+- **Where the placement line goes.** The line
+  `\@ifundefined{floatsetup}...\fps@figure` must sit **where Pandoc defines its
+  own**. Placed earlier, Pandoc overrides it and figures float again.
+- **Long tables.** `floatrow` pushes long tables to the left margin, hence
+  `\LTleft`/`\LTright` set to `\fill`.
 
-Otras dos trampas de la plantilla:
+Two more template traps:
 
-- Babel-spanish fija los títulos en `\begin{document}`, así que un
-  `\renewcommand{\contentsname}{...}` suelto en el preámbulo no surte efecto;
-  hay que envolverlo en `\addto\captionsspanish{...}`.
-- `hyperref` y `footnotehyper` van al final del preámbulo, en ese orden.
+- **Babel-spanish sets the captions at `\begin{document}`.** A bare
+  `\renewcommand{\contentsname}{...}` has no effect; wrap it in
+  `\addto\captionsspanish{...}`.
+- **`hyperref` and `footnotehyper`** go at the end of the preamble, in that
+  order.
 
-### Marcadores de la plantilla
+### Template markers
 
-`render_template()` sustituye `%%UNIVERSIDAD%%`, `%%FACULTAD%%`, `%%TITULO%%`,
+`render_template()` replaces `%%UNIVERSIDAD%%`, `%%FACULTAD%%`, `%%TITULO%%`,
 `%%ALUMNO%%`, `%%INTEGRANTES%%`, `%%MATERIA%%`, `%%GRUPO%%`, `%%DOCENTE%%`,
-`%%SEMESTRE%%`, `%%FECHA_ENTREGA%%` y `%%CONTENIDO_MARKDOWN%%`. Los datos del usuario pasan por
-`latex_escape()`; el contenido convertido por Pandoc **no** se escapa, y se
-inserta al final para que un `%%...%%` mencionado dentro del trabajo no se
-confunda con un marcador de la plantilla sin resolver. Al añadir un marcador
-nuevo hay que tocar `DocumentData`, la lista de `render_template()` y **todas**
-las plantillas a la vez (la prueba `every_template_compiles_…` lo vigila).
+`%%SEMESTRE%%`, `%%FECHA_ENTREGA%%` and `%%CONTENIDO_MARKDOWN%%`.
 
-`%%INTEGRANTES%%` es el único que no sale de un solo `latex_escape()`:
-`DocumentData.members` es un `Vec<String>` y la lista se arma escapando **cada
-nombre por separado**
-y uniéndolos después con un `\\` literal. Al revés no funciona: `latex_escape()`
-convertiría esas contrabarras en `\textbackslash{}` y los nombres saldrían en un
-solo renglón.
+- **Escaping.** User data goes through `latex_escape()`. Pandoc's content is
+  **not** escaped.
+- **Content goes in last**, so a `%%...%%` mentioned inside the paper is not
+  mistaken for an unresolved marker.
+- **Adding a marker** means touching `DocumentData`, the list in
+  `render_template()` and **every** template at once. The test
+  `every_template_compiles_with_and_without_the_optional_fields` guards this.
+- **`%%INTEGRANTES%%`** is the only marker not produced by a single
+  `latex_escape()`. `DocumentData.members` is a `Vec<String>`; **each name is
+  escaped separately** and then joined with a literal `\\`. The other way
+  round, `latex_escape()` would turn those backslashes into `\textbackslash{}`
+  and the names would end up on one line.
 
-### Datos opcionales de la portada: alumno, integrantes y grupo
+### Optional cover data: student, members, teacher, group
 
-Del comando solo son obligatorios `--title` y `--course` (y la materia puede
-venir de un perfil). `--teacher` sigue el mismo patrón que `--group` (`Option`
-en `Args`; la opción gana, luego el perfil y luego la variable del `.env`, ver
-`pick()` en `cli.rs`) y su línea se omite cuando queda vacío, así que en la
-portada solo `MATERIA` y `SEMESTRE` aparecen siempre.
+- **What is required.** Only `--title` is mandatory, plus a course from
+  `--course` or a profile.
+- **Optional lines.** `--teacher`, `--members` and `--group` follow the same
+  pattern: option > profile > `.env` (`pick()` in `cli.rs`). An empty line is
+  omitted, so only `MATERIA` and `SEMESTRE` always appear.
+- **`.env` keys.** `REQUIRED_ENV` is `UNIVERSIDAD`, `FACULTAD` and `SEMESTRE`
+  (each also accepts an English name, e.g. `UNIVERSITY`). `ALUMNO` and
+  `INTEGRANTES` are optional.
+- **Members** are given as one argument and split by `parse_members()`.
+- **The template to copy for a new optional cover field** is `--group`,
+  together with its `\ifdefempty`. `--logos` repeats the same pattern with a
+  path.
+- **The order of the cover block is fixed** (student or members, course,
+  teacher, semester, group) and lives in the template, not in the CLI.
+  `the_cover_order_is_fixed` (`tests/templates.rs`) checks `apa`; `apa-simple`
+  follows the same order.
+- **Members and student are mutually exclusive.** With members the cover lists
+  the team and omits `ALUMNO:` even if it is set; without members it shows the
+  student; with neither, no line. This is an outer
+  `\ifdefempty{\ListaIntegrantes}` with the student case nested in its empty
+  branch. The decision lives in the template, so `DocumentData` keeps both
+  values and `render_template()` does not filter them.
+- **`\\[0.25cm]` goes inside each conditional branch.** A bare `\\` at the
+  start of the TikZ node leaves an empty line or errors.
+- **The members list** goes in a `tabular[t]`, wrapped in
+  `\raisebox{0pt}[0pt][\depth]{}` so its height does not exceed `\topskip` and
+  push the block down.
+- **PDF metadata** use `\AutorPDF`, with the same rule as the cover; `\\`
+  becomes a comma through `\pdfstringdefDisableCommands`.
 
-`ALUMNO` ya no está en `REQUIRED_ENV` (solo quedan `UNIVERSIDAD`, `FACULTAD` y
-`SEMESTRE`); `--members` acepta los nombres separados por comas o punto y
-coma y `parse_members()` los normaliza. Como respaldo se lee la variable
-`INTEGRANTES` del `.env`, pero `--members` manda. Cada variable acepta también
-su nombre en inglés (`Settings::get` recibe la lista de nombres).
+### Supported Markdown
 
-`--group` sigue exactamente el mismo patrón (opción, perfil, variable `GRUPO`) y su línea cierra el bloque
-con el mismo `\ifdefempty`. Es el molde a copiar para el próximo dato opcional
-de la portada; `--logos` lo repite con una ruta en vez de un texto.
+The goal is to cover the whole [Markdown Guide](https://www.markdownguide.org),
+basic and extended. Pandoc's `markdown` dialect has almost everything; the rest
+is added in three places:
 
-El orden del bloque de datos es **fijo** —alumno (o integrantes), materia,
-docente, semestre, grupo— y vive en la plantilla, no en el CLI: el orden en que
-se escriban las opciones del comando no lo altera. La prueba `the_cover_order_is_fixed`
-(`tests/templates.rs`) lo comprueba en la plantilla `apa`; `apa-simple` respeta el
-mismo orden.
+1. **`MARKDOWN_EXTENSIONS` in `pandoc.rs`:** `mark` (`==highlight==`), `emoji`
+   (`:joy:`) and `autolink_bare_uris`.
+2. **The Lua filters of `resources/filters/`,** applied in `LUA_FILTERS` order.
+   They are embedded in the binary, not in `templates/`, because they do not
+   depend on `--template`. They work on the parsed tree, so they never touch
+   the inside of a code block.
+   - `inline_html`: inline HTML (`<br>`, `<mark>`, `<sub>`, `<kbd>`, `<img>`…).
+     The LaTeX writer **drops HTML silently**, so without this filter that
+     content vanishes from the PDF.
+   - `images`: downloads web images and warns about missing local ones.
+   - `diagrams`: draws ` ```dot ` blocks with Graphviz.
+   - `charts`: passes ` ```pgfplot `/` ```tikz ` blocks to LaTeX inside
+     `tikzpicture`, and inside a figure when they have a `caption`. It is the
+     only piece where a document error **stops** the build, because it is real
+     LaTeX.
+   - `blocks`: `::: nota` boxes and the hanging indent of references. They emit
+     `CajaMarcada` and `ReferenciasAPA`, defined in `investigacion.sty`; change
+     one, change the other.
+3. **`templates/common/investigacion.sty`:** the commands Pandoc assumes.
 
-Las dos líneas son **excluyentes** en la portada, no acumulativas: si hay
-integrantes se lista al equipo y `ALUMNO:` no aparece aunque `ALUMNO` siga
-puesto en el `.env` (un trabajo de equipo no repite la firma individual); sin
-integrantes se muestra el alumno; y si faltan los dos no aparece ninguna. Eso es
-un `\ifdefempty{\ListaIntegrantes}` externo con el caso del alumno anidado en su
-rama vacía: la decisión vive en la plantilla, no en Rust, así que
-`DocumentData` conserva ambos datos y `render_template()` no los filtra.
-
-El `\\[0.25cm]` de separación va **dentro** de cada rama condicional: un `\\`
-suelto al principio del nodo de TikZ deja un renglón vacío o da error. Los
-integrantes van en un `tabular[t]` para que queden en columna; el
-`\raisebox{0pt}[0pt][\depth]{}` que lo envuelve anula solo su altura, porque si
-no la fila alta del tabular supera el `\topskip` y baja todo el bloque (ahora
-los integrantes son siempre la primera línea cuando existen). Los metadatos del
-PDF usan `\AutorPDF`, que sigue el mismo criterio que la portada —integrantes y
-si no alumno— para no firmar a alguien que la portada ya no menciona; los `\\`
-se traducen a comas vía `\pdfstringdefDisableCommands`.
-
-### La sintaxis de Markdown que se soporta
-
-El criterio es cubrir entera la [Markdown Guide](https://www.markdownguide.org)
-(sintaxis básica y extendida). El dialecto `markdown` de Pandoc ya trae casi
-todo; lo que falta se añade en tres sitios distintos, y conviene saber cuál toca
-antes de tirar del hilo:
-
-1. `MARKDOWN_EXTENSIONS` en `pandoc.rs` — extensiones que Pandoc no activa
-   por omisión: `mark` (`==resaltado==`), `emoji` (`:joy:`) y
-   `autolink_bare_uris` (una URL suelta se vuelve enlace).
-2. Los filtros Lua de `resources/filters/`, que se aplican en el orden de
-   `LUA_FILTERS`. Van embebidos en el binario y no en `templates/`, porque no
-   dependen de la plantilla que se elija con `--template`, y trabajan sobre el árbol ya
-   analizado, así que nunca tocan lo que hay dentro de un bloque de código:
-   - `inline_html` — el HTML en línea que Markdown permite escribir a mano
-     (`<br>`, `<mark>`, `<sub>`, `<kbd>`, `<img>`…). El escritor de LaTeX
-     **descarta el HTML sin avisar**, así que sin el filtro ese contenido
-     desaparece del PDF en silencio.
-   - `images` — descarga las imágenes de la web y avisa de las locales que
-     faltan (ver más abajo).
-   - `diagrams` — dibuja con Graphviz los bloques ```` ```dot ````.
-   - `charts` — deja pasar a LaTeX los bloques ```` ```pgfplot ```` y
-     ```` ```tikz ````, envueltos en `tikzpicture` y, si llevan `caption`, en
-     una figura. Es la única pieza donde un error del documento **detiene** la
-     compilación: son comandos de LaTeX de verdad, no un lenguaje aparte como
-     el de Graphviz.
-   - `blocks` — las cajas `::: nota` y la sangría francesa de las referencias.
-     Emiten `\begin{CajaMarcada}` y `\begin{ReferenciasAPA}`, dos entornos que
-     define `investigacion.sty`: si se toca uno hay que tocar el otro.
-3. `templates/common/investigacion.sty` — los comandos que Pandoc da por
-   definidos (ver más abajo).
-
-Los avisos de los filtros salen por stderr con el prefijo `[investigacion]`;
-`filter_warnings()` los separa del ruido de Pandoc y `pandoc_to_latex()` los
-pasa al mismo callback `on_warning` que ya usaba `compile_pdf()`.
-
-Para ver qué produce hoy Pandoc con las extensiones activas:
+Filter warnings go to stderr prefixed with `[investigacion]`.
+`filter_warnings()` separates them from Pandoc's noise and passes them to the
+same `on_warning` callback that `compile_pdf()` uses.
 
 ```bash
-pandoc archivo.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
+pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
   --to=latex --wrap=none --lua-filter=resources/filters/inline_html.lua
 ```
 
-### La trampa de soul: \st, \hl y \ul
+### The soul trap: \st, \hl and \ul
 
-Pandoc emite `\st` (tachado), `\hl` (resaltado) y `\ul` (subrayado) contando con
-que los defina `soul`, que es lo que hace su plantilla por omisión. Pero soul
-analiza el texto letra por letra y eso falla en dos sitios que un trabajo
-escolar usa a diario:
+Pandoc emits `\st`, `\hl` and `\ul` and expects `soul` to define them. soul
+parses text letter by letter, and that breaks in two places a school paper uses
+daily:
 
-- dentro de `longtable` —la tabla que genera Pandoc— `\st` y `\hl` dejan a
-  pdflatex **dando vueltas para siempre**: sin error, sin PDF y sin log que
-  crezca. Un `~~tachado~~` en una celda basta;
-- en un título el comando viaja al índice y la compilación aborta.
+- **Inside `longtable`** (Pandoc's tables), `\st` and `\hl` leave pdflatex
+  **looping forever**: no error, no PDF, no growing log.
+- **In a heading,** the command travels to the TOC and the build aborts.
 
-Por eso `investigacion.sty` redefine `\st` y `\ul` sobre `ulem` (`\sout` y `\uline`, que
-no hacen ese análisis) y los declara con `\DeclareRobustCommand` para que no se
-expandan al escribir el índice. El resaltado no tiene sustituto que corte
-renglón, así que se conserva el de soul en el texto corriente y
-`\AtBeginEnvironment{longtable}` lo cambia por un `\colorbox` dentro de las
-tablas. Si algún día hay que tocar esto, la prueba que lo cubre es
-`the_extended_syntax_compiles_without_lost_symbols` (`tests/pdf.rs`).
+The fix in `investigacion.sty`:
 
-Como red de seguridad —soul no es el único paquete capaz de colgarse—
-`compile_pdf()` y `pandoc_to_latex()` corren con `timeout=TOOL_TIMEOUT_SECONDS`:
-más vale un error legible que una terminal congelada.
+- **`\st` and `\ul`** are redefined on top of `ulem` (`\sout`, `\uline`) with
+  `\DeclareRobustCommand`.
+- **Highlight** has no line-breaking substitute, so soul's version stays in
+  running text, and `\AtBeginEnvironment{longtable}` swaps it for a
+  `\colorbox` inside tables.
+- **Covered by** `the_extended_syntax_compiles_without_lost_symbols`
+  (`tests/pdf.rs`).
+- **Safety net:** `compile_pdf()` and `pandoc_to_latex()` run with
+  `TOOL_TIMEOUT` (180 s).
 
-### Gráficas con pgfplots
+### Charts with pgfplots
 
-El bloque `GRÁFICAS DE DATOS` de `investigacion.sty` carga `pgfplots` y fija un estilo
-sobrio (escala de grises, rejilla tenue) que cada gráfica puede sobrescribir en
-su propio `\begin{axis}[...]`, porque va en `every axis/.append style`.
+The `GRÁFICAS DE DATOS` block of `investigacion.sty` loads `pgfplots` with a
+sober style (grayscale, faint grid) in `every axis/.append style`, so each
+chart can override it.
 
-Dos detalles que costaron encontrarse:
+- **Bars use `bar cycle list`, not `cycle list`.** The default bar list is in
+  color.
+- **No `fill` in `cycle list`.** It would fill the area under line charts; fill
+  lives only in `bar cycle list`.
 
-- Las barras **no usan `cycle list`** sino `bar cycle list`, que por omisión es
-  de colores; sin redefinirla un `ybar` sale azul y rojo.
-- En `cycle list` no puede haber `fill`: en una gráfica de líneas rellenaría el
-  área bajo la curva. El relleno vive solo en `bar cycle list`.
+### Images and diagrams: the project cache
 
-### Imágenes y diagramas: la caché del proyecto
+pdflatex downloads nothing, so `filters/images.lua` fetches web images with
+`pandoc.mediabag.fetch` and rewrites the path to the local copy.
+`Project::media_directories()` creates `cache/remote/` and `cache/diagrams/`.
 
-pdflatex no descarga nada, así que una imagen de la web llegaría como
-`\includegraphics{https://…}` y la compilación fallaría con un «file not found»
-que no explica la causa. `filters/images.lua` la baja antes con
-`pandoc.mediabag.fetch` y reescribe la ruta a la copia local; a partir de la
-segunda vez el trabajo se genera sin internet.
+- **File names:** the `sha1` of the URL or the diagram code.
+- **Paths for the filters:** through `INVESTIGACION_REMOTE_IMAGES`,
+  `INVESTIGACION_DIAGRAMS` and `INVESTIGACION_RESOURCES`, together with
+  `--resource-path`.
+- **Failures never break the build.** On a failure (no network, missing image,
+  no Graphviz), the filter replaces the image with its alt text, or leaves the
+  diagram as code, and warns.
+- **Formats:** pdflatex only handles PNG, JPG and PDF; the filter rejects the
+  rest with a warning.
+- **`User-Agent`:** Pandoc sends none, and some sites answer 400 without one,
+  hence the `--request-header`.
 
-`Project::media_directories()` crea y devuelve `cache/remote/` y
-`cache/diagrams/` en la raíz del proyecto (`Project::discover()`). Las dos son **caché**: se pueden borrar enteras. El
-nombre de cada archivo es el `sha1` de la URL o del código del diagrama, que es
-lo que permite saber si ya está hecho sin volver a pedirlo.
+### The TUI
 
-Los filtros reciben esas rutas por variables de entorno
-(`INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`),
-que pone `pandoc_to_latex()` junto con un `--resource-path` que incluye la
-carpeta del Markdown y la del proyecto.
+`src/tui/` uses ratatui + crossterm (works on the Windows console; curses does
+not). It duplicates no logic: `App::build_args()` builds the same `Args` as the
+CLI, and a thread calls `cli::execute()` through a `ChannelReporter`. Empty
+fields are not passed, so profile and `.env` values still apply.
 
-Cuando algo falla —no hay red, la imagen no existe, falta Graphviz— el filtro
-**no rompe nada**: sustituye la imagen por su texto alternativo o deja el
-diagrama como bloque de código, y avisa. Mismo criterio que el `[?]` de los
-símbolos Unicode.
-
-Dos cosas que conviene recordar antes de tocar esto:
-
-- pdflatex solo compone PNG, JPG y PDF. El filtro rechaza lo demás con un aviso
-  en vez de dejar que falle la compilación.
-- Pandoc no manda ningún `User-Agent` al descargar y hay sitios que por eso
-  responden 400; de ahí el `--request-header` de `pandoc_to_latex()`.
-
-### La TUI
-
-`src/tui/` es un menú a pantalla completa con ratatui + crossterm (funciona en
-la consola de Windows; `curses` no). No duplica lógica: `App::build_args()` arma
-los mismos `Args` que el CLI y un hilo llama a `cli::execute()`, que informa por
-un canal (`ChannelReporter`) para no congelar la pantalla. Los campos vacíos no
-se pasan, para que sigan valiendo el perfil y el `.env`.
-
-- `app.rs` es el estado y la respuesta a cada tecla, **sin dibujar**: se prueba
-  con teclas simuladas (`src/tui/tests.rs`). `ui.rs` solo dibuja.
-- `picker.rs` es el mismo selector para el Markdown (navega carpetas), los
-  perfiles, las plantillas y las carpetas del proyecto (`f`). El filtro ordena
-  por nombre exacto > prefijo > contiene > descripción: sin eso, `ia` elegía el
-  perfil `example` porque su materia dice «mater**ia**».
-- En Windows llegan también los eventos de soltar tecla: el bucle filtra
+- **State and drawing are separate.** `app.rs` holds the state and the key
+  handling and **does not draw**; it is tested with simulated keys and
+  `TestBackend` (`src/tui/tests.rs`). `ui.rs` only draws.
+- **One picker for everything.** `picker.rs` serves the Markdown (folder
+  browsing), profiles, templates and project folders. The filter ranks an exact
+  name, then a prefix, then a substring, then the description; without that,
+  `ia` picked `example` because its course name contains "mater**ia**".
+- **Keys work in both languages:** `g` generate, `v` view, `c`/`f` folders,
+  `l` language, `s`/`q`/Esc quit. Each language's footer shows its own letters.
+- **Windows** also sends key-release events; the loop keeps only
   `KeyEventKind::Press`.
-- El menú no ofrece `.env`, «permitir LaTeX», plantilla por ruta ni logos (las
-  antiguas opciones 9–12); siguen en el CLI. Al añadir una opción al CLI que sí
-  deba estar en el menú, va en `FIELDS` (con ayuda, ejemplo y qué pasa si se
-  deja vacío) y en `build_args()`.
+- **What is not in the menu:** `.env`, "allow LaTeX", a template path and
+  logos (they stay in the CLI). A new CLI option that belongs in the menu goes
+  into `FIELDS` (label, help, example and "if empty", all as `Text`) and
+  `build_args()`.
 
-### Perfiles de materia y nombre del PDF
+### Course profiles and the PDF name
 
-`courses/<clave>.toml` (`SubjectProfile`, con `deny_unknown_fields` para que
-un campo mal escrito sea error y no se ignore) guarda materia, docente, grupo,
-integrantes, plantilla y carpeta. Con `folder`, `locate_markdown()` busca
-primero en `input/<folder>` y la salida por omisión es `output/<folder>`.
-`courses/` está en `.gitignore` salvo `example.toml` y `LEEME.md`.
+- **`courses/<key>.toml`** holds `name`, `teacher`, `group`, `members`,
+  `template` and `folder` (`CourseProfile`).
+- **Typos are errors.** `deny_unknown_fields` makes a misspelled field fail
+  instead of being ignored.
+- **`folder`:** `locate_markdown()` searches `input/<folder>` first, and the
+  default output is `output/<folder>`.
+- **The PDF name does not come from the title.** `output_file_name()` uses the
+  Markdown's name, or `--file-name`. The TUI proposes it when a Markdown is
+  chosen and stops once the user types one.
 
-El nombre del PDF **no sale del título**: `output_file_name()` usa el nombre del
-Markdown, o `--file-name` si se da. En la TUI se propone al elegir el Markdown
-y deja de proponerse en cuanto la persona escribe uno.
+### Where the Markdown is looked up
 
-### Dónde se busca el Markdown
+`find_markdown()` tries the path as given, then the path inside `input/`, then
+(for a bare name) a recursive search under `input/`. Two decisions not to
+reverse:
 
-`resolve_markdown_path()` delega en `find_markdown()`, que prueba tres cosas en
-orden: la ruta tal cual, la ruta dentro de `input/` y, si lo que se pasó es solo
-un nombre, una búsqueda recursiva por ese nombre bajo `input/`. La idea es que
-`investigacion Actividad1.md` funcione aunque el archivo esté en
-`input/IS/Actividad1.md`.
+- **An existing path always wins.** The name search is the last resort.
+- **Two files with the same name are an error,** not an arbitrary choice; the
+  message lists the subfolders.
 
-Dos decisiones que conviene no invertir:
+### Invisible spaces in the Markdown
 
-- **Una ruta que ya existe siempre gana.** La búsqueda por nombre es el último
-  recurso, para que nada se vuelva ambiguo cuando se escribe la ruta completa.
-- **Dos archivos con el mismo nombre son un error**, no una elección arbitraria:
-  el mensaje lista las subcarpetas para que la persona decida.
+Documents exported from other tools (or written by an AI) often carry
+**non-breaking spaces** on the lines between paragraphs and two spaces at the
+end of each line. Those lines are not empty, so Pandoc merges the whole
+document into one block: `###` appear literally, tables become rows of bars,
+the TOC has one entry. It compiles without error, which is why it goes
+unnoticed.
 
-### Espacio invisible en el Markdown
+- **What it fixes.** `normalize_markdown()` trims the end of each line (hard,
+  figure, narrow and zero-width spaces) and repairs markers separated from the
+  text by a hard space (`###`, bullets, numbered lists, quotes).
+- **Trailing spaces are both garbage and syntax** (a line break).
+  `has_disguised_spaces()` decides: if any line ends in a disguised space,
+  everything is trimmed; otherwise only the disguised spaces and tabs are
+  trimmed, and line breaks survive.
+- **What it leaves alone:** hard spaces inside the text and the inside of
+  ``` / ~~~ blocks.
 
-`normalize_markdown()` existe por un fallo real y difícil de ver: los documentos
-exportados de otras herramientas (o escritos por una IA) suelen traer **espacios
-duros** U+00A0 en las líneas que separan párrafos y dos espacios al final de
-cada renglón. Esas líneas no están vacías, así que Pandoc no separa párrafos y
-convierte el documento entero en un bloque continuo: los `###` salen literales
-en el PDF, las tablas quedan como filas de barras y el índice se queda con una
-sola entrada. Compila sin error, y por eso pasa inadvertido.
+### Unicode symbols
 
-La función recorta el final de cada línea (`INVISIBLE_SPACES` cubre duro, de
-figura, estrecho y de ancho cero) y repara los marcadores separados del texto
-por un espacio duro (`MARKER_SEPARATOR`: `###`, viñetas, listas numeradas y
-citas), porque Markdown exige un espacio normal después del marcador.
+pdflatex with `inputenc` only typesets declared characters; a stray `≠` aborts
+with "Unicode character not set up for use with LaTeX".
 
-Los dos espacios finales son a la vez basura y sintaxis (en Markdown son un
-salto de línea), así que el recorte es condicional: `has_disguised_spaces()`
-decide. Si el documento trae algún espacio disfrazado al final de una línea se
-recorta todo, como antes; si viene limpio solo se recortan los disfrazados y el
-tabulador, y el salto de línea llega al PDF. `DISGUISED_SPACES` es ese conjunto
-sin el espacio normal.
+- **The declared list.** The `SÍMBOLOS UNICODE` block declares, with
+  `newunicodechar`, the symbols that were really missing. The list was
+  measured, not invented: a document with all candidates was compiled and the
+  log was read.
+- **The safety net.** `\UTFviii@undefined@err` is redefined so an undeclared
+  symbol produces a **warning** and a visible `[?]` instead of aborting.
+  `unsupported_character_warnings()` reads those warnings, which the CLI and
+  TUI show.
+- **Reading the log.** It must be read with `decode_latex_log()` (line by
+  line). pdflatex mixes UTF-8 with lines in the font encoding (T1); a cp1252
+  fallback for the whole file turned "└" into "â””".
+- **Box drawing** (`└ ─ ┼ │`) is handled by `pmboxdraw`. Rounded corners and
+  shapes (`► ▲ ●`) are declared by hand.
+- **Emoji:** `\UTFviii@undefined@err` computes the code point and uses
+  `\texttwemoji{<hex>}` **if it exists**. U+FE0F and U+200D are declared empty,
+  so no `[?]` appears next to each emoji.
 
-Lo que **no** hace: tocar el espacio duro dentro del texto (ahí es legítimo) ni
-entrar en los bloques ``` o ~~~, donde el espacio final puede ser parte del
-código. `read_markdown()` la aplica, así que la usan tanto el CLI como
-`generate_pdf()`.
+### Logos and TEXINPUTS
 
-### Símbolos Unicode
+- **No logos in git.** `templates/logos/` is in `.gitignore` (except its
+  README): institutional logos are rarely redistributable. The template looks
+  for `logo-universidad.png` and `logo-facultad.png`, each wrapped in
+  `\IfFileExists`.
+- **Where they come from.** `Project::resolve_logos_directory()` tries:
+  1. `--logos` (or `LOGOS`);
+  2. `logos/` next to the template;
+  3. `templates/logos/`.
 
-pdflatex con `inputenc` solo compone los caracteres que tenga declarados: un `≠`
-suelto aborta con «Unicode character not set up for use with LaTeX». Es el fallo
-más habitual al pegar texto de una web o de una IA.
+  A missing explicit folder is an error; no folder at all is not.
+- **Why TEXINPUTS.** pdflatex runs with the Markdown's folder as cwd, and TeX
+  resolves images against the cwd. So `copy_template_assets()` copies the logos
+  and the `.sty` files into the temp dir, and `latex_search_path()` puts that
+  dir first in `TEXINPUTS`. The trailing separator means "plus the defaults";
+  without it pdflatex cannot even find its own packages.
+- **`examples/` must not depend on the logos;** they use
+  `examples/sample-image.png`.
 
-El bloque `SÍMBOLOS UNICODE` de `investigacion.sty` declara con `newunicodechar` los que
-faltaban de verdad (los griegos, las relaciones matemáticas, conjuntos, cálculo
-y los checkmarks). La lista **no se inventó**: se compiló un documento con todos
-los candidatos y se leyó del log cuáles avisaban, así que `→ ± × ÷ ° … — – « »
-¿ ¡ € • ½` no están porque inputenc ya los conoce.
+### LaTeX compilation and speed
 
-Debajo, `\UTFviii@undefined@err` (de `utf8.def`) se redefine para que un símbolo
-no declarado emita un **aviso** y un `[?]` visible en vez de abortar. Es la red
-de seguridad: la lista nunca cubrirá todos los símbolos posibles, y el criterio
-del proyecto es avisar sin impedir que el trabajo se genere.
+`compile_pdf()` repeats pdflatex until the `.toc` is stable (at most
+`MAX_LATEX_RUNS`). **Time is spent in pdflatex** (~1.7 s per pass on the
+catalog; Pandoc ~0.3 s), not in the program. Two optimizations:
 
-`unsupported_character_warnings()` lee esos avisos del log y `compile_pdf()` los
-pasa al callback `on_warning`, que el CLI imprime en stderr; sin eso el `[?]`
-pasaría inadvertido. El generador sigue sin imprimir nada por su cuenta.
+- **Draft first pass.** Without previous state, the first pass runs with
+  `-draftmode` (no PDF written); it can never be the final one.
+- **LaTeX state cache.** The `.aux` and `.toc` of the last build are kept in
+  `cache/latex/<pdf>-<hash>/`, one folder per output PDF and template. With
+  them the first pass already reads the right TOC, and if nothing changed it is
+  the only pass (catalog: from 3 passes and 5.5 s to 1 pass and 2.0 s). If the
+  old state breaks the build, `compile_pdf()` deletes it and starts over,
+  **without** leaving `last-error.*` from the first attempt.
+- **When a build fails,** `summarize_latex_errors()` keeps only the real errors
+  (`file:line:` and `!` lines), and `keep_failure_artifacts()` saves
+  `last-error.tex`/`.log` next to the PDF.
 
-El log hay que leerlo con `decode_latex_log()`, no con `decode_process_output()`:
-pdflatex mezcla mensajes en UTF-8 con líneas de división silábica escritas en la
-codificación interna de la fuente (T1), así que el archivo entero no es UTF-8
-válido y el respaldo a cp1252 convertía los avisos en «â””» en vez de «└». Se
-decodifica línea por línea.
+### raw_tex disabled by default
 
-Dos casos no caen en el aviso porque la plantilla los resuelve sola:
+`pandoc_to_latex()` uses `markdown-raw_tex` unless `--allow-latex` is given.
+Otherwise a stray backslash (`C:\Users\...`) would be sent to LaTeX as a
+command and abort the build. `$...$` formulas work in both modes.
 
-- **Dibujo de caja** (`└ ─ ┼ │ ╭`). Son el arte ASCII que las IA meten dentro de
-  un bloque de código; `pmboxdraw` los compone como reglas del ancho exacto de
-  la letra monoespaciada, así que el diagrama no se desalinea. Las esquinas
-  redondeadas y las figuras geométricas (`► ▲ ▼ ● ■`) no están en ese paquete y
-  se declaran a mano en el bloque `SÍMBOLOS UNICODE`.
-- **Emoji**. `twemojis` los trae como páginas de un PDF y los inserta con
-  `\texttwemoji{<hex>}`. Declararlos uno por uno serían miles de líneas, así que
-  en vez de una lista el propio `\UTFviii@undefined@err` calcula el punto de
-  código (con `\decode@UTFviii`, el mismo de `utf8.def`), arma el nombre del
-  comando de twemojis y lo usa **si existe**; si no, cae al aviso de siempre. Por
-  eso también se declaran vacíos U+FE0F y U+200D, que son invisibles y si no
-  dejarían un `[?]` al lado de cada emoji.
+### Structure validation
 
-### Los logos: fuera del repositorio y configurables
+`validate_markdown()` only warns, and never blocks, if `Introducción`,
+`Desarrollo`, `Conclusión` or `Referencias` are missing or out of order. These
+heading names are Spanish in both interface languages, because they are the
+paper's. `markdown_headings()` ignores fenced code blocks.
 
-`templates/logos/` está en `.gitignore` (con una excepción para su `LEEME.md`):
-los logos de una institución rara vez son redistribuibles, así que el proyecto
-no trae ninguno. La plantilla busca dos nombres genéricos,
-`logo-universidad.png` y `logo-facultad.png`, cada uno envuelto en
-`\IfFileExists`, de modo que sin ellos la portada se compila igual.
+## Portability
 
-`Project::resolve_logos_directory()` decide de dónde salen: la ruta de
-`--logos` (o de la variable `LOGOS` del `.env`, que resuelve el CLI) gana sobre
-la carpeta `logos/` que esté junto a la plantilla, y esa sobre la compartida
-`templates/logos/`. Una ruta inexistente es `GenerationError`; que no
-haya carpeta por omisión, en cambio, no es error: devuelve `None`.
+Developed on Linux, but it must work the same on Windows and macOS, so
+**nothing system-specific**: no fixed paths, no `cfg!(windows)`, no hand-written
+separators. Already solved, do not undo:
 
-Los documentos de `examples/` **no pueden depender de los logos** por esa misma
-razón; usan `examples/sample-image.png`, que sí se versiona.
+- **Search-path separators:** `std::env::join_paths`/`split_paths` for
+  `TEXINPUTS` and `--resource-path` (`;` on Windows, `:` elsewhere).
+- **No `canonicalize()`.** `project::absolute()` (`std::path::absolute`) is
+  used instead, because on Windows `canonicalize` returns `\\?\C:\...` paths
+  that pdflatex and Pandoc do not understand.
+- **Forward slashes for the filters.** `pandoc::posix()` is applied to the
+  paths passed to the Lua filters; they end up inside `\includegraphics`,
+  where a backslash would start a command.
+- **Temp dir cleanup.** `temporary.close()` errors are ignored, because Windows
+  may keep a pdflatex file locked for a moment after the PDF is copied.
+- **System programs.** crossterm (filtering `KeyEventKind::Press`) and `opener`
+  for opening folders and PDFs; `sys-locale` for the language, since `LANG`
+  does not exist on Windows.
+- **Text encoding.** All text reading goes through `decode_text()` (UTF-8 or
+  Windows-1252, never the system default).
+- **Line endings.** `.gitattributes` normalizes them to LF.
 
-### Los logos y TEXINPUTS
+## Directories
 
-`compile_pdf()` ejecuta pdflatex con `cwd=markdown_path.parent` (p. ej. `Crudo/`)
-y el `.tex` en un temporal, y TeX resuelve las imágenes contra el **cwd**: un
-`\includegraphics{templates/logos/logo-uat.png}` no se encontraría al generar desde
-otro directorio. Por eso `copy_template_assets()` copia
-la carpeta de logos (y los `.sty` de `common/`) al temporal y `latex_search_path()` pone
-ese temporal al principio de `TEXINPUTS` (con separador final, que en TeX
-significa «y además las rutas por omisión»; sin él pdflatex no encontraría ni sus
-propios paquetes). La plantilla entonces escribe solo `{logo-uat}`.
+- `src/`: the Rust code. `tests/`: integration tests (`templates.rs`,
+  `pandoc.rs`, `pdf.rs`, `cli.rs`).
+- `templates/`: `common/` (shared preamble), one folder per template (`apa/`,
+  `apa-simple/`) and `logos/` (ignored except README).
+- `resources/filters/`: Lua filters, embedded in the binary.
+- `courses/`: course profiles (ignored except `example.toml` and README).
+- `cache/`: `remote/`, `diagrams/`, `latex/`. Created automatically, safe to
+  delete, ignored.
+- `input/`, `output/`: the user's papers and PDFs, ignored.
+- `examples/`:
+  - `paper-template.md`, `syntax.md`, `binary-trees.md`;
+  - `catalog.md`, one of each element, which is **the visual test bench** for
+    template or filter changes;
+  - `catalog.pdf`, its versioned output.
+- `docs/images/`: README screenshots.
 
-Cada logo va envuelto en `\IfFileExists`, así que una plantilla sin `logos/` al
-lado —caso de `--template ruta.ltx`— compila igual, solo que sin logos.
-
-### Compilación de LaTeX
-
-`compile_pdf()` repite pdflatex hasta que el `.toc` se estabiliza (máximo
-`MAX_LATEX_RUNS`), porque un índice que cambia de longitud deja mal los números
-de página.
-
-**El tiempo se va en pdflatex** (~1.7 s por pasada en el catálogo; Pandoc
-~0.3 s), así que el lenguaje del programa casi no influye. Dos optimizaciones:
-
-- Sin estado previo, la primera pasada va con `-draftmode` (no escribe el PDF;
-  nunca puede ser la definitiva porque lee un índice vacío).
-- El `.aux` y el `.toc` de la última generación se guardan en
-  `cache/latex/<pdf>-<hash>/` (una carpeta por PDF de salida y plantilla). Con
-  ellos la primera pasada ya lee el índice correcto y, si no cambió, es la
-  única: regenerar el catálogo baja de 3 pasadas (5.5 s) a 1 (2.0 s). Si ese
-  estado viejo hace fallar la compilación, `compile_pdf()` lo borra y repite
-  desde cero **sin** dejar `last-error.*` del primer intento. Al fallar, `summarize_latex_errors()` extrae del log solo los errores
-reales (líneas `archivo:línea:` de `-file-line-error` y líneas `!`) y descarta
-las rutas de paquetes; `keep_failure_artifacts()` guarda `last-error.tex` y
-`last-error.log` en el directorio de salida, porque el temporal se borra.
-
-### raw_tex desactivado por omisión
-
-`pandoc_to_latex()` usa `markdown-raw_tex` salvo que se pase `--allow-latex`.
-Sin eso, una contrabarra suelta del texto corriente (una ruta `C:\Users\...`) se
-enviaría a LaTeX como comando y abortaría la compilación. Las fórmulas `$...$`
-no dependen de esa extensión y siguen funcionando en ambos modos.
-
-### Validación de estructura
-
-`validate_markdown()` solo advierte —nunca impide generar el PDF— si faltan
-`Introducción`, `Desarrollo`, `Conclusión` o `Referencias`, o si están
-desordenadas. `markdown_headings()` ignora los bloques delimitados por ``` o ~~~
-para que un `# comentario` dentro de código no cuente como encabezado.
-
-## Portabilidad
-
-El proyecto se desarrolla en Linux pero tiene que funcionar igual en Windows y
-macOS, así que **no debe aparecer nada específico de un sistema**: ni rutas
-fijas, ni `cfg!(windows)`, ni separadores escritos a mano. Lo que ya está resuelto y
-conviene no deshacer:
-
-- **`std::env::join_paths` / `split_paths`** para `TEXINPUTS` y
-  `--resource-path`: en Windows el separador es `;` y en el resto `:`.
-- **`project::absolute()`** (`std::path::absolute`) en vez de `canonicalize()`:
-  en Windows `canonicalize` devuelve rutas `\\?\C:\...` que pdflatex y Pandoc
-  no entienden.
-- **`pandoc::posix()`** en las variables de entorno que reciben los filtros Lua.
-  Esas rutas acaban dentro de un `\includegraphics`, y en LaTeX la contrabarra
-  de una ruta de Windows empezaría un comando inexistente. TeX acepta la barra
-  normal en todos los sistemas.
-- **`temporary.close()` sin propagar el error**: en Windows es normal que
-  pdflatex deje un archivo bloqueado un instante, y el PDF ya está copiado
-  cuando eso ocurre.
-- Rust escribe en la consola de Windows con la API Unicode, así que un aviso con
-  un símbolo raro no rompe la salida (lo que en Python obligaba a
-  `reconfigure(errors="replace")`).
-- La TUI usa crossterm y filtra `KeyEventKind::Press`; `opener` abre carpetas y
-  PDF con el programa de cada sistema.
-- Toda lectura de texto pasa por `decode_text()`: UTF-8 o Windows-1252, nunca la
-  codificación por omisión del sistema.
-- `.gitattributes` normaliza los finales de línea a LF.
-
-## Directorios
-
-- `src/` — el código Rust (ver la tabla de módulos); `tests/` — pruebas de
-  integración (`templates.rs`, `pandoc.rs`, `pdf.rs`, `cli.rs`).
-- `templates/` — `common/` (preámbulo compartido), una carpeta por plantilla
-  (`apa/`, `apa-simple/`, cada una con su `template.ltx`) y `logos/`, ignorada
-  por git salvo su `LEEME.md`.
-- `resources/filters/` — filtros Lua para Pandoc, embebidos en el binario.
-- `courses/` — perfiles de materia; ignorada salvo `example.toml` y `LEEME.md`.
-- `cache/` — imágenes descargadas (`remote/`), diagramas (`diagrams/`) y estado
-  de LaTeX (`latex/`). Se crea sola, se puede borrar y está en `.gitignore`.
-- `examples/paper-template.md` — esqueleto con la estructura recomendada.
-- `examples/syntax.md` — referencia breve del Markdown que se soporta.
-- `examples/binary-trees.md` — un trabajo completo de ejemplo, con diagramas.
-- `examples/catalog.md` — muestrario completo: un ejemplo de cada tabla,
-  diagrama, gráfica y caja. Es el **banco de pruebas visual** del proyecto:
-  si se toca la plantilla o un filtro, generarlo y revisar las páginas es la
-  forma más rápida de ver qué se rompió. `examples/catalog.pdf` es su salida,
-  versionada para poder verla sin instalar nada.
-- `docs/images/` — capturas del PDF que usa el README.
-- `REQUISITOS.md` y `PROMPT-IA.md` — instalación por sistema operativo y el
-  prompt con el que se le pide el trabajo a una IA. Si cambia la sintaxis que
-  acepta el generador, el prompt hay que actualizarlo también: es la
-  especificación que lee el modelo.
-
-`examples/catalog.pdf` y esas capturas son lo único generado que se versiona, y
-**no deben llevar datos personales ni logos de nadie**. Se rehacen así:
+`examples/catalog.pdf` and the screenshots are the only generated files in git,
+and **must not contain personal data or logos**. Regenerate them like this:
 
 ```bash
-mkdir -p /tmp/sinlogos
+mkdir -p /tmp/nologos
 investigacion examples/catalog.md \
   --title "Catalogo de elementos" --course "Nombre de la materia" \
   --teacher "Nombre del docente" --group "7-A" \
-  --env-file .env.example --logos /tmp/sinlogos --output /tmp/pub
-cp /tmp/pub/catalogo.pdf examples/catalog.pdf
-pdftoppm -r 110 -png -f 1 -l 1 examples/catalog.pdf docs/images/cover
+  --env-file .env.example --logos /tmp/nologos --output /tmp/pub --lang es
+cp /tmp/pub/catalog.pdf examples/catalog.pdf
+pdftoppm -r 110 -png -f 1 -l 1 examples/catalog.pdf /tmp/cover && cp /tmp/cover-01.png docs/images/cover.png
 ```
 
-El `--env-file .env.example` es la clave: la portada sale con los mismos
-marcadores que ve quien clona el repositorio («Nombre de la universidad»,
-«Nombre del alumno»), y `--logos` a una carpeta vacía evita publicar las marcas
-de una institución.
-- `output/` — PDFs generados, ignorado por git.
-- `input/` — los trabajos propios en Markdown, con las subcarpetas que cada
-  quien quiera (por materia, por semestre). Está en `.gitignore`: no forma parte
-  del proyecto, y el comando busca ahí los archivos por su cuenta.
+`--env-file .env.example` makes the cover show the same placeholders a new
+clone sees, and the empty `--logos` folder avoids publishing an institution's
+marks.
 
-## Documentación
+## Documentation
 
-Tres archivos, con papeles distintos; al cambiar el comportamiento hay que ver
-cuál toca:
+When behavior changes, check which file it affects:
 
-- `README.md` — presentación del proyecto para quien llega de GitHub: qué hace,
-  requisitos, instalación e inicio rápido.
-- `GUIA.md` — manual de uso: la tubería explicada, todas las opciones del
-  comando, la sintaxis completa que acepta y la tabla de síntomas cuando algo
-  falla.
-- `CLAUDE.md` — este archivo: los contratos internos y las trampas encontradas,
-  para quien vaya a tocar el código.
+- `README.md`: overview, install, configure, quick use.
+- `INSTALL.md`: per-OS installation, update, installation problems.
+- `GUIDE.md`: every option, profiles, templates, syntax, troubleshooting.
+- `AI-PROMPT.md`: the prompt the AI reads. **If the accepted syntax changes,
+  update it**: it is the specification the model follows.
+- `CHANGELOG.md`: user-visible changes per version.
+- `CLAUDE.md`: this file, with internal contracts and traps.

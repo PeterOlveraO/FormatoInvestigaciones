@@ -1,19 +1,19 @@
-# Perfil de ejemplo. Copia este archivo con el nombre corto de tu materia
-# (por ejemplo `ia.toml`) y úsalo con `investigacion Tarea1.md -p ia --title "..."`
-# o elígelo en el menú interactivo.
+# Example course profile. Copy this file with a short name for your course
+# (for example `ia.toml`) and use it with `investigacion Tarea1.md -p ia --title "..."`
+# or pick it in the interactive menu.
 
-# Nombre de la materia tal como sale en la portada (obligatorio).
+# Course name as shown on the cover (required).
 name = "Nombre de la materia"
 
-# Opcionales: si faltan se usan las variables del .env, y si tampoco están,
-# la línea no aparece en la portada.
+# Optional: when missing, the .env values are used; if those are missing too,
+# the line does not appear on the cover.
 teacher = "Nombre del docente"
 group = "7-A"
 # members = "Ana Ruiz, Luis Paz"
 
-# Plantilla de templates/ (apa, apa-simple...). Vacío = apa.
+# Template from templates/ (apa, apa-simple...). Empty = apa.
 template = "apa"
 
-# Subcarpeta de input/ con los trabajos de esta materia. El PDF se guarda en
-# la misma subcarpeta de output/ (output/IA/...).
+# Subfolder of input/ with this course's papers. The PDF goes to the same
+# subfolder of output/ (output/IA/...).
 folder = "IA"

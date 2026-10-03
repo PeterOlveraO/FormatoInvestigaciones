@@ -148,7 +148,7 @@ puede cambiar escribiendo `::: {.aviso title="Antes de entregar"}`.
 
 Las imágenes se escriben con un signo de admiración delante del enlace. La ruta
 se busca desde la carpeta donde está el archivo Markdown y desde la carpeta
-`imagenes/` del proyecto; si es una dirección de internet se descarga sola la
+`cache/` del proyecto; si es una dirección de internet se descarga sola la
 primera vez. El tamaño se controla con `{width=...}` y el pie sale en formato
 APA, encima de la imagen.
 

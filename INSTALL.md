@@ -1,0 +1,152 @@
+# Installation
+
+## What you need
+
+| Tool | Required | What for |
+|---|---|---|
+| **Rust 1.88+** (installed with [rustup](https://rustup.rs)) | Yes | Building the program once |
+| **Pandoc** | Yes | Converting the Markdown |
+| **TeX** with `pdflatex` (TeX Live or MiKTeX) | Yes | Typesetting the PDF |
+| **Graphviz** | No | Drawing ` ```dot ` diagrams. Without it, diagrams stay as code and you get a warning |
+
+## 1. Install the tools
+
+Pick your system. After installing, **close and reopen the terminal** so the
+new commands are found.
+
+### Arch, Manjaro, EndeavourOS
+
+```bash
+sudo pacman -S rustup pandoc graphviz texlive-basic texlive-latexextra \
+  texlive-fontsextra texlive-langspanish texlive-pictures texlive-plaingeneric
+rustup default stable
+```
+
+### Debian, Ubuntu, Linux Mint
+
+```bash
+sudo apt install pandoc graphviz texlive-latex-recommended texlive-latex-extra \
+  texlive-fonts-extra texlive-lang-spanish texlive-pictures texlive-plain-generic
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Do not use the `cargo` package from `apt`: it is too old for this program.
+
+### Fedora
+
+```bash
+sudo dnf install pandoc graphviz texlive-scheme-medium \
+  texlive-collection-latexextra texlive-collection-fontsextra texlive-collection-langspanish
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### openSUSE
+
+```bash
+sudo zypper install pandoc graphviz texlive-latex texlive-latexextra \
+  texlive-fontsextra texlive-babel-spanish
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+### Windows
+
+```powershell
+winget install Rustlang.Rustup JohnMacFarlane.Pandoc Graphviz.Graphviz MiKTeX.MiKTeX
+```
+
+- The first time you build, rustup may ask to install the Visual Studio *Build
+  Tools*. Accept.
+- MiKTeX downloads the LaTeX packages it is missing the first time you generate
+  a PDF. To avoid being asked each time, set *Install missing packages
+  on-the-fly: Yes* in the MiKTeX Console.
+
+### macOS
+
+```bash
+brew install rustup pandoc graphviz && rustup-init -y
+brew install --cask mactex-no-gui
+```
+
+`mactex-no-gui` takes about 5 GB. For something lighter, use `basictex` and add
+the packages by hand:
+
+```bash
+brew install --cask basictex
+sudo tlmgr update --self
+sudo tlmgr install newtx pgfplots pgf-pie twemojis pmboxdraw floatrow \
+  newunicodechar ulem framed footnotehyper xurl titlesec ragged2e babel-spanish
+```
+
+## 2. Install the program
+
+```bash
+git clone -b mejoras-rust https://github.com/PeterOlveraO/FormatoInvestigaciones.git
+cd FormatoInvestigaciones
+cargo install --path .
+```
+
+The `-b mejoras-rust` is needed while this version lives on that branch. Once
+it is merged, a plain `git clone` is enough.
+
+`cargo install` downloads the dependencies (internet is needed only this time),
+builds the program and leaves `investigacion` in `~/.cargo/bin`, which rustup
+adds to your `PATH`. There is no virtual environment to activate.
+
+The program remembers where the project folder is. If you move the folder, run
+`cargo install --path .` again, or set the `INVESTIGACION_HOME` variable to the
+new location.
+
+## 3. Configure
+
+```bash
+cp .env.example .env          # Windows: copy .env.example .env
+```
+
+Edit `.env`:
+
+| Variable | Required | Example |
+|---|---|---|
+| `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE` | Yes | `"Universidad X"`, `"Facultad de Ingeniería"`, `"2026-2"` |
+| `ALUMNO` | No | Your name, for individual papers |
+| `INTEGRANTES`, `DOCENTE`, `GRUPO` | No | Defaults when there is no option or course profile |
+| `LOGOS` | No | A logos folder outside the project |
+| `IDIOMA` | No | `es` or `en`. The menu saves it after you choose the language |
+
+Optionally add your logos to `templates/logos/` and your course profiles to
+`courses/` (see [GUIDE.md](GUIDE.md#course-profiles)).
+
+## 4. Check that it works
+
+```bash
+cargo --version && pandoc --version && pdflatex --version && dot -V
+investigacion examples/catalog.md --title "Catalogo" --course "Prueba"
+```
+
+Run the second command from the project folder. If it ends with `PDF
+generated` and no warnings, nothing is missing. A warning names exactly what is
+missing (a symbol, an image, Graphviz), and the PDF is still produced.
+
+## Update
+
+```bash
+git pull
+cargo install --path .
+```
+
+## Uninstall
+
+```bash
+cargo uninstall investigacion
+```
+
+Then delete the project folder.
+
+## Installation problems
+
+| Symptom | Fix |
+|---|---|
+| `investigacion: command not found` | Open a new terminal, or run `source ~/.cargo/env`. On Windows, reopen the terminal |
+| A `ModuleNotFoundError` from Python appears | An old Python environment is still active: run `deactivate` and delete the `.venv/` folder |
+| `cargo install` says the Rust version is too old | `rustup update` |
+| LaTeX reports a missing `.sty` | Install the package with your TeX distribution (`tlmgr install <name>` or the MiKTeX Console) |
+| Diagrams come out as code | Install Graphviz and check `dot -V` |
