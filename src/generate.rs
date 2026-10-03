@@ -58,7 +58,9 @@ pub fn generate_pdf(
         None => read_markdown(&markdown_path)?,
     };
     if markdown.trim().is_empty() {
-        return Err(GenerationError::new("The Markdown file is empty."));
+        return Err(GenerationError::new(
+            tr!(es: "El archivo Markdown está vacío.", en: "The Markdown file is empty."),
+        ));
     }
 
     let template_file = project.find_template(options.template.as_deref())?;
@@ -109,8 +111,9 @@ pub fn copy_pdf_to(pdf: &Path, directories: &[PathBuf]) -> Result<Vec<PathBuf>> 
             continue;
         }
         if destination.exists() && !destination.is_dir() {
-            return Err(GenerationError::new(format!(
-                "The copy destination is not a directory: {}",
+            return Err(GenerationError::new(tr!(
+                es: "El destino de la copia no es una carpeta: {}",
+                en: "The copy destination is not a folder: {}",
                 destination.display()
             )));
         }

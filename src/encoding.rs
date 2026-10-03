@@ -68,8 +68,9 @@ pub fn decode_text(raw: &[u8], path: &Path) -> Result<String> {
         return Ok(text.to_owned());
     }
     decode_cp1252(raw, true).ok_or_else(|| {
-        GenerationError::new(format!(
-            "Could not read {}: use UTF-8 or Windows-1252 encoding.",
+        GenerationError::new(tr!(
+            es: "No se pudo leer {}: guárdalo en UTF-8 o Windows-1252.",
+            en: "Could not read {}: save it as UTF-8 or Windows-1252.",
             path.display()
         ))
     })

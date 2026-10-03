@@ -44,7 +44,9 @@ pub fn posix(path: &Path) -> String {
 }
 
 fn join_search_path(paths: &[PathBuf]) -> Result<OsString> {
-    std::env::join_paths(paths).map_err(|e| GenerationError::new(format!("Invalid resource path: {e}")))
+    std::env::join_paths(paths).map_err(|e| {
+        GenerationError::new(tr!(es: "Ruta de recursos no válida: {e}", en: "Invalid resource path: {e}"))
+    })
 }
 
 /// Convierte el Markdown a un fragmento LaTeX (sin preámbulo).
@@ -94,16 +96,20 @@ pub fn pandoc_to_latex(
         .env("INVESTIGACION_REMOTE_IMAGES", posix(&remote))
         .env("INVESTIGACION_DIAGRAMS", posix(&diagrams))
         // Una carpeta por línea: así una ruta puede llevar espacios.
-        .env("INVESTIGACION_RESOURCES", resources.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"));
+        .env("INVESTIGACION_RESOURCES", resources.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"))
+        // Los filtros redactan sus avisos en el idioma de la interfaz.
+        .env("INVESTIGACION_LANG", crate::i18n::current().code());
 
     let started = std::time::Instant::now();
     let output =
         run_with_timeout(command, Some(markdown.as_bytes().to_vec()), TOOL_TIMEOUT).map_err(|e| match e {
-            RunError::NotFound => {
-                GenerationError::new("Pandoc was not found. Install Pandoc and make sure it is on PATH.")
-            }
-            RunError::Timeout => GenerationError::new(format!(
-                "Pandoc did not answer within {} seconds and was stopped.",
+            RunError::NotFound => GenerationError::new(tr!(
+                es: "No se encontró Pandoc. Instálalo y comprueba que esté en el PATH.",
+                en: "Pandoc was not found. Install it and make sure it is on the PATH."
+            )),
+            RunError::Timeout => GenerationError::new(tr!(
+                es: "Pandoc no respondió en {} segundos y se detuvo.",
+                en: "Pandoc did not answer within {} seconds and was stopped.",
                 TOOL_TIMEOUT.as_secs()
             )),
             RunError::Io(error) => error.into(),
@@ -117,7 +123,10 @@ pub fn pandoc_to_latex(
             text => text.to_owned(),
         };
         let suffix = if detail.is_empty() { ".".to_owned() } else { format!(": {detail}") };
-        return Err(GenerationError::new(format!("Pandoc could not convert the Markdown{suffix}")));
+        return Err(GenerationError::new(tr!(
+            es: "Pandoc no pudo convertir el Markdown{suffix}",
+            en: "Pandoc could not convert the Markdown{suffix}"
+        )));
     }
     for warning in filter_warnings(&stderr) {
         on_warning(warning);

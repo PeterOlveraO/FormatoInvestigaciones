@@ -52,7 +52,8 @@ pub fn latex_search_path(directory: &Path) -> Result<OsString> {
         paths.extend(std::env::split_paths(&previous).filter(|p| !p.as_os_str().is_empty()));
     }
     paths.push(PathBuf::new());
-    std::env::join_paths(paths).map_err(|e| GenerationError::new(format!("Invalid TEXINPUTS: {e}")))
+    std::env::join_paths(paths)
+        .map_err(|e| GenerationError::new(tr!(es: "TEXINPUTS no válido: {e}", en: "Invalid TEXINPUTS: {e}")))
 }
 
 /// Guarda el .tex y el .log fuera del temporal (que se borra) para revisarlos.
@@ -104,7 +105,10 @@ pub fn compile_pdf(
 
     let generated = tex_path.with_extension("pdf");
     if !generated.is_file() {
-        return Err(GenerationError::new("pdflatex finished without producing the expected PDF file."));
+        return Err(GenerationError::new(tr!(
+            es: "pdflatex terminó sin producir el PDF esperado.",
+            en: "pdflatex finished without producing the expected PDF."
+        )));
     }
     for warning in unsupported_character_warnings(&log) {
         on_warning(warning);
@@ -154,7 +158,7 @@ fn run_passes(
         keep_artifacts
             .then(|| keep_failure_artifacts(tex_path, output_dir))
             .flatten()
-            .map(|log| format!("\n\nFull log: {}", log.display()))
+            .map(|log| tr!(es: "\n\nRegistro completo: {}", en: "\n\nFull log: {}", log.display()))
             .unwrap_or_default()
     };
 
@@ -173,12 +177,15 @@ fn run_passes(
 
         let started = std::time::Instant::now();
         let result = run_with_timeout(command, None, TOOL_TIMEOUT).map_err(|e| match e {
-            RunError::NotFound => GenerationError::new(
-                "pdflatex was not found. Install TeX Live (or MiKTeX) and make sure pdflatex is on PATH.",
-            ),
-            RunError::Timeout => GenerationError::new(format!(
-                "pdflatex kept working for more than {} seconds and was stopped; look in the document \
-                 for something LaTeX cannot typeset.{}",
+            RunError::NotFound => GenerationError::new(tr!(
+                es: "No se encontró pdflatex. Instala TeX Live (o MiKTeX) y comprueba que esté en el PATH.",
+                en: "pdflatex was not found. Install TeX Live (or MiKTeX) and make sure it is on the PATH."
+            )),
+            RunError::Timeout => GenerationError::new(tr!(
+                es: "pdflatex siguió trabajando más de {} segundos y se detuvo; busca en el documento \
+                     algo que LaTeX no pueda componer.{}",
+                en: "pdflatex kept working for more than {} seconds and was stopped; look in the document \
+                     for something LaTeX cannot typeset.{}",
                 TOOL_TIMEOUT.as_secs(),
                 failure_note()
             )),
@@ -200,7 +207,11 @@ fn run_passes(
                 let start = text.char_indices().rev().nth(1999).map_or(0, |(i, _)| i);
                 detail = text[start..].to_owned();
             }
-            return Err(GenerationError::new(format!("The LaTeX build failed:\n{detail}{}", failure_note())));
+            return Err(GenerationError::new(tr!(
+                es: "Falló la compilación de LaTeX:\n{detail}{}",
+                en: "The LaTeX build failed:\n{detail}{}",
+                failure_note()
+            )));
         }
 
         let current_toc = std::fs::read(&toc_path)

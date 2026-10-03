@@ -12,12 +12,22 @@ use std::time::Duration;
 
 use crossterm::event::{self, Event, KeyEventKind};
 
+use crate::i18n;
 use crate::project::Project;
+use crate::settings::Settings;
 
 /// Abre el menú y devuelve el código de salida.
 pub fn run() -> i32 {
+    let project = Project::discover();
+    // El idioma guardado manda; si no hay, se pregunta con el del sistema marcado.
+    let settings = Settings::load(&project.env_file()).unwrap_or_default();
+    let saved = i18n::configured(&settings);
+    i18n::set(saved.unwrap_or_else(i18n::detect));
+    let mut app = App::new(project);
+    if saved.is_none() {
+        app.ask_language(i18n::current());
+    }
     let mut terminal = ratatui::init();
-    let mut app = App::new(Project::discover());
     let result = event_loop(&mut terminal, &mut app);
     ratatui::restore();
     match result {

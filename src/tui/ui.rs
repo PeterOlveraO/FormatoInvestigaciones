@@ -8,6 +8,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListSt
 
 use super::app::{App, FIELDS, FieldKey, FieldKind, LogLine, Mode};
 use super::picker::Picker;
+use crate::i18n::{Lang, Text};
 
 const ACCENT: Color = Color::Cyan;
 
@@ -54,14 +55,50 @@ pub fn draw(frame: &mut Frame, app: &App) {
             let visible: String = input.text.chars().skip(skip).collect();
             frame.render_widget(Paragraph::new(visible), text_area);
             frame.render_widget(
-                Paragraph::new("Enter save · Esc cancel · Ctrl+U clear")
-                    .style(Style::new().fg(Color::DarkGray)),
+                Paragraph::new(
+                    Text::new(
+                        "Enter guarda · Esc cancela · Ctrl+U borra",
+                        "Enter save · Esc cancel · Ctrl+U clear",
+                    )
+                    .get(),
+                )
+                .style(Style::new().fg(Color::DarkGray)),
                 hint,
             );
             frame.set_cursor_position(Position::new(text_area.x + (input.cursor - skip) as u16, text_area.y));
         }
+        Mode::ChooseLanguage(selected) => draw_language(frame, *selected),
         _ => {}
     }
+}
+
+/// Pantalla de la primera vez. Va en los dos idiomas a la vez porque todavía
+/// no se sabe cuál lee la persona.
+fn draw_language(frame: &mut Frame, selected: Lang) {
+    let popup = centered(frame.area(), 50, 9);
+    frame.render_widget(Clear, popup);
+    let block = titled_block(" Idioma / Language ").border_style(Style::new().fg(ACCENT));
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+    let option = |lang: Lang, label: &'static str| {
+        let style = if lang == selected {
+            Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+        } else {
+            Style::new()
+        };
+        let mark = if lang == selected { "› " } else { "  " };
+        Line::styled(format!("{mark}{label}"), style)
+    };
+    let lines = vec![
+        Line::raw("¿En qué idioma quieres el menú?"),
+        Line::raw("Which language do you want for the menu?"),
+        Line::raw(""),
+        option(Lang::Es, "Español"),
+        option(Lang::En, "English"),
+        Line::raw(""),
+        Line::styled("↑↓ · Enter", Style::new().fg(Color::DarkGray)),
+    ];
+    frame.render_widget(Paragraph::new(lines), inner);
 }
 
 fn titled_block<'a>(title: impl Into<Line<'a>>) -> Block<'a> {
@@ -87,7 +124,7 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
             let picker = if matches!(field.kind, FieldKind::Pick(_)) { "▸ " } else { "  " };
             let shown = if value.is_empty() {
                 if field.required {
-                    Span::styled("[missing]", Style::new().fg(Color::Red))
+                    Span::styled(Text::new("[falta]", "[missing]").get(), Style::new().fg(Color::Red))
                 } else {
                     Span::styled(format!("({})", field.empty), Style::new().fg(Color::DarkGray))
                 }
@@ -108,7 +145,7 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
         })
         .collect();
     let list = List::new(items)
-        .block(titled_block(" Paper "))
+        .block(titled_block(Text::new(" Trabajo ", " Paper ").get()))
         .highlight_style(Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
     let mut state = ListState::default().with_selected(Some(app.selected));
     frame.render_stateful_widget(list, area, &mut state);
@@ -117,22 +154,26 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
 fn draw_help(frame: &mut Frame, app: &App, area: Rect) {
     let field = FIELDS[app.selected];
     let mut lines = vec![
-        Line::from(field.help),
+        Line::from(field.help.get()),
         Line::from(vec![
-            Span::styled("Example: ", Style::new().fg(Color::DarkGray)),
-            Span::raw(field.example),
+            Span::styled(Text::new("Ejemplo: ", "Example: ").get(), Style::new().fg(Color::DarkGray)),
+            Span::raw(field.example.get()),
         ]),
     ];
     if !field.required {
         lines.push(Line::from(vec![
-            Span::styled("If empty: ", Style::new().fg(Color::DarkGray)),
-            Span::raw(field.empty),
+            Span::styled(
+                Text::new("Si se deja vacío: ", "If empty: ").get(),
+                Style::new().fg(Color::DarkGray),
+            ),
+            Span::raw(field.empty.get()),
         ]));
     }
     let action = match field.kind {
-        FieldKind::Text => "Enter to write it",
-        FieldKind::Pick(_) => "Enter to choose from the list",
-    };
+        FieldKind::Text => Text::new("Enter para escribirlo", "Enter to write it"),
+        FieldKind::Pick(_) => Text::new("Enter para elegir de la lista", "Enter to choose from the list"),
+    }
+    .get();
     lines.push(Line::from(Span::styled(action, Style::new().fg(ACCENT))));
     frame.render_widget(
         Paragraph::new(lines).wrap(Wrap { trim: true }).block(titled_block(format!(" {} ", field.label))),
@@ -145,9 +186,16 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines: Vec<Line> = Vec::new();
     if app.log.is_empty() {
         lines.push(if missing.is_empty() {
-            Line::styled("Ready. Press g to generate the PDF.", Style::new().fg(Color::Green))
+            Line::styled(
+                Text::new("Listo. Pulsa g para generar el PDF.", "Ready. Press g to generate the PDF.").get(),
+                Style::new().fg(Color::Green),
+            )
         } else {
-            Line::styled(format!("Missing: {}.", missing.join(", ")), Style::new().fg(Color::Yellow))
+            let missing = missing.join(", ");
+            Line::styled(
+                tr!(es: "Falta: {missing}.", en: "Missing: {missing}."),
+                Style::new().fg(Color::Yellow),
+            )
         });
     }
     for entry in &app.log {
@@ -157,7 +205,12 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
             LogLine::Error(text) => Line::styled(format!("✗ {text}"), Style::new().fg(Color::Red)),
         });
     }
-    let title = if matches!(app.mode, Mode::Generating(_)) { " Result (working…) " } else { " Result " };
+    let title = if matches!(app.mode, Mode::Generating(_)) {
+        Text::new(" Resultado (trabajando…) ", " Result (working…) ")
+    } else {
+        Text::new(" Resultado ", " Result ")
+    }
+    .get();
     // Se ve el final del registro, que es lo más reciente. `line_count` ya
     // suma los bordes del bloque, por eso se compara con la altura completa.
     let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false }).block(titled_block(title));
@@ -167,25 +220,39 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
-    let keys: &[(&str, &str)] = match app.mode {
-        Mode::Form => &[
-            ("↑↓", "move"),
-            ("Enter", "edit/choose"),
-            ("Del", "clear"),
-            ("g", "generate"),
-            ("v", "view PDF"),
-            ("c", "folders"),
-            ("s", "quit"),
+    // Cada idioma muestra sus propias iniciales; la tecla del idioma dice el
+    // nombre del otro, para que lo encuentre quien no lee el actual.
+    let keys: Vec<(&str, Text)> = match app.mode {
+        Mode::ChooseLanguage(_) => {
+            vec![("↑↓", Text::new("elegir", "choose")), ("Enter", Text::new("aceptar", "accept"))]
+        }
+        Mode::Form => {
+            let (folders, quit) = match crate::i18n::current() {
+                Lang::Es => ("c", "s"),
+                Lang::En => ("f", "q"),
+            };
+            vec![
+                ("↑↓", Text::new("mover", "move")),
+                ("Enter", Text::new("editar/elegir", "edit/choose")),
+                (Text::new("Supr", "Del").get(), Text::new("vaciar", "clear")),
+                ("g", Text::new("generar", "generate")),
+                ("v", Text::new("ver PDF", "view PDF")),
+                (folders, Text::new("carpetas", "folders")),
+                ("l", Text::new("English", "Español")),
+                (quit, Text::new("salir", "quit")),
+            ]
+        }
+        Mode::Editing(_) => {
+            vec![("Enter", Text::new("guardar", "save")), ("Esc", Text::new("cancelar", "cancel"))]
+        }
+        Mode::Picking(_) => vec![
+            ("↑↓", Text::new("mover", "move")),
+            ("Enter/→", Text::new("abrir/elegir", "open/choose")),
+            ("←", Text::new("subir", "up")),
+            (Text::new("letras", "type").get(), Text::new("filtrar", "filter")),
+            ("Esc", Text::new("cancelar", "cancel")),
         ],
-        Mode::Editing(_) => &[("Enter", "save"), ("Esc", "cancel")],
-        Mode::Picking(_) => &[
-            ("↑↓", "move"),
-            ("Enter/→", "open/choose"),
-            ("←/Bksp", "up"),
-            ("type", "filter"),
-            ("Esc", "cancel"),
-        ],
-        Mode::Generating(_) => &[("", "Generating the PDF…")],
+        Mode::Generating(_) => vec![("…", Text::new("Generando el PDF", "Generating the PDF"))],
     };
     let spans: Vec<Span> = keys
         .iter()
@@ -210,20 +277,24 @@ fn draw_picker(frame: &mut Frame, app: &App, picker: &Picker) {
 
     if let Some(dir) = &picker.dir {
         let shown = app.display_path(&dir.display().to_string());
-        let shown = if shown.is_empty() { "(project)".to_owned() } else { shown };
+        let shown =
+            if shown.is_empty() { Text::new("(proyecto)", "(project)").get().to_owned() } else { shown };
         frame.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled("In: ", Style::new().fg(Color::DarkGray)),
+                Span::styled(Text::new("En: ", "In: ").get(), Style::new().fg(Color::DarkGray)),
                 Span::raw(shown),
             ])),
             location,
         );
     }
     let filter_line = if picker.filter.is_empty() {
-        Line::styled("Type to filter…", Style::new().fg(Color::DarkGray))
+        Line::styled(
+            Text::new("Escribe para filtrar…", "Type to filter…").get(),
+            Style::new().fg(Color::DarkGray),
+        )
     } else {
         Line::from(vec![
-            Span::styled("Filter: ", Style::new().fg(Color::DarkGray)),
+            Span::styled(Text::new("Filtro: ", "Filter: ").get(), Style::new().fg(Color::DarkGray)),
             Span::raw(picker.filter.clone()),
         ])
     };
@@ -231,7 +302,10 @@ fn draw_picker(frame: &mut Frame, app: &App, picker: &Picker) {
 
     let visible = picker.visible();
     let items: Vec<ListItem> = if visible.is_empty() {
-        vec![ListItem::new(Line::styled("(nothing here)", Style::new().fg(Color::DarkGray)))]
+        vec![ListItem::new(Line::styled(
+            Text::new("(nada aquí)", "(nothing here)").get(),
+            Style::new().fg(Color::DarkGray),
+        ))]
     } else {
         visible
             .iter()

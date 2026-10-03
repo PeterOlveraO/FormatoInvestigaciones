@@ -13,6 +13,8 @@ use crate::project::absolute;
 
 /// Encabezados que se recomiendan, ya normalizados y en este orden.
 pub const REQUIRED_HEADINGS: [&str; 4] = ["introduccion", "desarrollo", "conclusion", "referencias"];
+// Cómo se escriben en el trabajo (que va en español, sea cual sea la interfaz).
+const HEADING_NAMES: [&str; 4] = ["Introducción", "Desarrollo", "Conclusión", "Referencias"];
 
 // Espacios que parecen normales pero no lo son: duro, de figura, estrecho y de
 // ancho cero. Word, Notion y las IA los sueltan a menudo.
@@ -123,29 +125,28 @@ pub fn markdown_headings(markdown: &str) -> Vec<String> {
     headings
 }
 
-fn title_case(word: &str) -> String {
-    let mut chars = word.chars();
-    chars.next().map(|c| c.to_uppercase().chain(chars).collect()).unwrap_or_default()
-}
-
 /// Advertencias de estructura; nunca impiden generar el PDF.
 pub fn validate_markdown(markdown: &str) -> Vec<String> {
     let headings = markdown_headings(markdown);
     let mut warnings = Vec::new();
     let mut found: Vec<(usize, &str)> = Vec::new();
-    for required in REQUIRED_HEADINGS {
+    for (required, name) in REQUIRED_HEADINGS.into_iter().zip(HEADING_NAMES) {
         match headings.iter().position(|h| h == required) {
-            Some(index) => found.push((index, required)),
-            None => warnings.push(format!("Recommended heading not found: {}.", title_case(required))),
+            Some(index) => found.push((index, name)),
+            None => warnings.push(tr!(
+                es: "Falta el encabezado recomendado «{name}».",
+                en: "The recommended heading \"{name}\" is missing."
+            )),
         }
     }
     let mut sorted = found.clone();
     sorted.sort();
     if found.len() > 1 && found != sorted {
-        let expected: Vec<String> = found.iter().map(|(_, name)| title_case(name)).collect();
-        warnings.push(format!(
-            "The recommended headings are not in the expected order: {}.",
-            expected.join(", ")
+        let order: Vec<&str> = found.iter().map(|(_, name)| *name).collect();
+        let order = order.join(", ");
+        warnings.push(tr!(
+            es: "Los encabezados recomendados no van en el orden esperado: {order}.",
+            en: "The recommended headings are not in the expected order: {order}."
         ));
     }
     warnings
@@ -179,8 +180,9 @@ pub fn find_markdown(path: &Path, input_dir: &Path) -> Result<PathBuf> {
                 .iter()
                 .map(|m| m.strip_prefix(input_dir).unwrap_or(m).display().to_string())
                 .collect();
-            Err(GenerationError::new(format!(
-                "There are several files named {} in {}: {}. Say which one with its subfolder.",
+            Err(GenerationError::new(tr!(
+                es: "Hay varios archivos llamados {} en {}: {}. Indica cuál con su subcarpeta.",
+                en: "There are several files named {} in {}: {}. Say which one with its subfolder.",
                 candidate.display(),
                 input_dir.display(),
                 options.join(", ")
@@ -206,17 +208,25 @@ fn collect_named(directory: &Path, name: &std::ffi::OsStr, found: &mut Vec<PathB
 pub fn resolve_markdown_path(path: &Path, input_dir: &Path) -> Result<PathBuf> {
     let resolved = find_markdown(path, input_dir)?;
     if !resolved.exists() {
-        return Err(GenerationError::new(format!(
-            "The Markdown file does not exist: {}",
+        return Err(GenerationError::new(tr!(
+            es: "No existe el archivo Markdown: {}",
+            en: "The Markdown file does not exist: {}",
             resolved.display()
         )));
     }
     if !resolved.is_file() {
-        return Err(GenerationError::new(format!("The given path is not a file: {}", resolved.display())));
+        return Err(GenerationError::new(tr!(
+            es: "La ruta indicada no es un archivo: {}",
+            en: "The given path is not a file: {}",
+            resolved.display()
+        )));
     }
     let is_md = resolved.extension().is_some_and(|ext| ext.to_string_lossy().eq_ignore_ascii_case("md"));
     if !is_md {
-        return Err(GenerationError::new("The input file must have the .md extension."));
+        return Err(GenerationError::new(tr!(
+            es: "El archivo de entrada debe tener la extensión .md.",
+            en: "The input file must have the .md extension."
+        )));
     }
     Ok(resolved)
 }
@@ -255,7 +265,7 @@ mod tests {
     #[test]
     fn wrong_order_is_reported() {
         let warnings = validate_markdown("# Desarrollo\n\n# Introducción\n\n# Conclusión\n\n# Referencias\n");
-        assert!(warnings.iter().any(|w| w.contains("order")));
+        assert!(warnings.iter().any(|w| w.contains("orden")));
     }
 
     #[test]

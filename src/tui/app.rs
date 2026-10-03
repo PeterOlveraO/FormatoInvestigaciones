@@ -9,7 +9,9 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose};
 use crate::cli::{Args, Reporter, execute};
 use crate::courses::{Course, list_courses};
+use crate::i18n::{self, LANG_SETTINGS, Lang, Text};
 use crate::project::Project;
+use crate::settings::Settings;
 
 /// Campos del formulario, en el orden en que se muestran.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -37,14 +39,16 @@ pub enum FieldKind {
 #[derive(Debug, Clone, Copy)]
 pub struct Field {
     pub key: FieldKey,
-    pub label: &'static str,
+    pub label: Text,
     pub kind: FieldKind,
     pub required: bool,
-    pub help: &'static str,
-    pub example: &'static str,
+    pub help: Text,
+    pub example: Text,
     /// Qué pasa si se deja vacío (solo campos opcionales).
-    pub empty: &'static str,
+    pub empty: Text,
 }
+
+const NOTHING: Text = Text::new("", "");
 
 /// El formulario. Ya no incluye el archivo .env, «permitir LaTeX», la
 /// plantilla por ruta ni la carpeta de logos (las opciones 9 a 12 del menú
@@ -52,102 +56,132 @@ pub struct Field {
 pub const FIELDS: [Field; 11] = [
     Field {
         key: FieldKey::Profile,
-        label: "Course profile",
+        label: Text::new("Perfil de materia", "Course profile"),
         kind: FieldKind::Pick(PickerPurpose::Profile),
         required: false,
-        help: "Saved data of a course (courses/*.toml). Choosing one fills course, teacher, group, template and output folder.",
-        example: "ia",
-        empty: "fill the fields by hand",
+        help: Text::new(
+            "Datos guardados de una materia (courses/*.toml). Al elegirlo se llenan materia, docente, grupo, plantilla y carpeta de salida.",
+            "Saved data of a course (courses/*.toml). Choosing one fills course, teacher, group, template and output folder.",
+        ),
+        example: Text::new("ia", "ia"),
+        empty: Text::new("llenas los campos a mano", "fill the fields by hand"),
     },
     Field {
         key: FieldKey::Markdown,
-        label: "Markdown file",
+        label: Text::new("Archivo Markdown", "Markdown file"),
         kind: FieldKind::Pick(PickerPurpose::Markdown),
         required: true,
-        help: "The .md file with the content. Browse the folders with the arrows; type to filter.",
-        example: "input/IA/Tarea1.md",
-        empty: "",
+        help: Text::new(
+            "El archivo .md con el contenido. Recorre las carpetas con las flechas; escribe para filtrar.",
+            "The .md file with the content. Browse the folders with the arrows; type to filter.",
+        ),
+        example: Text::new("input/IA/Tarea1.md", "input/IA/Tarea1.md"),
+        empty: NOTHING,
     },
     Field {
         key: FieldKey::Title,
-        label: "Title",
+        label: Text::new("Título", "Title"),
         kind: FieldKind::Text,
         required: true,
-        help: "Title shown on the cover. It does not change the file name.",
-        example: "Introduction to databases",
-        empty: "",
+        help: Text::new(
+            "Título que sale en la portada. No cambia el nombre del archivo.",
+            "Title shown on the cover. It does not change the file name.",
+        ),
+        example: Text::new("Introducción a las bases de datos", "Introduction to databases"),
+        empty: NOTHING,
     },
     Field {
         key: FieldKey::FileName,
-        label: "PDF file name",
+        label: Text::new("Nombre del PDF", "PDF file name"),
         kind: FieldKind::Text,
         required: false,
-        help: "Name of the PDF, independent of the title. Accents and spaces are simplified.",
-        example: "tarea1-ia",
-        empty: "the name of the Markdown file",
+        help: Text::new(
+            "Nombre del PDF, independiente del título. Los acentos y espacios se simplifican.",
+            "Name of the PDF, independent of the title. Accents and spaces are simplified.",
+        ),
+        example: Text::new("tarea1-ia", "tarea1-ia"),
+        empty: Text::new("el nombre del Markdown", "the name of the Markdown file"),
     },
     Field {
         key: FieldKey::Course,
-        label: "Course",
+        label: Text::new("Materia", "Course"),
         kind: FieldKind::Text,
         required: true,
-        help: "Name of the course, as shown on the cover.",
-        example: "Inteligencia artificial",
-        empty: "",
+        help: Text::new(
+            "Nombre de la materia, tal como sale en la portada.",
+            "Name of the course, as shown on the cover.",
+        ),
+        example: Text::new("Inteligencia artificial", "Inteligencia artificial"),
+        empty: NOTHING,
     },
     Field {
         key: FieldKey::Teacher,
-        label: "Teacher",
+        label: Text::new("Docente", "Teacher"),
         kind: FieldKind::Text,
         required: false,
-        help: "Name of the teacher.",
-        example: "Name of the teacher",
-        empty: "DOCENTE from .env; if missing, omitted",
+        help: Text::new("Nombre del docente.", "Name of the teacher."),
+        example: Text::new("Nombre del docente", "Name of the teacher"),
+        empty: Text::new("DOCENTE del .env; si no está, no sale", "DOCENTE from .env; if missing, omitted"),
     },
     Field {
         key: FieldKey::Members,
-        label: "Team members",
+        label: Text::new("Integrantes", "Team members"),
         kind: FieldKind::Text,
         required: false,
-        help: "Team names separated by commas. With members, the cover does not show the student.",
-        example: "Ana Ruiz, Luis Paz",
-        empty: "INTEGRANTES from .env; if missing, the student",
+        help: Text::new(
+            "Nombres del equipo separados por comas. Con integrantes, la portada no muestra al alumno.",
+            "Team names separated by commas. With members, the cover does not show the student.",
+        ),
+        example: Text::new("Ana Ruiz, Luis Paz", "Ana Ruiz, Luis Paz"),
+        empty: Text::new(
+            "INTEGRANTES del .env; si no está, el alumno",
+            "INTEGRANTES from .env; if missing, the student",
+        ),
     },
     Field {
         key: FieldKey::Group,
-        label: "Group",
+        label: Text::new("Grupo", "Group"),
         kind: FieldKind::Text,
         required: false,
-        help: "Group of the course.",
-        example: "7-A",
-        empty: "GRUPO from .env; if missing, omitted",
+        help: Text::new("Grupo de la materia.", "Group of the course."),
+        example: Text::new("7-A", "7-A"),
+        empty: Text::new("GRUPO del .env; si no está, no sale", "GRUPO from .env; if missing, omitted"),
     },
     Field {
         key: FieldKey::Template,
-        label: "Template",
+        label: Text::new("Plantilla", "Template"),
         kind: FieldKind::Pick(PickerPurpose::Template),
         required: false,
-        help: "Cover design. Templates live in templates/<name>/template.ltx.",
-        example: "apa-simple",
-        empty: "apa",
+        help: Text::new(
+            "Diseño de la portada. Las plantillas están en templates/<nombre>/template.ltx.",
+            "Cover design. Templates live in templates/<name>/template.ltx.",
+        ),
+        example: Text::new("apa-simple", "apa-simple"),
+        empty: Text::new("apa", "apa"),
     },
     Field {
         key: FieldKey::Output,
-        label: "Output folder",
+        label: Text::new("Carpeta de salida", "Output folder"),
         kind: FieldKind::Text,
         required: false,
-        help: "Folder where the PDF is saved.",
-        example: "output/IA",
-        empty: "output/ (or output/<folder> of the profile)",
+        help: Text::new("Carpeta donde se guarda el PDF.", "Folder where the PDF is saved."),
+        example: Text::new("output/IA", "output/IA"),
+        empty: Text::new(
+            "output/ (u output/<carpeta> del perfil)",
+            "output/ (or output/<folder> of the profile)",
+        ),
     },
     Field {
         key: FieldKey::Copies,
-        label: "Extra copies",
+        label: Text::new("Copias extra", "Extra copies"),
         kind: FieldKind::Text,
         required: false,
-        help: "Extra folders for a copy of the PDF, separated by ;",
-        example: "~/Drive/IA; /media/usb",
-        empty: "no copies",
+        help: Text::new(
+            "Carpetas extra para una copia del PDF, separadas por ;",
+            "Extra folders for a copy of the PDF, separated by ;",
+        ),
+        example: Text::new("~/Drive/IA; /media/usb", "~/Drive/IA; /media/usb"),
+        empty: Text::new("sin copias", "no copies"),
     },
 ];
 
@@ -194,6 +228,8 @@ impl TextInput {
 }
 
 pub enum Mode {
+    /// Pantalla de la primera vez: elegir el idioma (con el del sistema marcado).
+    ChooseLanguage(Lang),
     Form,
     Editing(TextInput),
     Picking(Picker),
@@ -261,7 +297,20 @@ impl App {
     }
 
     pub fn missing_fields(&self) -> Vec<&'static str> {
-        FIELDS.iter().filter(|f| f.required && self.value(f.key).is_empty()).map(|f| f.label).collect()
+        FIELDS.iter().filter(|f| f.required && self.value(f.key).is_empty()).map(|f| f.label.get()).collect()
+    }
+
+    /// Abre la pantalla de idioma con `preselected` marcado.
+    pub fn ask_language(&mut self, preselected: Lang) {
+        self.mode = Mode::ChooseLanguage(preselected);
+    }
+
+    /// Cambia el idioma de la interfaz y lo guarda en el `.env` como IDIOMA.
+    fn set_language(&mut self, lang: Lang) {
+        i18n::set(lang);
+        if let Err(error) = Settings::save_value(&self.project.env_file(), LANG_SETTINGS[0], lang.code()) {
+            self.log.push(LogLine::Warning(error.0));
+        }
     }
 
     /// Ruta corta para mostrar: relativa a la raíz del proyecto si cae dentro.
@@ -302,6 +351,7 @@ impl App {
             allow_latex: false,
             template: optional(FieldKey::Template),
             logos: None,
+            lang: Some(i18n::current()),
         }
     }
 
@@ -312,11 +362,24 @@ impl App {
             return;
         }
         match std::mem::replace(&mut self.mode, Mode::Form) {
+            Mode::ChooseLanguage(selected) => self.language_key(key, selected),
             Mode::Form => self.form_key(key),
             Mode::Editing(input) => self.editing_key(key, input),
             Mode::Picking(picker) => self.picking_key(key, picker),
             // Mientras se genera no se acepta nada; el hilo no se puede cortar.
             generating @ Mode::Generating(_) => self.mode = generating,
+        }
+    }
+
+    fn language_key(&mut self, key: KeyEvent, selected: Lang) {
+        match key.code {
+            KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right | KeyCode::Tab => {
+                self.mode = Mode::ChooseLanguage(selected.other())
+            }
+            KeyCode::Enter => self.set_language(selected),
+            // Esc usa el idioma marcado sin guardarlo: se volverá a preguntar.
+            KeyCode::Esc => i18n::set(selected),
+            _ => self.mode = Mode::ChooseLanguage(selected),
         }
     }
 
@@ -344,6 +407,11 @@ impl App {
             // Las letras de cada acción en los dos idiomas: c/f carpetas, s/q salir.
             KeyCode::Char('c' | 'f') => self.open_folders(),
             KeyCode::Char('v') => self.open_last_pdf(),
+            KeyCode::Char('l') => {
+                let lang = i18n::current().other();
+                self.set_language(lang);
+                self.log.push(LogLine::Info(tr!(es: "Idioma: español.", en: "Language: English.")));
+            }
             KeyCode::Char('s' | 'q') | KeyCode::Esc => self.should_quit = true,
             _ => {}
         }
@@ -366,12 +434,17 @@ impl App {
                     .and_then(|s| s.input_dir(&self.project))
                     .or_else(|| Some(self.project.input_dir()).filter(|d| d.is_dir()))
                     .unwrap_or_else(|| self.project.root.clone());
-                Picker::files(purpose, "Choose the Markdown file", &start, "md")
+                Picker::files(
+                    purpose,
+                    Text::new("Elige el archivo Markdown", "Choose the Markdown file").get(),
+                    &start,
+                    "md",
+                )
             }
             PickerPurpose::Profile => {
                 let mut items = vec![Item {
-                    label: "(none)".into(),
-                    detail: "fill the fields by hand".into(),
+                    label: Text::new("(ninguno)", "(none)").get().into(),
+                    detail: Text::new("llenar los campos a mano", "fill the fields by hand").get().into(),
                     value: PickValue::Choice(String::new()),
                 }];
                 items.extend(self.courses.iter().map(|s| Item {
@@ -379,7 +452,11 @@ impl App {
                     detail: s.profile.name.clone(),
                     value: PickValue::Choice(s.key.clone()),
                 }));
-                Picker::choices(purpose, "Choose a course profile", items)
+                Picker::choices(
+                    purpose,
+                    Text::new("Elige un perfil de materia", "Choose a course profile").get(),
+                    items,
+                )
             }
             PickerPurpose::Template => {
                 let items = self
@@ -392,27 +469,50 @@ impl App {
                         value: PickValue::Choice(name),
                     })
                     .collect();
-                Picker::choices(purpose, "Choose a template", items)
+                Picker::choices(purpose, Text::new("Elige una plantilla", "Choose a template").get(), items)
             }
             PickerPurpose::Folder => {
                 let project = &self.project;
                 let folders = [
-                    ("input", project.input_dir(), "your papers in Markdown"),
-                    ("output", project.output_dir(), "generated PDFs"),
-                    ("courses", project.courses_dir(), "course profiles (*.toml)"),
-                    ("templates", project.templates_dir(), "LaTeX templates and logos"),
-                    ("cache", project.cache_dir(), "downloaded images, diagrams, LaTeX state"),
-                    ("project", project.root.clone(), "project root"),
+                    (
+                        "input",
+                        project.input_dir(),
+                        Text::new("tus trabajos en Markdown", "your papers in Markdown"),
+                    ),
+                    ("output", project.output_dir(), Text::new("los PDF generados", "generated PDFs")),
+                    (
+                        "courses",
+                        project.courses_dir(),
+                        Text::new("perfiles de materia (*.toml)", "course profiles (*.toml)"),
+                    ),
+                    (
+                        "templates",
+                        project.templates_dir(),
+                        Text::new("plantillas LaTeX y logos", "LaTeX templates and logos"),
+                    ),
+                    (
+                        "cache",
+                        project.cache_dir(),
+                        Text::new(
+                            "imágenes descargadas, diagramas y estado de LaTeX",
+                            "downloaded images, diagrams, LaTeX state",
+                        ),
+                    ),
+                    (".", project.root.clone(), Text::new("raíz del proyecto", "project root")),
                 ];
                 let items = folders
                     .into_iter()
                     .map(|(name, path, detail)| Item {
                         label: name.into(),
-                        detail: detail.into(),
+                        detail: detail.get().into(),
                         value: PickValue::Dir(path),
                     })
                     .collect();
-                Picker::choices(purpose, "Open a project folder", items)
+                Picker::choices(
+                    purpose,
+                    Text::new("Abrir una carpeta del proyecto", "Open a project folder").get(),
+                    items,
+                )
             }
         }
     }
@@ -530,15 +630,25 @@ impl App {
     fn start_generation(&mut self) {
         let missing = self.missing_fields();
         if !missing.is_empty() {
-            self.log.push(LogLine::Error(format!("Cannot generate yet. Missing: {}.", missing.join(", "))));
+            let missing = missing.join(", ");
+            self.log.push(LogLine::Error(tr!(
+                es: "Todavía no se puede generar. Falta: {missing}.",
+                en: "Cannot generate yet. Missing: {missing}."
+            )));
             return;
         }
         self.log.clear();
-        self.log.push(LogLine::Info("Generating the PDF, this can take a few seconds...".into()));
+        self.log.push(LogLine::Info(tr!(
+            es: "Generando el PDF; puede tardar unos segundos…",
+            en: "Generating the PDF; this can take a few seconds…"
+        )));
         let (sender, receiver) = mpsc::channel();
         let args = self.build_args();
         let project = self.project.clone();
+        // El idioma es por hilo: el que genera hereda el de la interfaz.
+        let lang = i18n::current();
         std::thread::spawn(move || {
+            i18n::set(lang);
             let mut reporter = ChannelReporter(sender.clone());
             let result = execute(&args, &project, &mut reporter).map_err(|e| e.0);
             let _ = sender.send(WorkerMessage::Finished(result));
@@ -554,12 +664,19 @@ impl App {
                 Ok(WorkerMessage::Line(line)) => self.log.push(line),
                 Ok(WorkerMessage::Finished(result)) => break result,
                 Err(TryRecvError::Empty) => return,
-                Err(TryRecvError::Disconnected) => break Err("The generation stopped unexpectedly.".into()),
+                Err(TryRecvError::Disconnected) => {
+                    break Err(
+                        tr!(es: "La generación se detuvo inesperadamente.", en: "The generation stopped unexpectedly."),
+                    );
+                }
             }
         };
         match finished {
             Ok(pdf) => {
-                self.log.push(LogLine::Info("Done. Press v to view the PDF or c to open a folder.".into()));
+                self.log.push(LogLine::Info(tr!(
+                    es: "Listo. Pulsa v para ver el PDF o c para abrir una carpeta.",
+                    en: "Done. Press v to view the PDF or f to open a folder."
+                )));
                 self.last_pdf = Some(pdf);
             }
             Err(error) => self.log.push(LogLine::Error(error)),
@@ -574,7 +691,10 @@ impl App {
     fn open_last_pdf(&mut self) {
         match self.last_pdf.clone() {
             Some(pdf) => self.open_path(&pdf),
-            None => self.log.push(LogLine::Warning("There is no PDF yet: generate one with g.".into())),
+            None => self.log.push(LogLine::Warning(tr!(
+                es: "Todavía no hay PDF: genera uno con g.",
+                en: "There is no PDF yet: generate one with g."
+            ))),
         }
     }
 
@@ -585,12 +705,15 @@ impl App {
             let _ = std::fs::create_dir_all(path);
         }
         match opener::open(path) {
-            Ok(()) => self
-                .log
-                .push(LogLine::Info(format!("Opened {}", self.display_path(&path.display().to_string())))),
-            Err(error) => {
-                self.log.push(LogLine::Error(format!("Could not open {}: {error}", path.display())))
+            Ok(()) => {
+                let shown = self.display_path(&path.display().to_string());
+                self.log.push(LogLine::Info(tr!(es: "Abierto: {shown}", en: "Opened: {shown}")))
             }
+            Err(error) => self.log.push(LogLine::Error(tr!(
+                es: "No se pudo abrir {}: {error}",
+                en: "Could not open {}: {error}",
+                path.display()
+            ))),
         }
     }
 }

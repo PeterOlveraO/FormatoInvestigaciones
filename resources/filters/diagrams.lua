@@ -24,6 +24,13 @@ local CLASES = { dot = true, graphviz = true }
 
 local avisados = {}
 
+-- Idioma de la interfaz, que pasa el generador; por omisión, español.
+local INGLES = os.getenv("INVESTIGACION_LANG") == "en"
+local function texto(es, en)
+  if INGLES then return en end
+  return es
+end
+
 local function avisar(mensaje)
   if avisados[mensaje] then return end
   avisados[mensaje] = true
@@ -67,12 +74,15 @@ function CodeBlock(bloque)
   if not existe(ruta) then
     local ok, salida = pcall(pandoc.pipe, "dot", { "-Tpdf" }, bloque.text)
     if not ok then
-      avisar("Could not draw a diagram: Graphviz is missing (see REQUISITOS.md) " ..
-             "or the diagram has a syntax error. Meanwhile it shows as a code block.")
+      avisar(texto(
+        "No se pudo dibujar un diagrama: falta Graphviz (ver INSTALL.md) o el diagrama " ..
+        "tiene un error de sintaxis. Mientras tanto sale como bloque de código.",
+        "Could not draw a diagram: Graphviz is missing (see INSTALL.md) or the diagram " ..
+        "has a syntax error. Meanwhile it shows as a code block."))
       return nil
     end
     if not escribir(ruta, salida) then
-      avisar("Could not save the diagram to " .. ruta .. ".")
+      avisar(texto("No se pudo guardar el diagrama en ", "Could not save the diagram to ") .. ruta .. ".")
       return nil
     end
   end

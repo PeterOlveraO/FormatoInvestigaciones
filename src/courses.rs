@@ -45,11 +45,18 @@ impl Course {
     pub fn load(path: &Path) -> Result<Self> {
         let text = decode_text(&std::fs::read(path)?, path)?;
         let profile: CourseProfile = toml::from_str(&text).map_err(|e| {
-            GenerationError::new(format!("Invalid course profile {}: {}", path.display(), e.message()))
+            // El detalle (`e.message()`) lo redacta el crate toml y va en inglés.
+            GenerationError::new(tr!(
+                es: "El perfil de materia {} no es válido: {}",
+                en: "The course profile {} is not valid: {}",
+                path.display(),
+                e.message()
+            ))
         })?;
         if profile.name.trim().is_empty() {
-            return Err(GenerationError::new(format!(
-                "The course profile {} needs a non-empty `name`.",
+            return Err(GenerationError::new(tr!(
+                es: "Al perfil de materia {} le falta el nombre (`name`).",
+                en: "The course profile {} needs a name (`name`).",
                 path.display()
             )));
         }
@@ -108,9 +115,14 @@ pub fn find_course(project: &Project, choice: &str) -> Result<Course> {
         return Course::load(path);
     }
     let keys: Vec<&str> = courses.iter().map(|s| s.key.as_str()).collect();
-    Err(GenerationError::new(format!(
-        "Course profile not found: {choice}. Available profiles: {}.",
-        if keys.is_empty() { "none (create one in courses/)".to_owned() } else { keys.join(", ") }
+    let available = if keys.is_empty() {
+        tr!(es: "ninguno (crea uno en courses/)", en: "none (create one in courses/)")
+    } else {
+        keys.join(", ")
+    };
+    Err(GenerationError::new(tr!(
+        es: "No se encontró el perfil de materia: {choice}. Perfiles disponibles: {available}.",
+        en: "Course profile not found: {choice}. Available profiles: {available}."
     )))
 }
 

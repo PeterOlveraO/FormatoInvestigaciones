@@ -1,5 +1,9 @@
 //! Generador de trabajos académicos: Markdown → PDF con formato APA.
 
+// Primero, para que la macro `tr!` exista en todos los módulos de abajo.
+#[macro_use]
+pub mod i18n;
+
 pub mod cli;
 pub mod compile;
 pub mod courses;

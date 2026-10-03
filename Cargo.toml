@@ -24,6 +24,7 @@ opener = "0.8"
 ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
+sys-locale = "0.3"
 tempfile = "3"
 thiserror = "2"
 toml = { version = "0.9", default-features = false, features = ["parse", "serde", "std"] }

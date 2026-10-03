@@ -59,14 +59,16 @@ pub fn render_template(template: &str, content: &str, data: &DocumentData) -> Re
         MARKER.find_iter(&rendered).map(|m| m.as_str()).filter(|m| *m != CONTENT_MARKER).collect();
     if !pending.is_empty() {
         let list: Vec<&str> = pending.into_iter().collect();
-        return Err(GenerationError::new(format!(
-            "The template has unreplaced markers: {}",
+        return Err(GenerationError::new(tr!(
+            es: "La plantilla tiene marcadores sin reemplazar: {}",
+            en: "The template has unreplaced markers: {}",
             list.join(", ")
         )));
     }
     if !rendered.contains(CONTENT_MARKER) {
-        return Err(GenerationError::new(format!(
-            "The template does not contain the {CONTENT_MARKER} marker."
+        return Err(GenerationError::new(tr!(
+            es: "La plantilla no contiene el marcador {CONTENT_MARKER}.",
+            en: "The template does not contain the {CONTENT_MARKER} marker."
         )));
     }
     Ok(rendered.replace(CONTENT_MARKER, content))
@@ -112,9 +114,11 @@ pub fn unsupported_character_warnings(log: &str) -> Vec<String> {
     for found in UNDEFINED.captures_iter(log) {
         let (character, codepoint) = (found[1].to_owned(), found[2].to_owned());
         if seen.insert((character.clone(), codepoint.clone())) {
-            warnings.push(format!(
-                "The symbol {character} (U+{codepoint}) could not be typeset and shows as [?] in the PDF. \
-                 Replace it in the Markdown or declare it in templates/common/investigacion.sty."
+            warnings.push(tr!(
+                es: "El símbolo {character} (U+{codepoint}) no se pudo componer y sale como [?] en el PDF. \
+                     Cámbialo en el Markdown o decláralo en templates/common/investigacion.sty.",
+                en: "The symbol {character} (U+{codepoint}) could not be typeset and shows as [?] in the PDF. \
+                     Replace it in the Markdown or declare it in templates/common/investigacion.sty."
             ));
         }
     }

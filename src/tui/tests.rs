@@ -8,7 +8,9 @@ use ratatui::backend::TestBackend;
 
 use super::app::{App, FIELDS, FieldKey, LogLine, Mode, index_of};
 use super::ui;
+use crate::i18n::{self, Lang};
 use crate::project::Project;
+use crate::settings::Settings;
 
 fn press(app: &mut App, code: KeyCode) {
     app.handle_key(KeyEvent::new(code, KeyModifiers::NONE));
@@ -58,16 +60,72 @@ fn render(app: &App) -> String {
 
 #[test]
 fn the_removed_options_are_not_in_the_menu() {
-    let labels: Vec<&str> = FIELDS.iter().map(|f| f.label).collect();
-    for removed in [".env", "Allow LaTeX", "Logos"] {
+    let labels: Vec<&str> = FIELDS.iter().flat_map(|f| [f.label.es, f.label.en]).collect();
+    for removed in [".env", "LaTeX", "Logos", "logos"] {
         assert!(labels.iter().all(|l| !l.contains(removed)), "{removed}");
     }
+}
+
+#[test]
+fn the_menu_is_drawn_in_the_current_language() {
     let (_dir, project) = sample_project();
-    let screen = render(&App::new(project));
+    let app = App::new(project);
+    i18n::set(Lang::Es);
+    let screen = render(&app);
+    assert!(
+        screen.contains("Archivo Markdown")
+            && screen.contains("Nombre del PDF")
+            && screen.contains("[falta]")
+    );
+    assert!(screen.contains("English"), "la tecla l anuncia el otro idioma");
+    i18n::set(Lang::En);
+    let screen = render(&app);
     assert!(
         screen.contains("Markdown file") && screen.contains("PDF file name") && screen.contains("[missing]")
     );
-    assert!(!screen.contains("Allow LaTeX") && !screen.contains("Logos"));
+    assert!(screen.contains("Español"));
+}
+
+#[test]
+fn the_first_run_asks_for_the_language_and_saves_it() {
+    let (_dir, project) = sample_project();
+    let env = project.env_file();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    app.ask_language(Lang::Es);
+    assert!(render(&app).contains("Idioma / Language"));
+    press(&mut app, KeyCode::Down);
+    assert!(matches!(app.mode, Mode::ChooseLanguage(Lang::En)));
+    press(&mut app, KeyCode::Enter);
+    assert!(matches!(app.mode, Mode::Form));
+    assert_eq!(i18n::current(), Lang::En);
+    assert_eq!(i18n::configured(&Settings::load(&env).unwrap()), Some(Lang::En));
+}
+
+#[test]
+fn escape_uses_the_language_without_saving_it() {
+    let (_dir, project) = sample_project();
+    let env = project.env_file();
+    let mut app = App::new(project);
+    app.ask_language(Lang::En);
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(i18n::current(), Lang::En);
+    assert!(!env.exists());
+}
+
+#[test]
+fn the_l_key_switches_the_language_and_saves_it() {
+    let (_dir, project) = sample_project();
+    let env = project.env_file();
+    std::fs::write(&env, "UNIVERSIDAD=\"U\"\nIDIOMA=\"es\"\n").unwrap();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(i18n::current(), Lang::En);
+    let text = std::fs::read_to_string(&env).unwrap();
+    assert_eq!(text, "UNIVERSIDAD=\"U\"\nIDIOMA=\"en\"\n");
+    press(&mut app, KeyCode::Char('l'));
+    assert_eq!(i18n::current(), Lang::Es);
 }
 
 #[test]
@@ -149,6 +207,7 @@ fn text_editing_supports_cursor_and_cancel() {
 
 #[test]
 fn generation_requires_the_mandatory_fields() {
+    i18n::set(Lang::En);
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
     press(&mut app, KeyCode::Char('g'));

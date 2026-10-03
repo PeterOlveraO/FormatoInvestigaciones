@@ -33,6 +33,13 @@ local EXTENSION_POR_TIPO = {
 
 local avisados = {}
 
+-- Idioma de la interfaz, que pasa el generador; por omisión, español.
+local INGLES = os.getenv("INVESTIGACION_LANG") == "en"
+local function texto(es, en)
+  if INGLES then return en end
+  return es
+end
+
 -- El prefijo lo reconoce el generador para reenviar el aviso a la terminal.
 local function avisar(mensaje)
   if avisados[mensaje] then return end
@@ -87,27 +94,34 @@ local function descargar(imagen)
   end
 
   if extension and not FORMATOS[extension] then
-    avisar("The image " .. imagen.src .. " is in " .. extension ..
-           " format, which pdflatex cannot typeset. Use PNG, JPG or PDF.")
+    avisar(texto(
+      "La imagen " .. imagen.src .. " está en formato " .. extension ..
+      ", que pdflatex no puede componer. Usa PNG, JPG o PDF.",
+      "The image " .. imagen.src .. " is in " .. extension ..
+      " format, which pdflatex cannot typeset. Use PNG, JPG or PDF."))
     return nil
   end
 
   local ok, tipo, contenido = pcall(pandoc.mediabag.fetch, imagen.src)
   if not ok or not contenido then
-    avisar("Could not download the image " .. imagen.src ..
-           "; check the address or your connection.")
+    avisar(texto(
+      "No se pudo descargar la imagen " .. imagen.src .. "; revisa la dirección o tu conexión.",
+      "Could not download the image " .. imagen.src .. "; check the address or your connection."))
     return nil
   end
 
   local final = extension or EXTENSION_POR_TIPO[(tipo or ""):gsub(";.*$", "")]
   if not final or not FORMATOS[final] then
-    avisar("The image " .. imagen.src .. " is not PNG, JPG or PDF.")
+    avisar(texto(
+      "La imagen " .. imagen.src .. " no es PNG, JPG ni PDF.",
+      "The image " .. imagen.src .. " is not PNG, JPG or PDF."))
     return nil
   end
 
   local ruta = CACHE .. "/" .. nombre .. "." .. final
   if not escribir(ruta, contenido) then
-    avisar("Could not save the downloaded image to " .. ruta .. ".")
+    avisar(texto("No se pudo guardar la imagen descargada en ", "Could not save the downloaded image to ") ..
+      ruta .. ".")
     return nil
   end
   return ruta
@@ -149,8 +163,9 @@ function Image(imagen)
   end
 
   if RECURSOS ~= "" and not encuentra_local(imagen.src) then
-    avisar("Image not found: " .. imagen.src ..
-           "; the path is resolved from the Markdown folder.")
+    avisar(texto(
+      "No se encontró la imagen " .. imagen.src .. "; la ruta se busca desde la carpeta del Markdown.",
+      "Image not found: " .. imagen.src .. "; the path is resolved from the Markdown folder."))
     return reemplazo(imagen)
   end
   return nil

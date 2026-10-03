@@ -111,9 +111,11 @@ impl Project {
             return Ok(path.join(TEMPLATE_FILE));
         }
         let available = self.list_templates();
-        Err(GenerationError::new(format!(
-            "LaTeX template not found: {choice}. Available templates: {}.",
-            if available.is_empty() { "none".to_owned() } else { available.join(", ") }
+        let available =
+            if available.is_empty() { tr!(es: "ninguna", en: "none") } else { available.join(", ") };
+        Err(GenerationError::new(tr!(
+            es: "No se encontró la plantilla LaTeX: {choice}. Plantillas disponibles: {available}.",
+            en: "LaTeX template not found: {choice}. Available templates: {available}."
         )))
     }
 
@@ -128,8 +130,9 @@ impl Project {
         if let Some(explicit) = explicit {
             let directory = absolute(&expand_home(explicit));
             if !directory.is_dir() {
-                return Err(GenerationError::new(format!(
-                    "The logos directory does not exist: {}",
+                return Err(GenerationError::new(tr!(
+                    es: "No existe la carpeta de logos: {}",
+                    en: "The logos folder does not exist: {}",
                     directory.display()
                 )));
             }

@@ -95,7 +95,7 @@ impl Picker {
         if let Some(parent) = dir.parent() {
             self.items.push(Item {
                 label: "../".into(),
-                detail: "up".into(),
+                detail: crate::i18n::Text::new("subir", "up").get().into(),
                 value: PickValue::Up(parent.into()),
             });
         }
