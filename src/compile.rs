@@ -20,9 +20,15 @@ pub const MAX_LATEX_RUNS: usize = 4;
 pub fn copy_template_assets(
     template: &Path,
     common_dir: &Path,
+    format_sty: Option<&Path>,
     destination: &Path,
     logos: Option<&Path>,
 ) -> Result<()> {
+    // El formato elegido se copia con un nombre fijo: el diseño lo carga como
+    // `investigacion-format` sin saber cuál es.
+    if let Some(format_sty) = format_sty {
+        std::fs::copy(format_sty, destination.join("investigacion-format.sty"))?;
+    }
     let template_dir = template.parent().unwrap_or(Path::new("."));
     for directory in [common_dir, template_dir] {
         for entry in std::fs::read_dir(directory).into_iter().flatten().flatten() {

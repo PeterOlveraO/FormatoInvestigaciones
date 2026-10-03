@@ -30,9 +30,9 @@ fn select(app: &mut App, key: FieldKey) {
 fn sample_project() -> (tempfile::TempDir, Project) {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
-    for template in ["apa", "apa-simple"] {
-        std::fs::create_dir_all(root.join("templates").join(template)).unwrap();
-        std::fs::write(root.join("templates").join(template).join("template.ltx"), "x").unwrap();
+    for design in ["geometric-cover", "classic-cover"] {
+        std::fs::create_dir_all(root.join("templates/designs").join(design)).unwrap();
+        std::fs::write(root.join("templates/designs").join(design).join("template.ltx"), "x").unwrap();
     }
     std::fs::create_dir_all(root.join("input/IA")).unwrap();
     std::fs::write(root.join("input/IA/Tarea 1.md"), "# Introducción\n").unwrap();

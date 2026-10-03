@@ -9,7 +9,8 @@ porque dependen de lo que el documento diga y no de cómo se compone.
 2. Referencias con sangría francesa. APA 7 pide que la primera línea de cada
    referencia vaya al margen y las demás sangradas. Aquí se localiza el
    encabezado «Referencias», se deshace la lista de viñetas si se escribió así y
-   se envuelve todo en el entorno ReferenciasAPA.
+   se envuelve todo en el entorno ReferenceList, que cada formato define
+   (sangría francesa en APA y Harvard, numerada en IEEE).
 ]]
 
 local utils = require("pandoc.utils")
@@ -90,13 +91,13 @@ function Pandoc(documento)
 
   for _, bloque in ipairs(documento.blocks) do
     if dentro and bloque.t == "Header" then
-      salida[#salida + 1] = crudo("\\end{ReferenciasAPA}")
+      salida[#salida + 1] = crudo("\\end{ReferenceList}")
       dentro = false
     end
 
     if es_encabezado_de_referencias(bloque) then
       salida[#salida + 1] = bloque
-      salida[#salida + 1] = crudo("\\begin{ReferenciasAPA}")
+      salida[#salida + 1] = crudo("\\begin{ReferenceList}")
       dentro = true
     elseif dentro then
       for _, parrafo in ipairs(a_parrafos(bloque)) do
@@ -108,7 +109,7 @@ function Pandoc(documento)
   end
 
   if dentro then
-    salida[#salida + 1] = crudo("\\end{ReferenciasAPA}")
+    salida[#salida + 1] = crudo("\\end{ReferenceList}")
   end
 
   documento.blocks = salida

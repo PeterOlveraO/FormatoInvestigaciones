@@ -10,7 +10,7 @@ use crate::error::{GenerationError, Result};
 use crate::latex::render_template;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::pandoc_to_latex;
-use crate::project::{Project, absolute};
+use crate::project::{DEFAULT_FORMAT, Project, absolute};
 
 /// Opciones de la generación que no son datos de la portada.
 #[derive(Debug, Default, Clone)]
@@ -66,6 +66,12 @@ pub fn generate_pdf(
     let template_file = project.find_template(options.template.as_deref())?;
     let logos = project.resolve_logos_directory(&template_file, options.logos.as_deref())?;
     let template = decode_text(&std::fs::read(&template_file)?, &template_file)?;
+    // Por ahora el formato es siempre APA 7; los marcadores del contrato del
+    // diseño (%%FORMAT%%, %%CLASS_OPTIONS%%) se resuelven antes que los datos.
+    let format_sty = project.format_sty(DEFAULT_FORMAT);
+    let template = template
+        .replace("%%FORMAT%%", "\\usepackage[spanish, es-tabla]{babel}\n\\usepackage{investigacion-format}")
+        .replace("%%CLASS_OPTIONS%%", "12pt, letterpaper");
     let content = pandoc_to_latex(project, &markdown_path, &markdown, options.allow_raw_latex, on_warning)?;
     let rendered = render_template(&template, &content, data)?;
 
@@ -78,7 +84,13 @@ pub fn generate_pdf(
     let temporary = tempfile::Builder::new().prefix("investigacion-").tempdir()?;
     let tex_path = temporary.path().join("trabajo.tex");
     std::fs::write(&tex_path, rendered)?;
-    copy_template_assets(&template_file, &project.common_dir(), temporary.path(), logos.as_deref())?;
+    copy_template_assets(
+        &template_file,
+        &project.common_dir(),
+        Some(&format_sty).filter(|p| p.is_file()).map(PathBuf::as_path),
+        temporary.path(),
+        logos.as_deref(),
+    )?;
     let working_directory = markdown_path.parent().unwrap_or(Path::new("."));
     let state = latex_state_dir(project, &output_pdf, &template_file);
     compile_pdf(&tex_path, &output_pdf, working_directory, Some(&state), on_warning)?;

@@ -19,31 +19,37 @@ pub fn project() -> Project {
 /// Proyecto aislado en `dir` con una copia de las plantillas: así las pruebas
 /// no dejan rastro en la caché del proyecto real.
 pub fn isolated_project(dir: &Path) -> Project {
-    for entry in std::fs::read_dir(root().join("templates")).unwrap().flatten() {
-        let part = entry.file_name();
-        // Los logos son de cada quien: las pruebas no dependen de ellos.
-        if part == "logos" || !entry.path().is_dir() {
-            continue;
-        }
-        let source = entry.path();
-        let target = dir.join("templates").join(part);
-        std::fs::create_dir_all(&target).unwrap();
+    // Copia recursiva de templates/ salvo los logos, que son de cada quien.
+    fn copy_tree(source: &Path, target: &Path) {
+        std::fs::create_dir_all(target).unwrap();
         for entry in std::fs::read_dir(source).unwrap().flatten() {
-            std::fs::copy(entry.path(), target.join(entry.file_name())).unwrap();
+            let path = entry.path();
+            if path.is_dir() {
+                if entry.file_name() != "logos" {
+                    copy_tree(&path, &target.join(entry.file_name()));
+                }
+            } else {
+                std::fs::copy(&path, target.join(entry.file_name())).unwrap();
+            }
         }
     }
+    copy_tree(&root().join("templates"), &dir.join("templates"));
     Project::at(dir)
 }
 
 pub fn full_template() -> String {
     [
-        "templates/common/investigacion.sty",
+        "templates/common/investigacion-base.sty",
+        "templates/formats/apa7/format.sty",
         "templates/common/investigacion-final.sty",
-        "templates/apa/template.ltx",
+        "templates/designs/geometric-cover/template.ltx",
     ]
     .iter()
     .map(|part| std::fs::read_to_string(root().join(part)).unwrap())
-    .collect()
+    .collect::<String>()
+    // Los marcadores del contrato del diseño los resuelve el generador.
+    .replace("%%FORMAT%%", "")
+    .replace("%%CLASS_OPTIONS%%", "12pt")
 }
 
 pub fn has_tool(name: &str) -> bool {

@@ -1,12 +1,14 @@
-\documentclass[12pt, letterpaper]{article}
+% Opciones de la clase (tamaño de letra, papel, columnas): las pone el formato.
+\documentclass[%%CLASS_OPTIONS%%]{article}
 
 % ==========================================
-% PREÁMBULO COMPARTIDO
+% CONTRATO DEL DISEÑO
 % ==========================================
-% Todo lo que necesitan la salida de Pandoc, los filtros y el formato APA vive
-% en templates/common/investigacion.sty, que el generador copia junto al .tex.
-% Esta plantilla solo aporta sus datos y su portada.
-\usepackage{investigacion}
+% La base universal (Pandoc, diagramas, gráficas, símbolos) va primero; en
+% la línea marcada abajo el programa inserta el idioma (babel) y el formato (APA,
+% Harvard, IEEE...). Este diseño solo aporta sus datos y su portada.
+\usepackage{investigacion-base}
+%%FORMAT%%
 
 % ==========================================
 % DATOS EDITABLES DE LA PLANTILLA
@@ -195,12 +197,8 @@
 % El entorno titlepage reinicia el contador; APA cuenta la portada como página 1.
 \setcounter{page}{2}
 
-% APA 7 recomienda texto alineado a la izquierda, con margen derecho irregular.
-% \RaggedRight reinicia \parindent a 0 (lo trae puesto a \RaggedRightParindent,
-% que por omision vale \z@): sin esta linea la sangria de 1.27cm fijada arriba
-% desaparecia en todo el documento, aunque indentfirst siguiera cargado.
-\RaggedRight
-\setlength{\parindent}{1.27cm}
+% El formato decide cómo empieza el cuerpo (alineación, sangría...).
+\FormatBodySetup
 
 % ==========================================
 % ÍNDICE

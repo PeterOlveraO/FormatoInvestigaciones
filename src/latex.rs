@@ -116,9 +116,9 @@ pub fn unsupported_character_warnings(log: &str) -> Vec<String> {
         if seen.insert((character.clone(), codepoint.clone())) {
             warnings.push(tr!(
                 es: "El símbolo {character} (U+{codepoint}) no se pudo componer y sale como [?] en el PDF. \
-                     Cámbialo en el Markdown o decláralo en templates/common/investigacion.sty.",
+                     Cámbialo en el Markdown o decláralo en templates/common/investigacion-base.sty.",
                 en: "The symbol {character} (U+{codepoint}) could not be typeset and shows as [?] in the PDF. \
-                     Replace it in the Markdown or declare it in templates/common/investigacion.sty."
+                     Replace it in the Markdown or declare it in templates/common/investigacion-base.sty."
             ));
         }
     }

@@ -60,7 +60,7 @@ fn boxes_and_references() {
     let Some(references) = convert("# Referencias\n\n- Autor, A. (2020). *Titulo*. Editorial.\n") else {
         return;
     };
-    assert!(references.contains(r"\begin{ReferenciasAPA}") && references.contains(r"\end{ReferenciasAPA}"));
+    assert!(references.contains(r"\begin{ReferenceList}") && references.contains(r"\end{ReferenceList}"));
     assert!(!references.contains(r"\begin{itemize}"));
 }
 

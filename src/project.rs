@@ -7,9 +7,21 @@ use crate::error::{GenerationError, Result};
 use crate::markdown::expand_home;
 
 /// Archivo que identifica la raíz del proyecto.
-const ROOT_MARKER: &str = "templates/common/investigacion.sty";
-pub const DEFAULT_TEMPLATE: &str = "apa";
+const ROOT_MARKER: &str = "templates/common/investigacion-base.sty";
+/// Diseño y formato por omisión: la portada geométrica con APA 7.
+pub const DEFAULT_TEMPLATE: &str = "geometric-cover";
+pub const DEFAULT_FORMAT: &str = "apa7";
 pub const TEMPLATE_FILE: &str = "template.ltx";
+pub const FORMAT_FILE: &str = "format.sty";
+
+/// Nombres de plantilla de la versión anterior, que siguen valiendo.
+pub fn legacy_design(name: &str) -> &str {
+    match name {
+        "apa" => "geometric-cover",
+        "apa-simple" => "classic-cover",
+        other => other,
+    }
+}
 pub const LOGOS_DIRECTORY: &str = "logos";
 /// Nombres que busca la portada dentro de la carpeta de logos.
 pub const LOGO_FILES: [&str; 2] = ["logo-universidad.png", "logo-facultad.png"];
@@ -57,6 +69,16 @@ impl Project {
     pub fn templates_dir(&self) -> PathBuf {
         self.root.join("templates")
     }
+    pub fn designs_dir(&self) -> PathBuf {
+        self.templates_dir().join("designs")
+    }
+    pub fn formats_dir(&self) -> PathBuf {
+        self.templates_dir().join("formats")
+    }
+    /// El `format.sty` de un formato (`apa7`, `harvard`...).
+    pub fn format_sty(&self, format: &str) -> PathBuf {
+        self.formats_dir().join(format).join(FORMAT_FILE)
+    }
     pub fn common_dir(&self) -> PathBuf {
         self.templates_dir().join("common")
     }
@@ -81,10 +103,10 @@ impl Project {
         Ok((remote, diagrams))
     }
 
-    /// Plantillas disponibles: cada subcarpeta de `templates/` con un
-    /// `template.ltx` dentro (`common/` y `logos/` no lo tienen).
+    /// Diseños disponibles: cada subcarpeta de `templates/designs/` con un
+    /// `template.ltx` dentro.
     pub fn list_templates(&self) -> Vec<String> {
-        let mut names: Vec<String> = std::fs::read_dir(self.templates_dir())
+        let mut names: Vec<String> = std::fs::read_dir(self.designs_dir())
             .into_iter()
             .flatten()
             .flatten()
@@ -95,11 +117,12 @@ impl Project {
         names
     }
 
-    /// Resuelve `--template`: un nombre de `templates/` (`apa`), una carpeta con
-    /// `template.ltx` o la ruta directa a un archivo. Sin nada, `apa`.
+    /// Resuelve `--template`: un nombre de `templates/designs/` (los antiguos
+    /// `apa` y `apa-simple` también valen), una carpeta con `template.ltx` o la
+    /// ruta directa a un archivo. Sin nada, el diseño por omisión.
     pub fn find_template(&self, choice: Option<&str>) -> Result<PathBuf> {
         let choice = choice.map(str::trim).filter(|c| !c.is_empty()).unwrap_or(DEFAULT_TEMPLATE);
-        let by_name = self.templates_dir().join(choice).join(TEMPLATE_FILE);
+        let by_name = self.designs_dir().join(legacy_design(choice)).join(TEMPLATE_FILE);
         if by_name.is_file() {
             return Ok(by_name);
         }
@@ -152,7 +175,7 @@ mod tests {
     fn templates_are_found_by_name_or_path() {
         let directory = tempfile::tempdir().unwrap();
         let project = Project::at(directory.path());
-        let apa = project.templates_dir().join("apa");
+        let apa = project.designs_dir().join("geometric-cover");
         std::fs::create_dir_all(&apa).unwrap();
         std::fs::write(apa.join(TEMPLATE_FILE), "x").unwrap();
         std::fs::create_dir_all(project.common_dir()).unwrap();
@@ -160,9 +183,11 @@ mod tests {
         assert_eq!(project.find_template(None).unwrap(), apa.join(TEMPLATE_FILE));
         let by_path = apa.join(TEMPLATE_FILE);
         assert_eq!(project.find_template(Some(by_path.to_str().unwrap())).unwrap(), by_path);
-        assert_eq!(project.list_templates(), ["apa"]);
+        assert_eq!(project.list_templates(), ["geometric-cover"]);
+        // El nombre antiguo sigue llevando al mismo diseño.
+        assert_eq!(project.find_template(Some("apa")).unwrap(), apa.join(TEMPLATE_FILE));
         let error = project.find_template(Some("nope")).unwrap_err();
-        assert!(error.0.contains("apa"));
+        assert!(error.0.contains("geometric-cover"));
     }
 
     #[test]

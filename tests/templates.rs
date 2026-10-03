@@ -51,7 +51,7 @@ fn what_the_filters_produce_is_defined() {
     let template = full_template();
     for needle in [
         r"\newenvironment{CajaMarcada}[1]",
-        r"\newenvironment{ReferenciasAPA}",
+        r"\newenvironment{ReferenceList}",
         r"\RequirePackage{pgfplots}",
         r"/pgfplots/bar cycle list/.style",
         r"\floatsetup[figure]{capposition=top}",
