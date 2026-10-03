@@ -13,5 +13,6 @@ pub mod process;
 pub mod project;
 pub mod settings;
 pub mod subjects;
+pub mod tui;
 
 pub use error::{GenerationError, Result};

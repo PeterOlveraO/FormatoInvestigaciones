@@ -1,6 +1,5 @@
-//! Binario de compatibilidad: abre el menú interactivo.
+//! Binario de compatibilidad con la versión anterior: abre el menú.
 
 fn main() {
-    eprintln!("The interactive menu is not available yet.");
-    std::process::exit(1);
+    std::process::exit(investigacion::tui::run());
 }
