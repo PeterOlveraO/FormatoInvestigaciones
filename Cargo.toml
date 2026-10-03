@@ -1,0 +1,30 @@
+[package]
+name = "investigacion"
+version = "0.2.0"
+edition = "2024"
+description = "Generates academic papers in PDF from Markdown and an APA LaTeX template."
+license = "GPL-3.0-or-later"
+readme = "README.md"
+default-run = "investigacion"
+
+[[bin]]
+name = "investigacion"
+path = "src/main.rs"
+
+[[bin]]
+name = "investigacion-tui"
+path = "src/bin/investigacion-tui.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4", features = ["derive"] }
+regex = "1"
+tempfile = "3"
+thiserror = "2"
+unicode-normalization = "0.1"
+
+[profile.release]
+# Binario pequeño y rápido de arrancar; el tiempo real lo gastan Pandoc y pdflatex.
+lto = "thin"
+codegen-units = 1
+strip = true

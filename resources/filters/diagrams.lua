@@ -67,13 +67,12 @@ function CodeBlock(bloque)
   if not existe(ruta) then
     local ok, salida = pcall(pandoc.pipe, "dot", { "-Tpdf" }, bloque.text)
     if not ok then
-      avisar("No se pudo dibujar un diagrama: falta Graphviz (instalalo con " ..
-             "«sudo pacman -S graphviz») o el diagrama tiene un error de sintaxis. " ..
-             "Mientras tanto sale como bloque de codigo.")
+      avisar("Could not draw a diagram: Graphviz is missing (see REQUISITOS.md) " ..
+             "or the diagram has a syntax error. Meanwhile it shows as a code block.")
       return nil
     end
     if not escribir(ruta, salida) then
-      avisar("No se pudo guardar el diagrama en " .. ruta .. ".")
+      avisar("Could not save the diagram to " .. ruta .. ".")
       return nil
     end
   end

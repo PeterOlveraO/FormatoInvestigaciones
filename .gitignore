@@ -1,3 +1,6 @@
+# Compilacion de Rust
+/target/
+
 # Entorno virtual y artefactos de Python
 .venv/
 __pycache__/
@@ -10,6 +13,8 @@ __pycache__/
 
 # PDFs generados y restos de una compilacion fallida
 /output/
+last-error.tex
+last-error.log
 ultimo-error.tex
 ultimo-error.log
 
