@@ -34,6 +34,10 @@ pub struct Args {
     #[arg(long, alias = "titulo")]
     pub title: String,
 
+    /// Name of the PDF file (without .pdf is fine). Default: the name of the Markdown file.
+    #[arg(long, alias = "nombre")]
+    pub file_name: Option<String>,
+
     /// Subject name.
     #[arg(long, alias = "materia")]
     pub subject: String,
@@ -152,7 +156,7 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         template: args.template.clone(),
         allow_raw_latex: args.allow_latex,
         logos,
-        file_name: None,
+        file_name: args.file_name.clone(),
         markdown: Some(markdown),
     };
     let output_dir = args.output.clone().unwrap_or_else(|| project.output_dir());
@@ -248,6 +252,16 @@ mod tests {
         assert!(args.copy.is_empty());
         let args = parse(&["t.md", "--title", "T", "--subject", "M", "--copy", "a", "--copy", "b"]);
         assert_eq!(args.copy, [PathBuf::from("a"), PathBuf::from("b")]);
+    }
+
+    #[test]
+    fn the_file_name_is_its_own_option() {
+        let args = parse(&["t.md", "--title", "Un titulo largo", "--subject", "M", "--file-name", "entrega"]);
+        assert_eq!(args.file_name.as_deref(), Some("entrega"));
+        assert_eq!(
+            parse(&["t.md", "--title", "T", "--subject", "M", "--nombre", "x"]).file_name.as_deref(),
+            Some("x")
+        );
     }
 
     #[test]

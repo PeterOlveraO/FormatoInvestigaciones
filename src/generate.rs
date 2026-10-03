@@ -21,20 +21,24 @@ pub struct GenerateOptions {
     pub allow_raw_latex: bool,
     /// Carpeta de logos; `None` usa la de la plantilla o `templates/logos/`.
     pub logos: Option<PathBuf>,
-    /// Nombre del PDF; `None` lo deriva del título.
+    /// Nombre del PDF; `None` lo deriva del nombre del Markdown.
     pub file_name: Option<String>,
     /// Markdown ya leído (el CLI lo lee antes para validarlo).
     pub markdown: Option<String>,
 }
 
-/// Nombre final del PDF: el indicado (con o sin `.pdf`) o el slug del título.
-pub fn output_file_name(data: &DocumentData, file_name: Option<&str>) -> String {
+/// Nombre final del PDF. Es independiente del título: por omisión sale del
+/// nombre del Markdown (`Tarea2-3.md` → `tarea2-3.pdf`), y `file_name` (con o
+/// sin `.pdf`) lo cambia. Así el título de la portada puede ser largo y con
+/// acentos sin que el archivo herede ese nombre.
+pub fn output_file_name(markdown_path: &Path, file_name: Option<&str>) -> String {
     let base = match file_name.map(str::trim).filter(|n| !n.is_empty()) {
         Some(name) => {
-            let stem = name.strip_suffix(".pdf").or_else(|| name.strip_suffix(".PDF")).unwrap_or(name);
-            slugify(stem)
+            let split = name.len().saturating_sub(4);
+            let has_pdf = name.get(split..).is_some_and(|end| end.eq_ignore_ascii_case(".pdf"));
+            slugify(if has_pdf { &name[..split] } else { name })
         }
-        None => slugify(&data.title),
+        None => slugify(&markdown_path.file_stem().unwrap_or_default().to_string_lossy()),
     };
     format!("{base}.pdf")
 }
@@ -65,7 +69,7 @@ pub fn generate_pdf(
 
     let output_directory = absolute(&expand_home(output_directory));
     std::fs::create_dir_all(&output_directory)?;
-    let output_pdf = output_directory.join(output_file_name(data, options.file_name.as_deref()));
+    let output_pdf = output_directory.join(output_file_name(&markdown_path, options.file_name.as_deref()));
 
     // El temporal se borra solo; en Windows un archivo puede seguir bloqueado
     // un instante tras cerrar pdflatex, y eso no debe convertirse en error.
@@ -158,9 +162,11 @@ mod tests {
     }
 
     #[test]
-    fn the_file_name_comes_from_the_title_unless_given() {
-        let data = DocumentData { title: "Álgebra lineal".into(), ..Default::default() };
-        assert_eq!(output_file_name(&data, None), "algebra-lineal.pdf");
-        assert_eq!(output_file_name(&data, Some("Entrega Final.pdf")), "entrega-final.pdf");
+    fn the_file_name_is_independent_of_the_title() {
+        let markdown = Path::new("input/IA/Tarea2-3.md");
+        assert_eq!(output_file_name(markdown, None), "tarea2-3.pdf");
+        assert_eq!(output_file_name(markdown, Some("Entrega Final.pdf")), "entrega-final.pdf");
+        assert_eq!(output_file_name(markdown, Some("Reporte.PDF")), "reporte.pdf");
+        assert_eq!(output_file_name(markdown, Some("  ")), "tarea2-3.pdf");
     }
 }
