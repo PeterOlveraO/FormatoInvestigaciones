@@ -117,3 +117,42 @@ fn backslashes_in_the_text_do_not_break_the_build() {
     let Some((pdf, _, _dir)) = build("# Introducción\n\nRuta C:\\Users\\alumno\n", "Rutas") else { return };
     assert!(pdf.is_file());
 }
+
+#[test]
+fn every_template_compiles_with_and_without_the_optional_fields() {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
+    let templates = project.list_templates();
+    assert!(templates.len() >= 2, "{templates:?}");
+
+    let mut full = data("Completo");
+    full.members = vec!["Ana Ruiz".into(), "Luis Paz".into()];
+    full.group = "7-A".into();
+    let mut bare = data("Minimo");
+    bare.student.clear();
+    bare.teacher.clear();
+
+    for template in templates {
+        for (index, values) in [&full, &bare].into_iter().enumerate() {
+            let options = GenerateOptions {
+                template: Some(template.clone()),
+                file_name: Some(format!("{template}-{index}")),
+                ..Default::default()
+            };
+            let pdf = generate_pdf(
+                &project,
+                &source,
+                &directory.path().join("salida"),
+                values,
+                &options,
+                &mut |_| {},
+            )
+            .unwrap_or_else(|e| panic!("{template}: {e}"));
+            assert!(pdf.is_file());
+        }
+    }
+}

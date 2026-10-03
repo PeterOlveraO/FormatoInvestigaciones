@@ -12,6 +12,7 @@ use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf};
 use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
 use crate::project::Project;
 use crate::settings::Settings;
+use crate::subjects::{Subject, find_subject};
 
 /// Variables obligatorias del `.env` (nombre en español y en inglés).
 pub const REQUIRED_ENV: [[&str; 2]; 3] =
@@ -38,9 +39,13 @@ pub struct Args {
     #[arg(long, alias = "nombre")]
     pub file_name: Option<String>,
 
-    /// Subject name.
+    /// Subject name. Optional when a subject profile gives it.
     #[arg(long, alias = "materia")]
-    pub subject: String,
+    pub subject: Option<String>,
+
+    /// Subject profile from subjects/ (e.g. ia): fills subject, teacher, group, template and folders.
+    #[arg(long, short = 'p', alias = "perfil", value_name = "PROFILE")]
+    pub subject_profile: Option<String>,
 
     /// Teacher name. Falls back to DOCENTE in the .env; if empty the line is omitted.
     #[arg(long, alias = "docente")]
@@ -54,7 +59,7 @@ pub struct Args {
     #[arg(long, alias = "grupo")]
     pub group: Option<String>,
 
-    /// Directory for the PDF (default: output/ of the project).
+    /// Directory for the PDF (default: output/, or output/<folder> of the subject profile).
     #[arg(long, alias = "salida")]
     pub output: Option<PathBuf>,
 
@@ -70,7 +75,7 @@ pub struct Args {
     #[arg(long, alias = "permitir-latex")]
     pub allow_latex: bool,
 
-    /// Template name inside templates/ (e.g. apa) or path to a .ltx file.
+    /// Template name inside templates/ (e.g. apa, apa-simple) or path to a .ltx file.
     #[arg(long, alias = "plantilla")]
     pub template: Option<String>,
 
@@ -97,12 +102,25 @@ impl Reporter for ConsoleReporter {
     }
 }
 
-/// Opción gana; si no, el valor del entorno o del `.env`.
-fn option_or_setting(option: Option<&str>, settings: &Settings, names: &[&str]) -> String {
-    match option {
-        Some(value) => value.trim().to_owned(),
-        None => settings.get(names),
+/// La opción gana; luego el perfil de la materia y, al final, el `.env`.
+fn pick(option: Option<&str>, profile: Option<&str>, settings: &Settings, names: &[&str]) -> String {
+    match (option, profile.map(str::trim).filter(|v| !v.is_empty())) {
+        (Some(value), _) => value.trim().to_owned(),
+        (None, Some(value)) => value.to_owned(),
+        (None, None) => settings.get(names),
     }
+}
+
+/// Primero se busca el Markdown en la carpeta de la materia (así dos materias
+/// pueden tener una `Tarea1.md` cada una) y luego en todo `input/`.
+fn locate_markdown(args: &Args, project: &Project, subject: Option<&Subject>) -> Result<PathBuf> {
+    if let Some(dir) = subject.and_then(|s| s.input_dir(project))
+        && !args.markdown.exists()
+        && let Ok(found) = resolve_markdown_path(&args.markdown, &dir)
+    {
+        return Ok(found);
+    }
+    resolve_markdown_path(&args.markdown, &project.input_dir())
 }
 
 /// Ejecuta una generación completa con argumentos ya analizados.
@@ -121,7 +139,9 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         )));
     }
 
-    let markdown_path = resolve_markdown_path(&args.markdown, &project.input_dir())?;
+    let subject = args.subject_profile.as_deref().map(|key| find_subject(project, key)).transpose()?;
+    let profile = subject.as_ref().map(|s| &s.profile);
+    let markdown_path = locate_markdown(args, project, subject.as_ref())?;
     let markdown = read_markdown(&markdown_path)?;
     for warning in validate_markdown(&markdown) {
         reporter.warning(warning);
@@ -133,18 +153,26 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         student: settings.get(&["ALUMNO", "STUDENT"]),
         semester: settings.get(&["SEMESTRE", "SEMESTER"]),
         title: args.title.trim().to_owned(),
-        subject: args.subject.trim().to_owned(),
-        teacher: option_or_setting(args.teacher.as_deref(), &settings, &["DOCENTE", "TEACHER"]),
+        subject: pick(args.subject.as_deref(), profile.map(|p| p.subject.as_str()), &settings, &[]),
+        teacher: pick(
+            args.teacher.as_deref(),
+            profile.map(|p| p.teacher.as_str()),
+            &settings,
+            &["DOCENTE", "TEACHER"],
+        ),
         date: today(),
-        members: parse_members(&option_or_setting(
+        members: parse_members(&pick(
             args.members.as_deref(),
+            profile.map(|p| p.members.as_str()),
             &settings,
             &["INTEGRANTES", "MEMBERS"],
         )),
-        group: option_or_setting(args.group.as_deref(), &settings, &["GRUPO", "GROUP"]),
+        group: pick(args.group.as_deref(), profile.map(|p| p.group.as_str()), &settings, &["GRUPO", "GROUP"]),
     };
     if data.title.is_empty() || data.subject.is_empty() {
-        return Err(GenerationError::new("The title and the subject cannot be empty."));
+        return Err(GenerationError::new(
+            "The title and the subject cannot be empty (give --subject or a --subject-profile).",
+        ));
     }
 
     // Los logos suelen vivir fuera del proyecto: por eso admiten el .env.
@@ -153,13 +181,19 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         (!from_env.is_empty()).then(|| PathBuf::from(from_env))
     });
     let options = GenerateOptions {
-        template: args.template.clone(),
+        template: args
+            .template
+            .clone()
+            .or_else(|| profile.map(|p| p.template.trim().to_owned()).filter(|t| !t.is_empty())),
         allow_raw_latex: args.allow_latex,
         logos,
         file_name: args.file_name.clone(),
         markdown: Some(markdown),
     };
-    let output_dir = args.output.clone().unwrap_or_else(|| project.output_dir());
+    let output_dir = args.output.clone().unwrap_or_else(|| match &subject {
+        Some(subject) => subject.output_dir(project),
+        None => project.output_dir(),
+    });
     let pdf =
         generate_pdf(project, &markdown_path, &output_dir, &data, &options, &mut |w| reporter.warning(w))?;
     reporter.info(format!("PDF generated: {}", pdf.display()));
@@ -212,8 +246,8 @@ mod tests {
             let args = parse(argv);
             assert_eq!(args.markdown, PathBuf::from("t.md"));
             assert_eq!(
-                (args.title.as_str(), args.subject.as_str(), args.teacher.as_deref()),
-                ("T", "M", Some("D"))
+                (args.title.as_str(), args.subject.as_deref(), args.teacher.as_deref()),
+                ("T", Some("M"), Some("D"))
             );
         }
     }

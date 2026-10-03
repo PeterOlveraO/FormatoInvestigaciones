@@ -1,0 +1,19 @@
+# Perfil de ejemplo. Copia este archivo con el nombre corto de tu materia
+# (por ejemplo `ia.toml`) y úsalo con `investigacion Tarea1.md -p ia --title "..."`
+# o elígelo en el menú interactivo.
+
+# Nombre de la materia tal como sale en la portada (obligatorio).
+subject = "Nombre de la materia"
+
+# Opcionales: si faltan se usan las variables del .env, y si tampoco están,
+# la línea no aparece en la portada.
+teacher = "Nombre del docente"
+group = "7-A"
+# members = "Ana Ruiz, Luis Paz"
+
+# Plantilla de templates/ (apa, apa-simple...). Vacío = apa.
+template = "apa"
+
+# Subcarpeta de input/ con los trabajos de esta materia. El PDF se guarda en
+# la misma subcarpeta de output/ (output/IA/...).
+folder = "IA"

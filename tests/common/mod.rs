@@ -19,8 +19,13 @@ pub fn project() -> Project {
 /// Proyecto aislado en `dir` con una copia de las plantillas: así las pruebas
 /// no dejan rastro en la caché del proyecto real.
 pub fn isolated_project(dir: &Path) -> Project {
-    for part in ["common", "apa"] {
-        let source = root().join("templates").join(part);
+    for entry in std::fs::read_dir(root().join("templates")).unwrap().flatten() {
+        let part = entry.file_name();
+        // Los logos son de cada quien: las pruebas no dependen de ellos.
+        if part == "logos" || !entry.path().is_dir() {
+            continue;
+        }
+        let source = entry.path();
         let target = dir.join("templates").join(part);
         std::fs::create_dir_all(&target).unwrap();
         for entry in std::fs::read_dir(source).unwrap().flatten() {
