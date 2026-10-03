@@ -16,14 +16,17 @@ porque dependen de lo que el documento diga y no de cómo se compone.
 local utils = require("pandoc.utils")
 local texto = require("pandoc.text")
 
--- Nombre de la división → título que sale en la caja.
+-- Nombre de la división → título que sale en la caja, en el idioma del
+-- documento (INVESTIGACION_DOC_LANG). Valen los nombres en español y en inglés.
+local INGLES = os.getenv("INVESTIGACION_DOC_LANG") == "en"
+local function caja(es, en) if INGLES then return en end return es end
 local CAJAS = {
-  nota = "Nota",
-  aviso = "Aviso",
-  importante = "Importante",
-  ejemplo = "Ejemplo",
-  definicion = "Definición",
-  ["definición"] = "Definición",
+  nota = caja("Nota", "Note"), note = caja("Nota", "Note"),
+  aviso = caja("Aviso", "Warning"), warning = caja("Aviso", "Warning"),
+  importante = caja("Importante", "Important"), important = caja("Importante", "Important"),
+  ejemplo = caja("Ejemplo", "Example"), example = caja("Ejemplo", "Example"),
+  definicion = caja("Definición", "Definition"), ["definición"] = caja("Definición", "Definition"),
+  definition = caja("Definición", "Definition"),
 }
 
 -- Encabezados que abren la lista de referencias, con y sin acento.
@@ -34,6 +37,10 @@ local REFERENCIAS = {
   ["referencias bibliograficas"] = true,
   ["referencias bibliográficas"] = true,
   ["lista de referencias"] = true,
+  ["references"] = true,
+  ["reference list"] = true,
+  ["bibliography"] = true,
+  ["works cited"] = true,
 }
 
 local function crudo(latex)

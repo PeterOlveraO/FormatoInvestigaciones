@@ -4,9 +4,14 @@
 mod common;
 
 use common::{has_tool, project, write};
+use investigacion::i18n::Lang;
 use investigacion::pandoc::pandoc_to_latex;
 
 fn convert_with_warnings(markdown: &str) -> Option<(String, Vec<String>)> {
+    convert_in(markdown, Lang::Es)
+}
+
+fn convert_in(markdown: &str, doc_lang: Lang) -> Option<(String, Vec<String>)> {
     if !has_tool("pandoc") {
         eprintln!("skipped: pandoc is not installed");
         return None;
@@ -14,7 +19,8 @@ fn convert_with_warnings(markdown: &str) -> Option<(String, Vec<String>)> {
     let directory = tempfile::tempdir().unwrap();
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
-    let latex = pandoc_to_latex(&project(), &source, markdown, false, &mut |w| warnings.push(w)).unwrap();
+    let latex =
+        pandoc_to_latex(&project(), &source, markdown, false, doc_lang, &mut |w| warnings.push(w)).unwrap();
     Some((latex, warnings))
 }
 
@@ -113,4 +119,17 @@ fn task_and_definition_lists() {
     for needle in [r"\boxtimes", r"\square", r"\begin{description}"] {
         assert!(latex.contains(needle), "{needle}");
     }
+}
+
+#[test]
+fn boxes_and_references_follow_the_document_language() {
+    let Some((latex, _)) =
+        convert_in("::: note\nCareful.\n:::\n\n# References\n\n- Smith, J. (2020). *Title*.\n", Lang::En)
+    else {
+        return;
+    };
+    assert!(latex.contains(r"\begin{CajaMarcada}{Note}"), "{latex}");
+    assert!(latex.contains(r"\begin{ReferenceList}"));
+    let Some((spanish, _)) = convert_in("::: note\nOjo.\n:::\n", Lang::Es) else { return };
+    assert!(spanish.contains(r"\begin{CajaMarcada}{Nota}"));
 }

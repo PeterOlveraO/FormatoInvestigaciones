@@ -16,6 +16,9 @@
 !/templates/logos/README.md
 /templates/*/logos/
 
+# Your own formats and designs (my-templates/formats, my-templates/designs)
+/my-templates/
+
 # Regenerable cache: downloaded images, diagrams and LaTeX state
 /cache/
 

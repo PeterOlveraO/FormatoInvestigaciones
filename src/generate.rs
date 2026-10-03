@@ -7,16 +7,22 @@ use crate::compile::{compile_pdf, copy_template_assets};
 use crate::document::{DocumentData, slugify};
 use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
+use crate::i18n::Lang;
 use crate::latex::render_template;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::pandoc_to_latex;
-use crate::project::{DEFAULT_FORMAT, Project, absolute};
+use crate::project::{Project, absolute};
+use crate::template::{Layout, resolve_layout};
 
 /// Opciones de la generación que no son datos de la portada.
 #[derive(Debug, Default, Clone)]
 pub struct GenerateOptions {
-    /// Nombre de `templates/` o ruta a una plantilla; `None` es `apa`.
-    pub template: Option<String>,
+    /// Diseño: nombre de `templates/designs/` o ruta; `None` = el de omisión.
+    pub design: Option<String>,
+    /// Formato (`apa7`, `harvard`…); `None` = el primero que acepta el diseño.
+    pub format: Option<String>,
+    /// Idioma del documento; `None` = el del formato.
+    pub doc_lang: Option<Lang>,
     /// Interpreta los comandos LaTeX escritos en el Markdown.
     pub allow_raw_latex: bool,
     /// Carpeta de logos; `None` usa la de la plantilla o `templates/logos/`.
@@ -63,16 +69,21 @@ pub fn generate_pdf(
         ));
     }
 
-    let template_file = project.find_template(options.template.as_deref())?;
+    let layout = resolve_layout(project, options.design.as_deref(), options.format.as_deref())?;
+    let missing = missing_data(&layout, data);
+    if !missing.is_empty() {
+        return Err(missing_data_error(&layout, &missing));
+    }
+    let doc_lang = layout.document_language(options.doc_lang);
+    let template_file = layout.design.file.clone();
     let logos = project.resolve_logos_directory(&template_file, options.logos.as_deref())?;
     let template = decode_text(&std::fs::read(&template_file)?, &template_file)?;
-    // Por ahora el formato es siempre APA 7; los marcadores del contrato del
-    // diseño (%%FORMAT%%, %%CLASS_OPTIONS%%) se resuelven antes que los datos.
-    let format_sty = project.format_sty(DEFAULT_FORMAT);
+    // Los marcadores del contrato del diseño se resuelven antes que los datos.
     let template = template
-        .replace("%%FORMAT%%", "\\usepackage[spanish, es-tabla]{babel}\n\\usepackage{investigacion-format}")
-        .replace("%%CLASS_OPTIONS%%", "12pt, letterpaper");
-    let content = pandoc_to_latex(project, &markdown_path, &markdown, options.allow_raw_latex, on_warning)?;
+        .replace("%%FORMAT%%", &layout.format_block(doc_lang))
+        .replace("%%CLASS_OPTIONS%%", &layout.class_options());
+    let content =
+        pandoc_to_latex(project, &markdown_path, &markdown, options.allow_raw_latex, doc_lang, on_warning)?;
     let rendered = render_template(&template, &content, data)?;
 
     let output_directory = absolute(&expand_home(output_directory));
@@ -87,12 +98,12 @@ pub fn generate_pdf(
     copy_template_assets(
         &template_file,
         &project.common_dir(),
-        Some(&format_sty).filter(|p| p.is_file()).map(PathBuf::as_path),
+        layout.format.as_ref().map(|f| f.sty.as_path()),
         temporary.path(),
         logos.as_deref(),
     )?;
     let working_directory = markdown_path.parent().unwrap_or(Path::new("."));
-    let state = latex_state_dir(project, &output_pdf, &template_file);
+    let state = latex_state_dir(project, &output_pdf, &layout.cache_key());
     compile_pdf(&tex_path, &output_pdf, working_directory, Some(&state), on_warning)?;
     let _ = temporary.close();
     Ok(output_pdf)
@@ -100,13 +111,47 @@ pub fn generate_pdf(
 
 /// Carpeta de caché con el `.aux`/`.toc` de este trabajo: una por PDF de
 /// salida y plantilla, porque otra plantilla carga otros paquetes.
-fn latex_state_dir(project: &Project, output_pdf: &Path, template: &Path) -> PathBuf {
+fn latex_state_dir(project: &Project, output_pdf: &Path, template: &str) -> PathBuf {
     use std::hash::{Hash, Hasher};
     let mut hasher = std::collections::hash_map::DefaultHasher::new();
     output_pdf.hash(&mut hasher);
     template.hash(&mut hasher);
     let stem = output_pdf.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default();
     project.cache_dir().join("latex").join(format!("{stem}-{:016x}", hasher.finish()))
+}
+
+/// Datos que el diseño usa y que faltan: los generales solo si el diseño
+/// tiene su marcador, y los campos propios que su ficha marca como obligatorios.
+pub fn missing_data(layout: &Layout, data: &DocumentData) -> Vec<String> {
+    let design = &layout.design;
+    let standard = [
+        ("TITULO", &data.title),
+        ("UNIVERSIDAD", &data.university),
+        ("FACULTAD", &data.faculty),
+        ("SEMESTRE", &data.semester),
+        ("MATERIA", &data.course),
+    ];
+    let mut missing: Vec<String> = standard
+        .iter()
+        .filter(|(marker, value)| design.uses(marker) && value.trim().is_empty())
+        .map(|(marker, _)| (*marker).to_owned())
+        .collect();
+    for name in design.custom_fields() {
+        let empty = data.fields.get(name).is_none_or(|v| v.trim().is_empty());
+        if design.field_spec(name).required && empty {
+            missing.push(name.to_owned());
+        }
+    }
+    missing
+}
+
+pub fn missing_data_error(layout: &Layout, missing: &[String]) -> GenerationError {
+    let design = &layout.design.key;
+    let missing = missing.join(", ");
+    GenerationError::new(tr!(
+        es: "Faltan datos que usa el diseño {design}: {missing}. Agrégalos al perfil, al .env o con --set NOMBRE=valor.",
+        en: "Missing data used by the design {design}: {missing}. Add them to the profile, the .env or with --set NAME=value."
+    ))
 }
 
 /// Deja una copia del PDF en cada carpeta extra, sin repetir ni copiar sobre

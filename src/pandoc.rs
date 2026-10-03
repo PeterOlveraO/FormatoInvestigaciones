@@ -58,6 +58,7 @@ pub fn pandoc_to_latex(
     markdown_path: &Path,
     markdown: &str,
     allow_raw_latex: bool,
+    doc_lang: crate::i18n::Lang,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<String> {
     let (remote, diagrams) = project.media_directories()?;
@@ -98,7 +99,9 @@ pub fn pandoc_to_latex(
         // Una carpeta por línea: así una ruta puede llevar espacios.
         .env("INVESTIGACION_RESOURCES", resources.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"))
         // Los filtros redactan sus avisos en el idioma de la interfaz.
-        .env("INVESTIGACION_LANG", crate::i18n::current().code());
+        .env("INVESTIGACION_LANG", crate::i18n::current().code())
+        // Y el texto que va dentro del PDF (títulos de las cajas), en el del documento.
+        .env("INVESTIGACION_DOC_LANG", doc_lang.code());
 
     let started = std::time::Instant::now();
     let output =

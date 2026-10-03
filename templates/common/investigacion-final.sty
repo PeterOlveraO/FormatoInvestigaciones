@@ -21,6 +21,11 @@
 % hyperref no admite ese comando dentro de los metadatos, se traduce a comas
 % solo al construir la cadena del PDF.
 \pdfstringdefDisableCommands{\def\\{, }}
+% Un diseño no está obligado a definir sus datos: si no usa estos, quedan
+% vacíos (\providecommand no pisa los que el diseño sí definió).
+\providecommand{\TituloTrabajo}{}
+\providecommand{\ListaIntegrantes}{}
+\providecommand{\NombreAlumno}{}
 \newcommand{\AutorPDF}{\ListaIntegrantes}
 \ifdefempty{\ListaIntegrantes}{\renewcommand{\AutorPDF}{\NombreAlumno}}{}
 

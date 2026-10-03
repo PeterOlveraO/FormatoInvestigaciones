@@ -7,18 +7,15 @@ use std::path::PathBuf;
 use clap::error::{ContextKind, ContextValue, ErrorKind};
 use clap::{Arg, ArgAction, CommandFactory, FromArgMatches, Parser};
 
-use crate::courses::{Course, find_course};
+use crate::courses::{Course, CourseProfile, find_course};
 use crate::document::{DocumentData, parse_members, today};
-use crate::error::{GenerationError, Result};
-use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf};
+use crate::error::Result;
+use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf, missing_data, missing_data_error};
 use crate::i18n::{self, Lang, Text};
 use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
 use crate::project::Project;
 use crate::settings::Settings;
-
-/// Variables obligatorias del `.env` (nombre en español y en inglés).
-pub const REQUIRED_ENV: [[&str; 2]; 3] =
-    [["UNIVERSIDAD", "UNIVERSITY"], ["FACULTAD", "FACULTY"], ["SEMESTRE", "SEMESTER"]];
+use crate::template::resolve_layout;
 
 /// Opciones del comando. Sus nombres van en inglés; la ayuda de cada una está
 /// en `ARG_HELP`, en los dos idiomas. Los nombres antiguos (`--titulo`,
@@ -61,8 +58,17 @@ pub struct Args {
     #[arg(long, alias = "permitir-latex")]
     pub allow_latex: bool,
 
-    #[arg(long, alias = "plantilla")]
-    pub template: Option<String>,
+    #[arg(long, aliases = ["template", "plantilla", "diseno"])]
+    pub design: Option<String>,
+
+    #[arg(long, alias = "formato")]
+    pub format: Option<String>,
+
+    #[arg(long = "set", value_parser = parse_field)]
+    pub fields: Vec<(String, String)>,
+
+    #[arg(long, alias = "idioma-documento", value_parser = parse_lang_arg)]
+    pub doc_lang: Option<Lang>,
 
     #[arg(long)]
     pub logos: Option<PathBuf>,
@@ -71,12 +77,20 @@ pub struct Args {
     pub lang: Option<Lang>,
 }
 
+/// `NOMBRE=valor` para un campo propio del diseño; el nombre va en mayúsculas.
+fn parse_field(value: &str) -> std::result::Result<(String, String), String> {
+    match value.split_once('=') {
+        Some((name, field)) if !name.trim().is_empty() => Ok((name.trim().to_uppercase(), field.to_owned())),
+        _ => Err(tr!(es: "usa NOMBRE=valor", en: "use NAME=value")),
+    }
+}
+
 fn parse_lang_arg(value: &str) -> std::result::Result<Lang, String> {
     i18n::parse(value).ok_or_else(|| tr!(es: "usa es o en", en: "use es or en"))
 }
 
 /// Ayuda de cada opción: (id del argumento, descripción, nombre del valor).
-const ARG_HELP: [(&str, Text, Option<Text>); 15] = [
+const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "markdown",
         Text::new(
@@ -174,12 +188,36 @@ const ARG_HELP: [(&str, Text, Option<Text>); 15] = [
         None,
     ),
     (
-        "template",
+        "design",
         Text::new(
-            "Plantilla: un nombre de templates/ (apa, apa-simple) o la ruta a un .ltx",
-            "Template: a name from templates/ (apa, apa-simple) or the path to a .ltx file",
+            "Diseño (portada y aspecto): un nombre de templates/designs/ o la ruta a un .ltx",
+            "Design (cover and look): a name from templates/designs/ or the path to a .ltx file",
         ),
-        Some(Text::new("PLANTILLA", "TEMPLATE")),
+        Some(Text::new("DISEÑO", "DESIGN")),
+    ),
+    (
+        "format",
+        Text::new(
+            "Formato (la norma): apa7, harvard, ieee… Por omisión, el primero que acepta el diseño",
+            "Format (the norm): apa7, harvard, ieee… Default: the first one the design accepts",
+        ),
+        Some(Text::new("FORMATO", "FORMAT")),
+    ),
+    (
+        "fields",
+        Text::new(
+            "Campo propio del diseño, como --set SALON=\"B-204\". Se puede repetir",
+            "A design's own field, like --set SALON=\"B-204\". Can be repeated",
+        ),
+        Some(Text::new("NOMBRE=VALOR", "NAME=VALUE")),
+    ),
+    (
+        "doc_lang",
+        Text::new(
+            "Idioma del documento (es o en). Por omisión, el del perfil o el del formato",
+            "Document language (es or en). Default: the profile's, or the format's",
+        ),
+        Some(Text::new("IDIOMA", "LANG")),
     ),
     (
         "logos",
@@ -366,54 +404,58 @@ fn locate_markdown(args: &Args, project: &Project, course: Option<&Course>) -> R
 pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> Result<PathBuf> {
     let env_file = args.env_file.clone().unwrap_or_else(|| project.env_file());
     let settings = Settings::load(&env_file)?;
-    let missing: Vec<&str> = REQUIRED_ENV
-        .iter()
-        .filter(|names| settings.get(names.as_slice()).is_empty())
-        .map(|names| names[0])
-        .collect();
-    if !missing.is_empty() {
-        let missing = missing.join(", ");
-        return Err(GenerationError::new(tr!(
-            es: "Faltan datos en el .env: {missing}. Agrégalos a tu archivo .env.",
-            en: "Missing data in the .env: {missing}. Add them to your .env file."
-        )));
-    }
-
     let course = args.profile.as_deref().map(|key| find_course(project, key)).transpose()?;
     let profile = course.as_ref().map(|c| &c.profile);
-    let markdown_path = locate_markdown(args, project, course.as_ref())?;
-    let markdown = read_markdown(&markdown_path)?;
-    for warning in validate_markdown(&markdown) {
-        reporter.warning(warning);
-    }
+    let from_profile =
+        |get: fn(&CourseProfile) -> &str| profile.map(get).map(str::trim).filter(|v| !v.is_empty());
+
+    // Diseño y formato: la opción gana, luego el perfil.
+    let layout = resolve_layout(
+        project,
+        args.design.as_deref().or(from_profile(|p| &p.design)),
+        args.format.as_deref().or(from_profile(|p| &p.format)),
+    )?;
+    let doc_lang =
+        layout.document_language(args.doc_lang.or(from_profile(|p| &p.language).and_then(i18n::parse)));
+
+    // Campos propios: los del perfil y, encima, los de --set.
+    let mut fields = profile.map(|p| p.fields.clone()).unwrap_or_default();
+    fields = fields.into_iter().map(|(k, v)| (k.to_uppercase(), v)).collect();
+    fields.extend(args.fields.iter().cloned());
 
     let data = DocumentData {
-        university: settings.get(&["UNIVERSIDAD", "UNIVERSITY"]),
-        faculty: settings.get(&["FACULTAD", "FACULTY"]),
-        student: settings.get(&["ALUMNO", "STUDENT"]),
-        semester: settings.get(&["SEMESTRE", "SEMESTER"]),
+        university: pick(None, from_profile(|p| &p.university), &settings, &["UNIVERSIDAD", "UNIVERSITY"]),
+        faculty: pick(None, from_profile(|p| &p.faculty), &settings, &["FACULTAD", "FACULTY"]),
+        student: pick(None, from_profile(|p| &p.student), &settings, &["ALUMNO", "STUDENT"]),
+        semester: pick(None, from_profile(|p| &p.semester), &settings, &["SEMESTRE", "SEMESTER"]),
         title: args.title.trim().to_owned(),
-        course: pick(args.course.as_deref(), profile.map(|p| p.name.as_str()), &settings, &[]),
+        course: pick(args.course.as_deref(), from_profile(|p| &p.name), &settings, &[]),
         teacher: pick(
             args.teacher.as_deref(),
-            profile.map(|p| p.teacher.as_str()),
+            from_profile(|p| &p.teacher),
             &settings,
             &["DOCENTE", "TEACHER"],
         ),
-        date: today(),
+        date: today(doc_lang),
         members: parse_members(&pick(
             args.members.as_deref(),
-            profile.map(|p| p.members.as_str()),
+            from_profile(|p| &p.members),
             &settings,
             &["INTEGRANTES", "MEMBERS"],
         )),
-        group: pick(args.group.as_deref(), profile.map(|p| p.group.as_str()), &settings, &["GRUPO", "GROUP"]),
+        group: pick(args.group.as_deref(), from_profile(|p| &p.group), &settings, &["GRUPO", "GROUP"]),
+        fields,
     };
-    if data.title.is_empty() || data.course.is_empty() {
-        return Err(GenerationError::new(tr!(
-            es: "El título y la materia no pueden quedar vacíos (usa --course o un perfil con -p).",
-            en: "The title and the course cannot be empty (use --course or a profile with -p)."
-        )));
+    // Solo se exigen los datos que el diseño realmente usa.
+    let missing = missing_data(&layout, &data);
+    if !missing.is_empty() {
+        return Err(missing_data_error(&layout, &missing));
+    }
+
+    let markdown_path = locate_markdown(args, project, course.as_ref())?;
+    let markdown = read_markdown(&markdown_path)?;
+    for warning in validate_markdown(&markdown, &layout.headings()) {
+        reporter.warning(warning);
     }
 
     // Los logos suelen vivir fuera del proyecto: por eso admiten el .env.
@@ -422,10 +464,9 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         (!from_env.is_empty()).then(|| PathBuf::from(from_env))
     });
     let options = GenerateOptions {
-        template: args
-            .template
-            .clone()
-            .or_else(|| profile.map(|p| p.template.trim().to_owned()).filter(|t| !t.is_empty())),
+        design: Some(layout.design.file.display().to_string()),
+        format: layout.format.as_ref().map(|f| f.key.clone()),
+        doc_lang: Some(doc_lang),
         allow_raw_latex: args.allow_latex,
         logos,
         file_name: args.file_name.clone(),
@@ -597,7 +638,7 @@ mod tests {
         assert_eq!(args.group.as_deref(), Some("7-A"));
         assert_eq!(args.members.as_deref(), Some("Ana, Luis"));
         assert!(args.allow_latex);
-        assert_eq!(args.template.as_deref(), Some("apa"));
+        assert_eq!(args.design.as_deref(), Some("apa"));
     }
 
     #[test]
@@ -620,7 +661,29 @@ mod tests {
     }
 
     #[test]
-    fn alumno_is_not_required() {
-        assert!(REQUIRED_ENV.iter().all(|names| names[0] != "ALUMNO"));
+    fn design_format_fields_and_document_language() {
+        let args = parse(&[
+            "t.md",
+            "--title",
+            "T",
+            "--design",
+            "report",
+            "--format",
+            "ieee",
+            "--set",
+            "salon=B-204",
+            "--set",
+            "AULA=",
+            "--doc-lang",
+            "en",
+        ]);
+        assert_eq!((args.design.as_deref(), args.format.as_deref()), (Some("report"), Some("ieee")));
+        assert_eq!(
+            args.fields,
+            [("SALON".to_owned(), "B-204".to_owned()), ("AULA".to_owned(), String::new())]
+        );
+        assert_eq!(args.doc_lang, Some(Lang::En));
+        // El nombre antiguo de la opción sigue valiendo.
+        assert_eq!(parse(&["t.md", "--title", "T", "--template", "apa"]).design.as_deref(), Some("apa"));
     }
 }

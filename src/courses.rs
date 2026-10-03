@@ -24,9 +24,27 @@ pub struct CourseProfile {
     /// Integrantes del equipo, separados por comas.
     #[serde(default)]
     pub members: String,
-    /// Nombre de una plantilla de `templates/`.
+    /// Datos generales: cada perfil puede usar los suyos (el .env es respaldo).
     #[serde(default)]
-    pub template: String,
+    pub university: String,
+    #[serde(default)]
+    pub faculty: String,
+    #[serde(default)]
+    pub student: String,
+    #[serde(default)]
+    pub semester: String,
+    /// Formato (`apa7`, `harvard`, `ieee`…) y diseño (`geometric-cover`…).
+    /// `template` es el nombre antiguo del diseño.
+    #[serde(default)]
+    pub format: String,
+    #[serde(default, alias = "template")]
+    pub design: String,
+    /// Idioma del documento (`es` o `en`); vacío = el del formato.
+    #[serde(default)]
+    pub language: String,
+    /// Campos propios del diseño (`SALON = "B-204"`).
+    #[serde(default)]
+    pub fields: std::collections::BTreeMap<String, String>,
     /// Subcarpeta de `input/` con los trabajos de la materia; el PDF se
     /// guarda en la misma subcarpeta de `output/`.
     #[serde(default)]

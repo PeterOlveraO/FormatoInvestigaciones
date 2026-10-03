@@ -17,6 +17,7 @@ pub mod pandoc;
 pub mod process;
 pub mod project;
 pub mod settings;
+pub mod template;
 pub mod tui;
 
 pub use error::{GenerationError, Result};

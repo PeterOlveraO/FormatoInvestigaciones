@@ -1,12 +1,15 @@
 //! Datos de la portada y utilidades de nombres y fechas.
 
+use std::collections::BTreeMap;
+
 use chrono::{Datelike, NaiveDate};
 use regex::Regex;
 use std::sync::LazyLock;
 
+use crate::i18n::Lang;
 use crate::markdown::strip_accents;
 
-const MONTHS: [&str; 12] = [
+const MONTHS_ES: [&str; 12] = [
     "Enero",
     "Febrero",
     "Marzo",
@@ -35,6 +38,8 @@ pub struct DocumentData {
     pub date: String,
     pub members: Vec<String>,
     pub group: String,
+    /// Campos propios del diseño (`%%SALON%%` → `SALON`), ya en mayúsculas.
+    pub fields: BTreeMap<String, String>,
 }
 
 /// Separa los nombres del equipo escritos en un solo argumento (comas o punto
@@ -43,14 +48,33 @@ pub fn parse_members(value: &str) -> Vec<String> {
     value.split([',', ';']).map(str::trim).filter(|name| !name.is_empty()).map(str::to_owned).collect()
 }
 
-/// Fecha de entrega en formato largo y en español (va en la portada).
-pub fn format_delivery_date(date: NaiveDate) -> String {
-    format!("{} {}, {}", MONTHS[date.month0() as usize], date.day(), date.year())
+const MONTHS_EN: [&str; 12] = [
+    "January",
+    "February",
+    "March",
+    "April",
+    "May",
+    "June",
+    "July",
+    "August",
+    "September",
+    "October",
+    "November",
+    "December",
+];
+
+/// Fecha de entrega en formato largo, en el idioma del documento.
+pub fn format_delivery_date(date: NaiveDate, lang: Lang) -> String {
+    let months = match lang {
+        Lang::Es => MONTHS_ES,
+        Lang::En => MONTHS_EN,
+    };
+    format!("{} {}, {}", months[date.month0() as usize], date.day(), date.year())
 }
 
 /// Fecha local de hoy, ya formateada.
-pub fn today() -> String {
-    format_delivery_date(chrono::Local::now().date_naive())
+pub fn today(lang: Lang) -> String {
+    format_delivery_date(chrono::Local::now().date_naive(), lang)
 }
 
 /// Nombre de archivo estable y seguro: sin acentos, minúsculas y guiones.
@@ -68,7 +92,8 @@ mod tests {
     #[test]
     fn delivery_date_is_in_spanish() {
         let date = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
-        assert_eq!(format_delivery_date(date), "Agosto 23, 2026");
+        assert_eq!(format_delivery_date(date, Lang::Es), "Agosto 23, 2026");
+        assert_eq!(format_delivery_date(date, Lang::En), "August 23, 2026");
     }
 
     #[test]

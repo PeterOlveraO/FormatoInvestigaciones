@@ -149,15 +149,15 @@ pub const FIELDS: [Field; 11] = [
     },
     Field {
         key: FieldKey::Template,
-        label: Text::new("Plantilla", "Template"),
+        label: Text::new("Diseño", "Design"),
         kind: FieldKind::Pick(PickerPurpose::Template),
         required: false,
         help: Text::new(
-            "Diseño de la portada. Las plantillas están en templates/<nombre>/template.ltx.",
-            "Cover design. Templates live in templates/<name>/template.ltx.",
+            "Portada y aspecto del documento. Los diseños están en templates/designs/ y en my-templates/designs/.",
+            "Cover and look of the document. Designs live in templates/designs/ and my-templates/designs/.",
         ),
-        example: Text::new("apa-simple", "apa-simple"),
-        empty: Text::new("apa", "apa"),
+        example: Text::new("classic-cover", "classic-cover"),
+        empty: Text::new("geometric-cover (APA 7)", "geometric-cover (APA 7)"),
     },
     Field {
         key: FieldKey::Output,
@@ -349,7 +349,10 @@ impl App {
                 .collect(),
             env_file: None,
             allow_latex: false,
-            template: optional(FieldKey::Template),
+            design: optional(FieldKey::Template),
+            format: None,
+            fields: Vec::new(),
+            doc_lang: None,
             logos: None,
             lang: Some(i18n::current()),
         }
@@ -459,9 +462,7 @@ impl App {
                 )
             }
             PickerPurpose::Template => {
-                let items = self
-                    .project
-                    .list_templates()
+                let items = crate::template::list_designs(&self.project)
                     .into_iter()
                     .map(|name| Item {
                         label: name.clone(),
@@ -469,7 +470,7 @@ impl App {
                         value: PickValue::Choice(name),
                     })
                     .collect();
-                Picker::choices(purpose, Text::new("Elige una plantilla", "Choose a template").get(), items)
+                Picker::choices(purpose, Text::new("Elige un diseño", "Choose a design").get(), items)
             }
             PickerPurpose::Folder => {
                 let project = &self.project;
@@ -488,7 +489,7 @@ impl App {
                     (
                         "templates",
                         project.templates_dir(),
-                        Text::new("plantillas LaTeX y logos", "LaTeX templates and logos"),
+                        Text::new("formatos, diseños y logos", "formats, designs and logos"),
                     ),
                     (
                         "cache",
@@ -615,7 +616,7 @@ impl App {
             (FieldKey::Teacher, &profile.teacher),
             (FieldKey::Members, &profile.members),
             (FieldKey::Group, &profile.group),
-            (FieldKey::Template, &profile.template),
+            (FieldKey::Template, &profile.design),
         ] {
             if !value.trim().is_empty() {
                 self.set(field, value.trim());

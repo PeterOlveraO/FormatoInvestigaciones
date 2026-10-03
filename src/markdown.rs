@@ -11,11 +11,6 @@ use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
 use crate::project::absolute;
 
-/// Encabezados que se recomiendan, ya normalizados y en este orden.
-pub const REQUIRED_HEADINGS: [&str; 4] = ["introduccion", "desarrollo", "conclusion", "referencias"];
-// Cómo se escriben en el trabajo (que va en español, sea cual sea la interfaz).
-const HEADING_NAMES: [&str; 4] = ["Introducción", "Desarrollo", "Conclusión", "Referencias"];
-
 // Espacios que parecen normales pero no lo son: duro, de figura, estrecho y de
 // ancho cero. Word, Notion y las IA los sueltan a menudo.
 const DISGUISED_SPACES: [char; 4] = ['\u{00A0}', '\u{2007}', '\u{202F}', '\u{200B}'];
@@ -125,14 +120,16 @@ pub fn markdown_headings(markdown: &str) -> Vec<String> {
     headings
 }
 
-/// Advertencias de estructura; nunca impiden generar el PDF.
-pub fn validate_markdown(markdown: &str) -> Vec<String> {
+/// Advertencias de estructura; nunca impiden generar el PDF. Los
+/// encabezados recomendados los pone el formato; sin ninguno, no hay avisos.
+pub fn validate_markdown(markdown: &str, recommended: &[String]) -> Vec<String> {
     let headings = markdown_headings(markdown);
     let mut warnings = Vec::new();
     let mut found: Vec<(usize, &str)> = Vec::new();
-    for (required, name) in REQUIRED_HEADINGS.into_iter().zip(HEADING_NAMES) {
-        match headings.iter().position(|h| h == required) {
-            Some(index) => found.push((index, name)),
+    for name in recommended {
+        let normalized = normalize_heading(name);
+        match headings.iter().position(|h| *h == normalized) {
+            Some(index) => found.push((index, name.as_str())),
             None => warnings.push(tr!(
                 es: "Falta el encabezado recomendado «{name}».",
                 en: "The recommended heading \"{name}\" is missing."
@@ -251,9 +248,19 @@ mod tests {
         assert_eq!(normalize_heading("  2. Introducción  ###"), "introduccion");
     }
 
+    fn apa() -> Vec<String> {
+        ["Introducción", "Desarrollo", "Conclusión", "Referencias"].map(String::from).to_vec()
+    }
+
+    #[test]
+    fn without_recommended_headings_there_are_no_warnings() {
+        assert!(validate_markdown("# Lo que sea\n", &[]).is_empty());
+        assert_eq!(validate_markdown("# Abstract\n", &["Abstract".into(), "Methods".into()]).len(), 1);
+    }
+
     #[test]
     fn missing_sections_are_warned() {
-        assert_eq!(validate_markdown("# Introducción\n\nTexto").len(), 3);
+        assert_eq!(validate_markdown("# Introducción\n\nTexto", &apa()).len(), 3);
     }
 
     #[test]
@@ -264,14 +271,15 @@ mod tests {
 
     #[test]
     fn wrong_order_is_reported() {
-        let warnings = validate_markdown("# Desarrollo\n\n# Introducción\n\n# Conclusión\n\n# Referencias\n");
+        let warnings =
+            validate_markdown("# Desarrollo\n\n# Introducción\n\n# Conclusión\n\n# Referencias\n", &apa());
         assert!(warnings.iter().any(|w| w.contains("orden")));
     }
 
     #[test]
     fn the_recommended_structure_is_accepted() {
         let markdown = "# Introducción\n\n# Desarrollo\n\n# Conclusión\n\n# Referencias\n";
-        assert!(validate_markdown(markdown).is_empty());
+        assert!(validate_markdown(markdown, &apa()).is_empty());
     }
 
     #[test]

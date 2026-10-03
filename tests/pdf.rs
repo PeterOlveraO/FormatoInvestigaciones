@@ -4,6 +4,8 @@ mod common;
 
 use common::{data, has_tool, isolated_project, write};
 use investigacion::generate::{GenerateOptions, generate_pdf};
+use investigacion::i18n::Lang;
+use investigacion::template::{list_designs, list_formats, load_design};
 
 const RICH_MARKDOWN: &str = r#"# Introducción
 
@@ -119,15 +121,15 @@ fn backslashes_in_the_text_do_not_break_the_build() {
 }
 
 #[test]
-fn every_template_compiles_with_and_without_the_optional_fields() {
+fn every_design_compiles_with_each_compatible_format_and_without_optional_fields() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
     }
     let directory = tempfile::tempdir().unwrap();
     let project = isolated_project(directory.path());
     let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
-    let templates = project.list_templates();
-    assert!(templates.len() >= 2, "{templates:?}");
+    let designs = list_designs(&project);
+    assert!(designs.len() >= 2, "{designs:?}");
 
     let mut full = data("Completo");
     full.members = vec!["Ana Ruiz".into(), "Luis Paz".into()];
@@ -136,23 +138,70 @@ fn every_template_compiles_with_and_without_the_optional_fields() {
     bare.student.clear();
     bare.teacher.clear();
 
-    for template in templates {
-        for (index, values) in [&full, &bare].into_iter().enumerate() {
-            let options = GenerateOptions {
-                template: Some(template.clone()),
-                file_name: Some(format!("{template}-{index}")),
-                ..Default::default()
-            };
-            let pdf = generate_pdf(
-                &project,
-                &source,
-                &directory.path().join("salida"),
-                values,
-                &options,
-                &mut |_| {},
-            )
-            .unwrap_or_else(|e| panic!("{template}: {e}"));
-            assert!(pdf.is_file());
+    for design in designs {
+        let accepted = load_design(&project, Some(&design)).unwrap();
+        for format in list_formats(&project).into_iter().filter(|f| accepted.accepts(f)) {
+            for (index, values) in [&full, &bare].into_iter().enumerate() {
+                let options = GenerateOptions {
+                    design: Some(design.clone()),
+                    format: Some(format.clone()),
+                    file_name: Some(format!("{design}-{format}-{index}")),
+                    ..Default::default()
+                };
+                let pdf = generate_pdf(
+                    &project,
+                    &source,
+                    &directory.path().join("salida"),
+                    values,
+                    &options,
+                    &mut |_| {},
+                )
+                .unwrap_or_else(|e| panic!("{design} + {format}: {e}"));
+                assert!(pdf.is_file());
+            }
         }
     }
+}
+
+#[test]
+fn a_document_in_english_compiles() {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    let source = write(
+        directory.path(),
+        "paper.md",
+        "# Introduction\n\n::: note\nText.\n:::\n\n# References\n\nSmith (2020).\n",
+    );
+    let options = GenerateOptions { doc_lang: Some(Lang::En), ..Default::default() };
+    let pdf =
+        generate_pdf(&project, &source, &directory.path().join("out"), &data("Paper"), &options, &mut |_| {})
+            .unwrap();
+    assert!(pdf.is_file());
+}
+
+#[test]
+fn a_minimal_design_with_a_custom_field_compiles() {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    // Solo el contrato: clase, base, formato, final y el contenido.
+    let design = directory.path().join("my-templates/designs/minimal");
+    std::fs::create_dir_all(&design).unwrap();
+    std::fs::write(
+        design.join("template.ltx"),
+        "\\documentclass[%%CLASS_OPTIONS%%]{article}\n\\usepackage{investigacion-base}\n%%FORMAT%%\n\\usepackage{investigacion-final}\n\\begin{document}\nSalon: %%SALON%%\n\n%%CONTENIDO_MARKDOWN%%\n\\end{document}\n",
+    )
+    .unwrap();
+    let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
+    let mut values = data("Minimo");
+    values.fields.insert("SALON".into(), "B-204 & Lab".into());
+    let options = GenerateOptions { design: Some("minimal".into()), ..Default::default() };
+    let pdf = generate_pdf(&project, &source, &directory.path().join("out"), &values, &options, &mut |_| {})
+        .unwrap();
+    assert!(pdf.is_file());
 }

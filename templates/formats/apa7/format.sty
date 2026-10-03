@@ -76,7 +76,8 @@
 \setcounter{tocdepth}{3}
 % Babel fija los titulos en \begin{document}: hay que renombrar dentro de
 % \captionsspanish o el \renewcommand se pierde y sigue apareciendo "Índice".
-\addto\captionsspanish{\renewcommand{\contentsname}{Contenido}}
+% Solo si el documento va en español (con babel en inglés no existe).
+\@ifundefined{captionsspanish}{}{\addto\captionsspanish{\renewcommand{\contentsname}{Contenido}}}
 
 % Las tablas largas se leen mejor a un espacio; APA lo permite.
 \AtBeginEnvironment{longtable}{\singlespacing}

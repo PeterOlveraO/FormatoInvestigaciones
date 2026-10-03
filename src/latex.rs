@@ -53,18 +53,18 @@ pub fn render_template(template: &str, content: &str, data: &DocumentData) -> Re
     for (marker, value) in &replacements {
         rendered = rendered.replace(marker, value);
     }
+    // Lo que queda son campos propios del diseño (`%%SALON%%`): su valor, o
+    // vacío si no se dio. Si eran obligatorios ya lo revisó `missing_data()`.
+    static MARKER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%%([A-Z_]+)%%").unwrap());
+    rendered = MARKER
+        .replace_all(&rendered, |found: &regex::Captures| {
+            if &found[0] == CONTENT_MARKER {
+                return found[0].to_owned();
+            }
+            data.fields.get(&found[1]).map(|v| latex_escape(v)).unwrap_or_default()
+        })
+        .into_owned();
 
-    static MARKER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%%[A-Z_]+%%").unwrap());
-    let pending: BTreeSet<&str> =
-        MARKER.find_iter(&rendered).map(|m| m.as_str()).filter(|m| *m != CONTENT_MARKER).collect();
-    if !pending.is_empty() {
-        let list: Vec<&str> = pending.into_iter().collect();
-        return Err(GenerationError::new(tr!(
-            es: "La plantilla tiene marcadores sin reemplazar: {}",
-            en: "The template has unreplaced markers: {}",
-            list.join(", ")
-        )));
-    }
     if !rendered.contains(CONTENT_MARKER) {
         return Err(GenerationError::new(tr!(
             es: "La plantilla no contiene el marcador {CONTENT_MARKER}.",
@@ -158,8 +158,11 @@ mod tests {
     }
 
     #[test]
-    fn unknown_markers_and_missing_content_are_errors() {
-        assert!(render_template("%%DOCENT%% %%CONTENIDO_MARKDOWN%%", "x", &data()).is_err());
+    fn custom_fields_are_filled_and_missing_content_is_an_error() {
+        let mut values = data();
+        values.fields.insert("SALON".into(), "B-204 & C".into());
+        let rendered = render_template("[%%SALON%%][%%OTRO%%]%%CONTENIDO_MARKDOWN%%", "x", &values).unwrap();
+        assert_eq!(rendered, r"[B-204 \& C][]x");
         assert!(render_template("%%TITULO%% sin contenido", "x", &data()).is_err());
     }
 
