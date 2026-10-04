@@ -12,7 +12,7 @@ pub enum Lang {
     En,
 }
 
-/// Variables del `.env` (o del entorno) que fijan el idioma.
+/// Claves de `settings.toml` (o del entorno) que fijan el idioma.
 pub const LANG_SETTINGS: [&str; 2] = ["IDIOMA", "INTERFACE_LANGUAGE"];
 
 // Por hilo y no global: así cada prueba (que corre en su propio hilo) fija su
@@ -30,7 +30,7 @@ pub fn set(lang: Lang) {
 }
 
 impl Lang {
-    /// Código que se guarda en el `.env` y se pasa a los filtros Lua.
+    /// Código que se guarda en `settings.toml` y se pasa a los filtros Lua.
     pub fn code(self) -> &'static str {
         match self {
             Lang::Es => "es",
@@ -64,7 +64,7 @@ pub fn detect() -> Lang {
     }
 }
 
-/// El idioma guardado en el entorno o en el `.env`, si hay uno válido.
+/// El idioma guardado en el entorno o en `settings.toml`, si hay uno válido.
 pub fn configured(settings: &Settings) -> Option<Lang> {
     parse(&settings.get(&LANG_SETTINGS))
 }
@@ -138,7 +138,7 @@ mod tests {
     #[test]
     fn the_option_wins_over_the_setting() {
         let directory = tempfile::tempdir().unwrap();
-        let env = directory.path().join(".env");
+        let env = directory.path().join("settings.toml");
         std::fs::write(&env, "ZZ=1\n").unwrap();
         let settings = Settings::load(&env).unwrap();
         assert_eq!(resolve(Some(Lang::En), &settings), Lang::En);

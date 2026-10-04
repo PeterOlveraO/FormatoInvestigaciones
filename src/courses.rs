@@ -25,7 +25,7 @@ pub struct CourseProfile {
     /// Integrantes del equipo, separados por comas.
     #[serde(default)]
     pub members: String,
-    /// Datos generales: cada perfil puede usar los suyos (el .env es respaldo).
+    /// Datos generales de la portada: cada perfil guarda los suyos.
     #[serde(default)]
     pub university: String,
     #[serde(default)]

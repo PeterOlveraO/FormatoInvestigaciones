@@ -192,7 +192,7 @@ pub fn init(project: &Project) {
         return;
     }
     let path = absolute(&project.cache_dir().join(LOG_DIRECTORY).join(LOG_FILE));
-    // La cabecera se arma sin el candado: leer el .env también registra.
+    // La cabecera se arma sin el candado: leer los ajustes también registra.
     let header = session_header(project, level);
     let Ok(mut logger) = Logger::open(&path, level) else { return };
     if logger.log(Level::Info, &header).is_ok() {

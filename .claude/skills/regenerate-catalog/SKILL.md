@@ -9,8 +9,8 @@ disable-model-invocation: true
 `examples/catalog.pdf` and `docs/images/*.png` are the only generated files in
 git. They **must not contain personal data or institutional logos**:
 
-- `--env-file .env.example` makes the cover show the same placeholders a new
-  clone sees ("Nombre de la universidad"…);
+- `-p example` makes the cover show the placeholders of `courses/example.toml`
+  ("Nombre de la universidad"…);
 - an empty `--logos` folder keeps any institution's marks out.
 
 1. Build and generate:
@@ -18,10 +18,8 @@ git. They **must not contain personal data or institutional logos**:
    ```bash
    cargo build --release
    mkdir -p /tmp/nologos
-   target/release/investigacion examples/catalog.md --design geometric-cover --format apa7 \
-     --title "Catalogo de elementos" --course "Nombre de la materia" \
-     --teacher "Nombre del docente" --group "7-A" \
-     --env-file .env.example --logos /tmp/nologos --output /tmp/pub --lang es
+   target/release/investigacion examples/catalog.md -p example --design geometric-cover --format apa7 \
+     --title "Catalogo de elementos" --logos /tmp/nologos --output /tmp/pub --lang es
    ```
 
 2. Compare the text with the current version. Only the intended changes and

@@ -3,6 +3,7 @@
 
 # Personal data: everyone's own settings, papers and PDFs
 .env
+settings.toml
 /input/
 /output/
 

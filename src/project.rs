@@ -94,8 +94,10 @@ impl Project {
     pub fn cache_dir(&self) -> PathBuf {
         self.root.join("cache")
     }
-    pub fn env_file(&self) -> PathBuf {
-        self.root.join(".env")
+    /// Lo que el programa recuerda (idioma del menú, carpeta de logos). Los
+    /// datos de la portada van en los perfiles.
+    pub fn settings_file(&self) -> PathBuf {
+        self.root.join("settings.toml")
     }
 
     /// Crea y devuelve las carpetas de caché: imágenes descargadas y diagramas.

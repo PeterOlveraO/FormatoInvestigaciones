@@ -13,7 +13,6 @@ impl Reporter for Silent {
 #[test]
 fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
     let directory = tempfile::tempdir().unwrap();
-    let env = common::write(directory.path(), ".env", "UNIVERSIDAD=U\nFACULTAD=F\nSEMESTRE=7\n");
     let args: Args = clap::Parser::try_parse_from([
         "investigacion",
         directory.path().join("no-existe.md").to_str().unwrap(),
@@ -21,8 +20,12 @@ fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
         "T",
         "--course",
         "M",
-        "--env-file",
-        env.to_str().unwrap(),
+        "--set",
+        "UNIVERSIDAD=U",
+        "--set",
+        "FACULTAD=F",
+        "--set",
+        "SEMESTRE=7",
     ])
     .unwrap();
     let error = execute(&args, &common::isolated_project(directory.path()), &mut Silent).unwrap_err();
@@ -30,12 +33,13 @@ fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
     assert!(error.0.contains("no-existe.md"));
 }
 
-fn run(dir: &std::path::Path, env: &str, extra: &[&str]) -> String {
-    let env = common::write(dir, ".env", env);
+/// `data` son líneas `NOMBRE=valor` que se pasan con `--set`, como sin perfil.
+fn run(dir: &std::path::Path, data: &str, extra: &[&str]) -> String {
     let markdown = dir.join("no-existe.md");
-    let mut argv =
-        vec!["investigacion", markdown.to_str().unwrap(), "--title", "T", "--course", "M", "--env-file"];
-    argv.push(env.to_str().unwrap());
+    let mut argv = vec!["investigacion", markdown.to_str().unwrap(), "--title", "T", "--course", "M"];
+    for line in data.lines() {
+        argv.extend(["--set", line]);
+    }
     argv.extend_from_slice(extra);
     let args: Args = clap::Parser::try_parse_from(argv).unwrap();
     execute(&args, &common::isolated_project(dir), &mut Silent).unwrap_err().0

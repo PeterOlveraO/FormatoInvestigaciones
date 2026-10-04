@@ -1,7 +1,7 @@
-//! Datos fijos de la persona usuaria: variables de entorno y archivo `.env`.
+//! Ajustes que el programa recuerda (`settings.toml`: idioma, logos) y el entorno.
 //!
-//! No se modifica el entorno del proceso: el entorno real gana y el `.env`
-//! sirve de respaldo, igual que hacía `os.environ.setdefault` en Python.
+//! El formato es `CLAVE="valor"` por línea. No se modifica el entorno del
+//! proceso: una variable de entorno gana sobre el archivo.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -19,9 +19,9 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Carga un `.env` sencillo (`CLAVE=valor`, comentarios con `#`, `export`
-    /// opcional y comillas). Si el archivo no existe no es error. Un `.env`
-    /// que no se puede leer queda en el registro aunque quien llama lo ignore.
+    /// Carga el archivo de ajustes (`CLAVE=valor`, comentarios con `#`, `export`
+    /// opcional y comillas). Si el archivo no existe no es error. Uno
+    /// ilegible queda en el registro aunque quien llama lo ignore.
     pub fn load(path: &Path) -> Result<Self> {
         let result = Self::read(path);
         match &result {
@@ -89,7 +89,7 @@ impl Settings {
         Ok(Self { file })
     }
 
-    /// Guarda `key=value` en el `.env`: reemplaza la línea de esa clave (con o
+    /// Guarda `key=value` en el archivo: reemplaza la línea de esa clave (con o
     /// sin `export`) o la añade al final, sin tocar las demás ni los
     /// comentarios. Si el archivo no existe, lo crea.
     pub fn save_value(path: &Path, key: &str, value: &str) -> Result<()> {
@@ -118,7 +118,7 @@ impl Settings {
     }
 
     /// Primer valor no vacío entre los nombres dados: primero el entorno y
-    /// luego el `.env`. Se aceptan los nombres en español y en inglés.
+    /// luego el archivo. Se aceptan los nombres en español y en inglés.
     pub fn get(&self, names: &[&str]) -> String {
         for name in names {
             if let Ok(value) = std::env::var(name)
@@ -141,7 +141,7 @@ mod tests {
     #[test]
     fn dotenv_values_are_parsed() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join(".env");
+        let path = directory.path().join("settings.toml");
         std::fs::write(
             &path,
             "# comentario\nexport ZZ_UNI=\"Mi # Uni\"\nZZ_FAC=Facultad # nota\nZZ_EMPTY=\n",
@@ -157,7 +157,7 @@ mod tests {
     #[test]
     fn a_value_is_replaced_or_appended_keeping_the_rest() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join(".env");
+        let path = directory.path().join("settings.toml");
         Settings::save_value(&path, "IDIOMA", "en").unwrap();
         assert_eq!(std::fs::read_to_string(&path).unwrap(), "IDIOMA=\"en\"\n");
 
@@ -171,7 +171,7 @@ mod tests {
     #[test]
     fn invalid_lines_are_errors() {
         let directory = tempfile::tempdir().unwrap();
-        let path = directory.path().join(".env");
+        let path = directory.path().join("settings.toml");
         std::fs::write(&path, "SIN_IGUAL\n").unwrap();
         assert!(Settings::load(&path).is_err());
         std::fs::write(&path, "1MAL=x\n").unwrap();

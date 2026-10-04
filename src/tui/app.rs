@@ -58,7 +58,7 @@ pub struct Field {
 
 const NOTHING: Text = Text::new("", "");
 
-/// El formulario. Ya no incluye el archivo .env, «permitir LaTeX», la
+/// El formulario. No incluye el archivo de ajustes, «permitir LaTeX», la
 /// plantilla por ruta ni la carpeta de logos (las opciones 9 a 12 del menú
 /// anterior): siguen disponibles en el CLI para quien las necesite.
 pub const FIELDS: [Field; 12] = [
@@ -130,7 +130,7 @@ pub const FIELDS: [Field; 12] = [
         required: false,
         help: Text::new("Nombre del docente.", "Name of the teacher."),
         example: Text::new("Nombre del docente", "Name of the teacher"),
-        empty: Text::new("DOCENTE del .env; si no está, no sale", "DOCENTE from .env; if missing, omitted"),
+        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
     },
     Field {
         key: FieldKey::Members,
@@ -142,10 +142,7 @@ pub const FIELDS: [Field; 12] = [
             "Team names separated by commas. With members, the cover does not show the student.",
         ),
         example: Text::new("Ana Ruiz, Luis Paz", "Ana Ruiz, Luis Paz"),
-        empty: Text::new(
-            "INTEGRANTES del .env; si no está, el alumno",
-            "INTEGRANTES from .env; if missing, the student",
-        ),
+        empty: Text::new("los del perfil; si no hay, el alumno", "the profile's; if none, the student"),
     },
     Field {
         key: FieldKey::Group,
@@ -154,7 +151,7 @@ pub const FIELDS: [Field; 12] = [
         required: false,
         help: Text::new("Grupo de la materia.", "Group of the course."),
         example: Text::new("7-A", "7-A"),
-        empty: Text::new("GRUPO del .env; si no está, no sale", "GRUPO from .env; if missing, omitted"),
+        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
     },
     Field {
         key: FieldKey::Format,
@@ -658,10 +655,11 @@ impl App {
         self.mode = Mode::ChooseLanguage(preselected);
     }
 
-    /// Cambia el idioma de la interfaz y lo guarda en el `.env` como IDIOMA.
+    /// Cambia el idioma de la interfaz y lo guarda en `settings.toml` como IDIOMA.
     fn set_language(&mut self, lang: Lang) {
         i18n::set(lang);
-        if let Err(error) = Settings::save_value(&self.project.env_file(), LANG_SETTINGS[0], lang.code()) {
+        if let Err(error) = Settings::save_value(&self.project.settings_file(), LANG_SETTINGS[0], lang.code())
+        {
             self.log.push(LogLine::Warning(error.0));
         }
     }
@@ -680,7 +678,7 @@ impl App {
     }
 
     /// Arma los mismos argumentos que recibiría el CLI. Los campos vacíos no
-    /// se pasan, para que sigan valiendo el perfil y el `.env`.
+    /// se pasan, para que siga valiendo el perfil.
     pub fn build_args(&self) -> Args {
         let optional = |key| Some(self.value(key).to_owned()).filter(|v| !v.is_empty());
         Args {
@@ -700,7 +698,7 @@ impl App {
                 .filter(|p| !p.is_empty())
                 .map(PathBuf::from)
                 .collect(),
-            env_file: None,
+            settings: None,
             allow_latex: false,
             design: optional(FieldKey::Template),
             format: optional(FieldKey::Format),

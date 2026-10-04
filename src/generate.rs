@@ -176,8 +176,8 @@ pub fn missing_data_error(layout: &Layout, missing: &[String]) -> GenerationErro
     let design = &layout.design.key;
     let missing = missing.join(", ");
     GenerationError::new(tr!(
-        es: "Faltan datos que usa el diseño {design}: {missing}. Agrégalos al perfil, al .env o con --set NOMBRE=valor.",
-        en: "Missing data used by the design {design}: {missing}. Add them to the profile, the .env or with --set NAME=value."
+        es: "Faltan datos que usa el diseño {design}: {missing}. Agrégalos al perfil (Opciones → p en el menú) o con --set NOMBRE=valor.",
+        en: "Missing data used by the design {design}: {missing}. Add them to the profile (Options → p in the menu) or with --set NAME=value."
     ))
 }
 

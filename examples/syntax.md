@@ -15,7 +15,7 @@ un bloque de código. De ahí sale casi cualquier PDF mal formado.
 
 En el Markdown no van ni la portada, ni el índice, ni el título del trabajo, ni
 tu nombre, ni la materia, ni la fecha. Todo eso lo arma la plantilla con lo que
-le pasas al comando y con el archivo `.env`, así que el documento empieza
+le pasas al comando y con el perfil de la materia, así que el documento empieza
 directamente en la primera sección.
 
 # Desarrollo

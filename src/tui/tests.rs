@@ -122,7 +122,7 @@ fn the_menu_is_drawn_in_the_current_language() {
 #[test]
 fn the_first_run_asks_for_the_language_saves_it_and_opens_home() {
     let (_dir, project) = sample_project();
-    let env = project.env_file();
+    let env = project.settings_file();
     let mut app = App::new(project);
     i18n::set(Lang::Es);
     app.start(Some(Lang::Es));
@@ -173,7 +173,7 @@ fn without_profiles_the_wizard_opens_and_then_home() {
 #[test]
 fn escape_uses_the_language_without_saving_it() {
     let (_dir, project) = sample_project();
-    let env = project.env_file();
+    let env = project.settings_file();
     let mut app = App::new(project);
     app.ask_language(Lang::En);
     press(&mut app, KeyCode::Esc);
@@ -184,7 +184,7 @@ fn escape_uses_the_language_without_saving_it() {
 #[test]
 fn the_l_key_switches_the_language_and_saves_it() {
     let (_dir, project) = sample_project();
-    let env = project.env_file();
+    let env = project.settings_file();
     std::fs::write(&env, "UNIVERSIDAD=\"U\"\nIDIOMA=\"es\"\n").unwrap();
     let mut app = App::new(project);
     i18n::set(Lang::Es);
@@ -296,11 +296,11 @@ fn the_form_becomes_the_same_arguments_as_the_cli() {
     let args = app.build_args();
     assert_eq!(args.title, "T");
     assert_eq!(args.course.as_deref(), Some("M"));
-    // Lo vacío no se pasa, para que valgan el perfil y el .env.
+    // Lo vacío no se pasa, para que valga el perfil.
     assert!(args.teacher.is_none() && args.group.is_none() && args.file_name.is_none());
     assert_eq!(args.copy.len(), 2);
     assert_eq!(args.output, Some(root.join("output/IA")));
-    assert!(!args.allow_latex && args.logos.is_none() && args.env_file.is_none());
+    assert!(!args.allow_latex && args.logos.is_none() && args.settings.is_none());
 }
 
 #[test]

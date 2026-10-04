@@ -18,7 +18,8 @@ the menu, or automatically the first time). You can also edit them by hand:
 
 The file name is the profile's key: `ia.toml` is used with `-p ia`.
 
-Precedence: command-line option > profile > `.env`.
+Precedence: command-line option > profile. Every cover datum the design shows
+comes from here (there is no `.env`); the wizard asks for all of them.
 
 This folder is ignored by git except for `example.toml` and this file, because
 the data in it (names, teachers) is your own.

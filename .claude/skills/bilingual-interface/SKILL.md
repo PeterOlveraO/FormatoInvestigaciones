@@ -9,7 +9,7 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
 ## Language system (`src/i18n.rs`)
 
 - **Order:** `--lang es|en` > `IDIOMA`/`INTERFACE_LANGUAGE` (environment or
-  `.env`) > `detect()` via `sys-locale`. `es*` gives Spanish; anything else,
+  `settings.toml`) > `detect()` via `sys-locale`. `es*` gives Spanish; anything else,
   English.
 - **Per-thread language** (`thread_local!`). Tests set their own with
   `i18n::set(Lang::Es|En)` without racing. The TUI copies the language into its
@@ -42,15 +42,15 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
   `-h/--help` and `-V/--version` and a `help_template` with translated
   headings.
 - **Language before parsing.** `prescan_language()` reads `--lang` and
-  `--env-file` before parsing, so `--help` and argument errors are already in
+  `--settings` (old name `--env-file`) before parsing, so `--help` and argument errors are already in
   the right language.
 - **Argument errors.** `describe_clap_error()` translates
   `MissingRequiredArgument`, `UnknownArgument` (adding the "put values with
   spaces in quotes" hint when the stray argument has no leading `-`),
   `InvalidValue` and `ValueValidation`. Other kinds use clap's message.
 - **Running a generation.** `execute()`:
-  1. loads `.env` and the profile, then `resolve_layout` (design + format);
-  2. builds `DocumentData` with `pick()` (option > profile > `.env`), all
+  1. loads `settings.toml` and the profile, then `resolve_layout` (design + format);
+  2. builds `DocumentData` with `pick()` (option or `--set NAME=…` > profile), all
      cover data included;
   3. checks `missing_data()` before reading the Markdown;
   4. validates with the format's headings and reports through `Reporter`.
@@ -61,7 +61,7 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
    one).
 2. Add an `ARG_HELP` entry with `es` and `en` help and a value name. `mut_arg`
    panics on an unknown id, and the help tests catch it.
-3. Use it in `execute()`. If it should fall back to `.env` or a profile, go
+3. Use it in `execute()`. If it should fall back to a profile, go
    through `pick()`.
 4. If the menu needs it: add a `FIELDS` entry (`label`, `help`, `example`,
    `empty`, all `Text`) and map it in `App::build_args()`.
@@ -72,7 +72,7 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
 ## TUI (`src/tui/`)
 
 ratatui + crossterm. It duplicates no logic: `App::build_args()` builds
-`cli::Args` (empty fields become `None`, so profile and `.env` still apply),
+`cli::Args` (empty fields become `None`, so the profile still applies),
 and a thread runs `cli::execute()` with a `ChannelReporter`.
 
 - **State and drawing are separate.** `app.rs` handles keys and state and
@@ -156,7 +156,7 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   - Log TUI-only events yourself in English: opened paths and `opener`
     errors, picker choices, tool detection, a worker without a result.
   - Options → `r` opens `logging::path()`.
-- **Not in the menu on purpose:** `.env` path, `--allow-latex`, template by
+- **Not in the menu on purpose:** settings path, `--allow-latex`, template by
   path, `--logos` (CLI only).
 - **The PDF name** is proposed from the chosen Markdown until the user types
   one (`file_name_is_auto`).
@@ -177,7 +177,7 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   in `execute()`, the wizard if it is cover data, and `App::apply_profile()`.
   Document it in `courses/README.md`, `courses/example.toml` and `GUIDE.md`.
 - **`Settings::get(&[names])`:** the first non-empty value, with the
-  environment first and `.env` second. Spanish and English key names are both
+  environment first and `settings.toml` second. Spanish and English key names are both
   accepted. It never mutates the process environment.
 - **`Settings::save_value`:** replaces the key's line (with or without
   `export`) or appends it, keeping all other lines and comments.

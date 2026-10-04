@@ -61,6 +61,14 @@
   preamble is now `templates/common/investigacion-base.sty`, plus one
   `format.sty` per format.
 
+- **No more `.env`.** All the cover data (university, faculty, student,
+  semester, teacher, group, members) comes from the profile; the wizard asks
+  for all of it. Without a profile, give it with `--set UNIVERSIDAD=…`
+  (also `FACULTAD`, `ALUMNO`, `SEMESTRE`, `DOCENTE`, `GRUPO`, `INTEGRANTES`).
+  The menu language is now remembered in `settings.toml` (with an optional
+  `LOGOS`), and `--env-file` became `--settings` (the old name still works).
+  `.env.example` was removed; the catalog uses `-p example`.
+
 ### Fixed
 
 - The menu no longer closes when something inside it fails: the error is
@@ -128,6 +136,13 @@ profiles and a choice of templates.
   `investigacion` alone opens the menu.
 - `.env`, "allow LaTeX", template path and logos from the menu. They remain
   available on the command line.
+
+### Upgrading from an earlier version of this branch
+
+Copy what your `.env` had (`UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `SEMESTRE`…)
+into each profile as `university`, `faculty`, `student`, `semester`…, or open
+each profile with `p` in the menu's options and fill it in. Then delete `.env`;
+the menu asks for the language again once and saves it in `settings.toml`.
 
 ### Upgrading from 0.1 (Python)
 

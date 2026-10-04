@@ -1,4 +1,4 @@
-//! Línea de comandos: traduce argumentos y `.env` a un `DocumentData`, llama
+//! Línea de comandos: traduce argumentos y perfil a un `DocumentData`, llama
 //! al generador e imprime. Toda la lógica vive en los demás módulos.
 
 use std::ffi::OsString;
@@ -53,8 +53,9 @@ pub struct Args {
     #[arg(long, alias = "copia")]
     pub copy: Vec<PathBuf>,
 
-    #[arg(long)]
-    pub env_file: Option<PathBuf>,
+    // El nombre viejo `--env-file` sigue valiendo.
+    #[arg(long, alias = "env-file")]
+    pub settings: Option<PathBuf>,
 
     #[arg(long, alias = "permitir-latex")]
     pub allow_latex: bool,
@@ -135,24 +136,24 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "teacher",
         Text::new(
-            "Docente. Si se omite, DOCENTE del .env; si está vacío, la línea no sale",
-            "Teacher. Falls back to DOCENTE in the .env; if empty, the line is omitted",
+            "Docente. Si se omite, el del perfil; si no hay, la línea no sale",
+            "Teacher. Falls back to the profile's; if none, the line is omitted",
         ),
         Some(Text::new("DOCENTE", "TEACHER")),
     ),
     (
         "members",
         Text::new(
-            "Integrantes separados por comas: \"Ana Ruiz, Luis Paz\". Si se omite, INTEGRANTES del .env",
-            "Team members separated by commas: \"Ana Ruiz, Luis Paz\". Falls back to INTEGRANTES in the .env",
+            "Integrantes separados por comas: \"Ana Ruiz, Luis Paz\". Si se omite, los del perfil",
+            "Team members separated by commas: \"Ana Ruiz, Luis Paz\". Falls back to the profile's",
         ),
         Some(Text::new("INTEGRANTES", "MEMBERS")),
     ),
     (
         "group",
         Text::new(
-            "Grupo, p. ej. \"7-A\". Si se omite, GRUPO del .env; si está vacío, la línea no sale",
-            "Group, e.g. \"7-A\". Falls back to GRUPO in the .env; if empty, the line is omitted",
+            "Grupo, p. ej. \"7-A\". Si se omite, el del perfil; si no hay, la línea no sale",
+            "Group, e.g. \"7-A\". Falls back to the profile's; if none, the line is omitted",
         ),
         Some(Text::new("GRUPO", "GROUP")),
     ),
@@ -173,10 +174,10 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
         Some(Text::new("CARPETA", "FOLDER")),
     ),
     (
-        "env_file",
+        "settings",
         Text::new(
-            "Archivo .env con los datos fijos (por omisión, el .env del proyecto)",
-            "The .env file with the permanent data (default: the project's .env)",
+            "Archivo de ajustes (idioma, logos). Por omisión, settings.toml del proyecto",
+            "Settings file (language, logos). Default: the project's settings.toml",
         ),
         Some(Text::new("ARCHIVO", "FILE")),
     ),
@@ -223,16 +224,16 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "logos",
         Text::new(
-            "Carpeta con logo-universidad.png y logo-facultad.png. Si se omite, LOGOS del .env",
-            "Folder with logo-universidad.png and logo-facultad.png. Falls back to LOGOS in the .env",
+            "Carpeta con logo-universidad.png y logo-facultad.png. Si se omite, LOGOS de settings.toml",
+            "Folder with logo-universidad.png and logo-facultad.png. Falls back to LOGOS in settings.toml",
         ),
         Some(Text::new("CARPETA", "FOLDER")),
     ),
     (
         "lang",
         Text::new(
-            "Idioma de la interfaz: es o en. Por omisión, IDIOMA del .env o el del sistema",
-            "Interface language: es or en. Default: IDIOMA in the .env, or the system's",
+            "Idioma de la interfaz: es o en. Por omisión, el guardado en settings.toml o el del sistema",
+            "Interface language: es or en. Default: the one saved in settings.toml, or the system's",
         ),
         Some(Text::new("IDIOMA", "LANG")),
     ),
@@ -341,11 +342,11 @@ pub fn describe_clap_error(error: &clap::Error) -> String {
     )
 }
 
-/// Busca `--lang` y `--env-file` antes de analizar el resto, para que la
+/// Busca `--lang` y `--settings` antes de analizar el resto, para que la
 /// ayuda y los errores ya salgan en su idioma.
 pub fn prescan_language(argv: &[OsString], project: &Project) -> Lang {
     let mut lang = None;
-    let mut env_file = None;
+    let mut settings_file = None;
     let mut iter = argv.iter().skip(1).map(|arg| arg.to_string_lossy().into_owned());
     while let Some(arg) = iter.next() {
         let (flag, inline) = match arg.split_once('=') {
@@ -354,11 +355,12 @@ pub fn prescan_language(argv: &[OsString], project: &Project) -> Lang {
         };
         match flag.as_str() {
             "--lang" | "--idioma" => lang = inline.or_else(|| iter.next()).as_deref().and_then(i18n::parse),
-            "--env-file" => env_file = inline.or_else(|| iter.next()).map(PathBuf::from),
+            "--settings" | "--env-file" => settings_file = inline.or_else(|| iter.next()).map(PathBuf::from),
             _ => {}
         }
     }
-    let settings = Settings::load(&env_file.unwrap_or_else(|| project.env_file())).unwrap_or_default();
+    let settings =
+        Settings::load(&settings_file.unwrap_or_else(|| project.settings_file())).unwrap_or_default();
     i18n::resolve(lang, &settings)
 }
 
@@ -400,13 +402,9 @@ fn shown(value: Option<impl std::fmt::Display>) -> String {
     value.map_or_else(|| "-".to_owned(), |v| v.to_string())
 }
 
-/// La opción gana; luego el perfil de la materia y, al final, el `.env`.
-fn pick(option: Option<&str>, profile: Option<&str>, settings: &Settings, names: &[&str]) -> String {
-    match (option, profile.map(str::trim).filter(|v| !v.is_empty())) {
-        (Some(value), _) => value.trim().to_owned(),
-        (None, Some(value)) => value.to_owned(),
-        (None, None) => settings.get(names),
-    }
+/// La opción gana y luego el perfil de la materia.
+fn pick(option: Option<&str>, profile: Option<&str>) -> String {
+    option.or(profile).map(str::trim).unwrap_or_default().to_owned()
 }
 
 /// Primero se busca el Markdown en la carpeta de la materia (así dos materias
@@ -444,8 +442,7 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
 }
 
 fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> Result<PathBuf> {
-    let env_file = args.env_file.clone().unwrap_or_else(|| project.env_file());
-    let settings = Settings::load(&env_file)?;
+    let settings = Settings::load(&args.settings.clone().unwrap_or_else(|| project.settings_file()))?;
     let course = args.profile.as_deref().map(|key| find_course(project, key)).transpose()?;
     if let Some(course) = &course {
         logging::info(format_args!("course profile: {} ({})", course.key, course.profile.name));
@@ -475,27 +472,22 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     fields = fields.into_iter().map(|(k, v)| (k.to_uppercase(), v)).collect();
     fields.extend(args.fields.iter().cloned());
 
+    // Sin perfil, los datos generales también se dan con --set UNIVERSIDAD=….
+    let set = |name: &str| args.fields.iter().rev().find(|(k, _)| k == name).map(|(_, v)| v.as_str());
     let data = DocumentData {
-        university: pick(None, from_profile(|p| &p.university), &settings, &["UNIVERSIDAD", "UNIVERSITY"]),
-        faculty: pick(None, from_profile(|p| &p.faculty), &settings, &["FACULTAD", "FACULTY"]),
-        student: pick(None, from_profile(|p| &p.student), &settings, &["ALUMNO", "STUDENT"]),
-        semester: pick(None, from_profile(|p| &p.semester), &settings, &["SEMESTRE", "SEMESTER"]),
+        university: pick(set("UNIVERSIDAD"), from_profile(|p| &p.university)),
+        faculty: pick(set("FACULTAD"), from_profile(|p| &p.faculty)),
+        student: pick(set("ALUMNO"), from_profile(|p| &p.student)),
+        semester: pick(set("SEMESTRE"), from_profile(|p| &p.semester)),
         title: args.title.trim().to_owned(),
-        course: pick(args.course.as_deref(), from_profile(|p| &p.name), &settings, &[]),
-        teacher: pick(
-            args.teacher.as_deref(),
-            from_profile(|p| &p.teacher),
-            &settings,
-            &["DOCENTE", "TEACHER"],
-        ),
+        course: pick(args.course.as_deref(), from_profile(|p| &p.name)),
+        teacher: pick(args.teacher.as_deref().or(set("DOCENTE")), from_profile(|p| &p.teacher)),
         date: today(doc_lang),
         members: parse_members(&pick(
-            args.members.as_deref(),
+            args.members.as_deref().or(set("INTEGRANTES")),
             from_profile(|p| &p.members),
-            &settings,
-            &["INTEGRANTES", "MEMBERS"],
         )),
-        group: pick(args.group.as_deref(), from_profile(|p| &p.group), &settings, &["GRUPO", "GROUP"]),
+        group: pick(args.group.as_deref().or(set("GRUPO")), from_profile(|p| &p.group)),
         fields,
     };
     // Solo se exigen los datos que el diseño realmente usa.
@@ -515,7 +507,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         }
     }
 
-    // Los logos suelen vivir fuera del proyecto: por eso admiten el .env.
+    // Los logos suelen vivir fuera del proyecto: por eso admiten los ajustes.
     let logos = args.logos.clone().or_else(|| {
         let from_env = settings.get(&["LOGOS"]);
         (!from_env.is_empty()).then(|| PathBuf::from(from_env))
@@ -663,11 +655,11 @@ mod tests {
         let argv = |items: &[&str]| -> Vec<OsString> { items.iter().map(OsString::from).collect() };
         assert_eq!(prescan_language(&argv(&["investigacion", "--help", "--lang", "en"]), &project), Lang::En);
         assert_eq!(prescan_language(&argv(&["investigacion", "--idioma=es"]), &project), Lang::Es);
-        std::fs::write(project.env_file(), "IDIOMA=en\n").unwrap();
+        std::fs::write(project.settings_file(), "IDIOMA=en\n").unwrap();
         assert_eq!(prescan_language(&argv(&["investigacion", "--help"]), &project), Lang::En);
-        let other = directory.path().join("otro.env");
+        let other = directory.path().join("otro.toml");
         std::fs::write(&other, "IDIOMA=es\n").unwrap();
-        let with_file = argv(&["investigacion", "--env-file", other.to_str().unwrap()]);
+        let with_file = argv(&["investigacion", "--settings", other.to_str().unwrap()]);
         assert_eq!(prescan_language(&with_file, &project), Lang::Es);
     }
 

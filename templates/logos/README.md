@@ -16,6 +16,6 @@ institutional logos are rarely redistributable.
 - **Margins.** The template scales the logos by height (1.6 cm and 0.88 cm), so
   a large transparent margin makes them look small.
 - **Another folder.** To keep them outside the project, use `--logos <folder>`
-  or set `LOGOS="<folder>"` in `.env`.
+  or set `LOGOS="<folder>"` in `settings.toml`.
 - **Position.** If they look misplaced, adjust the `LOGOS` block of
   `templates/designs/geometric-cover/template.ltx` (`xshift`, `yshift`, `height`).

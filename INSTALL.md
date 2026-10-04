@@ -107,21 +107,15 @@ Optional:
 
 - **Logos:** add them to `templates/logos/` (`logo-universidad.png`,
   `logo-facultad.png`).
-- **A `.env` file** with fallback data (`cp .env.example .env`). It is used
-  only when a profile does not give a value:
-
-| Variable | Example |
-|---|---|
-| `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `ALUMNO` | `"Universidad X"`, `"Facultad de Ingeniería"`, `"2026-2"`, your name |
-| `INTEGRANTES`, `DOCENTE`, `GRUPO` | Team, teacher, group |
-| `LOGOS` | A logos folder outside the project |
-| `IDIOMA` | `es` or `en`. The menu saves it after you choose the language |
+- **`settings.toml`** is written by the menu: it remembers the language
+  (`IDIOMA="es"`). You can add `LOGOS="<folder>"` for a logos folder outside
+  the project. The cover data always goes in the profiles.
 
 ## 4. Check that it works
 
 ```bash
 cargo --version && pandoc --version && pdflatex --version && dot -V
-investigacion examples/catalog.md --title "Catalogo" --course "Prueba" --env-file .env.example
+investigacion examples/catalog.md --title "Catalogo" -p example
 ```
 
 Run the second command from the project folder. If it ends with `PDF

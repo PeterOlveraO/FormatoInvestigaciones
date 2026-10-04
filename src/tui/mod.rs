@@ -24,7 +24,7 @@ use crate::settings::Settings;
 pub fn run() -> i32 {
     let project = Project::discover();
     // El idioma guardado manda; si no hay, se pregunta con el del sistema marcado.
-    let settings = Settings::load(&project.env_file()).unwrap_or_default();
+    let settings = Settings::load(&project.settings_file()).unwrap_or_default();
     let saved = i18n::configured(&settings);
     i18n::set(saved.unwrap_or_else(i18n::detect));
     let mut app = App::new(project);

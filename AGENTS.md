@@ -85,18 +85,19 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
   field is required only if its spec says so (`missing_data()`).
 - **No logic in the TUI.** It builds the same `cli::Args` and calls
   `cli::execute()`.
-- **Precedence of values:** CLI option > course profile > `.env` (`pick()` in
-  `src/cli.rs`).
+- **Precedence of values:** CLI option (incl. `--set UNIVERSIDAD=…`) > course
+  profile (`pick()` in `src/cli.rs`). There is no `.env`: cover data lives in
+  profiles; `settings.toml` only remembers the language and `LOGOS`.
 - **Minimal dependencies:** justify every new crate.
 - **Before finishing:** run `cargo fmt`, `cargo clippy --all-targets -- -D
   warnings` and `cargo test`. For template or filter changes, also generate
   `examples/catalog.md` and check the pages.
 - **Never commit personal data or institutional logos.**
-  - `.env`, `input/`, `output/`, `cache/`, `my-templates/`, `courses/*.toml`
-    (except `example.toml`) and `templates/logos/*` are git-ignored on
-    purpose.
+  - `settings.toml`, `.env` (old), `input/`, `output/`, `cache/`,
+    `my-templates/`, `courses/*.toml` (except `example.toml`) and
+    `templates/logos/*` are git-ignored on purpose.
   - Generated files in git (`examples/catalog.pdf`, `docs/images/*.png`) use
-    the placeholders of `.env.example` and no logos (`/regenerate-catalog`).
+    the placeholders of `courses/example.toml` (`-p example`) and no logos (`/regenerate-catalog`).
 
 ## Layout
 
@@ -114,7 +115,7 @@ src/
   latex.rs       latex_escape, render_template (standard markers + custom fields)
   compile.rs     pdflatex passes, TEXINPUTS, .aux/.toc cache
   project.rs     project root, folders, logos
-  settings.rs    .env + environment (never mutates the process env)
+  settings.rs    settings.toml (language, LOGOS) + environment (never mutates the process env)
   courses.rs     course profiles (courses/*.toml), save_profile
   document.rs    DocumentData, dates (es/en), slugify
   encoding.rs    UTF-8 with Windows-1252 fallback

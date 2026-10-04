@@ -85,8 +85,9 @@ folder = "IA"
 SALON = "B-204"
 ```
 
-- **Precedence:** command-line option > profile > `.env`. The `.env` is only a
-  fallback for data no profile gives.
+- **Precedence:** command-line option > profile. All the cover data lives in
+  the profile; there is no `.env` any more. Without a profile, give the data
+  with `--set UNIVERSIDAD=… --set FACULTAD=…` (also `ALUMNO`, `SEMESTRE`).
 - **Old profiles:** a profile with the old `template = "apa"` still works.
 - **Privacy:** profiles are not uploaded to git.
 
@@ -125,7 +126,7 @@ highlighted row, or press its letter; Esc closes the list.
 | `p` | Edit the chosen profile, or create one if none is chosen (wizard) |
 | `n` | New profile (the wizard, empty) |
 | `c` / `f` | Open a project folder (`input`, `output`, `courses`, `templates`, `cache`) |
-| `l` | Switch between Spanish and English (saved in `.env`) |
+| `l` | Switch between Spanish and English (saved in `settings.toml`) |
 | `i` / `h` | Back to the home view |
 
 The option letters also work straight from the form, so `p`, `c`/`f` and `l`
@@ -141,8 +142,8 @@ still do what they used to. Both languages' letters work in either language.
   when the design uses them.
 - **Required fields** depend on the design (for example, the course only if the
   design shows it), and they are marked with `*`.
-- **Empty fields** behave as if the option had not been given: the profile or
-  `.env` value applies.
+- **Empty fields** behave as if the option had not been given: the profile's
+  value applies.
 
 ## The command line
 
@@ -170,7 +171,7 @@ generating again replaces it.
 | `--file-name` | Name of the PDF (default: the Markdown's name) |
 | `--output`, `--copy` | Output folder; extra folders for copies (repeatable) |
 | `--allow-latex` | Interpret LaTeX commands written in the Markdown |
-| `--env-file`, `--logos` | Another `.env`; folder with the logos |
+| `--settings`, `--logos` | Another settings file (language, logos); folder with the logos |
 | `--lang es\|en` | Interface language for this run |
 | `--check-template <design>` | Check a design and build the catalog with it (see below) |
 
@@ -333,7 +334,7 @@ saved next to the PDF.
 | A table shows as rows of bars | The dashes row under the header is missing |
 | A diagram is misaligned | ASCII art outside a code block |
 | `[?]` in the PDF | A symbol the template does not know; the warning says which |
-| "Missing data used by the design…" | Fill it in the profile (`p` in the menu's options), in `.env` or with `--set` |
+| "Missing data used by the design…" | Fill it in the profile (`p` in the menu's options), or with `--set` |
 | "The design … does not work with the format …" | Choose a format the design lists, or another design |
 | Your own design fails | Run `investigacion --check-template <design>` |
 
