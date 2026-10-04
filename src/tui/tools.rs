@@ -28,7 +28,8 @@ const TIMEOUT: Duration = Duration::from_secs(5);
 /// arrancar en frío y el menú no debe esperarlo.
 pub fn detect_in_background() -> Receiver<Vec<Tool>> {
     let (sender, receiver) = mpsc::channel();
-    std::thread::spawn(move || {
+    // Si el hilo no arranca, el canal se cierra y el inicio no muestra la lista.
+    let _ = std::thread::Builder::new().name("tools".into()).spawn(move || {
         let tools = TOOLS
             .iter()
             .map(|&(name, program, version, required)| Tool {

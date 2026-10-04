@@ -3,6 +3,7 @@
 //! el CLI y llama a `cli::execute`.
 
 mod app;
+mod guard;
 mod picker;
 mod tools;
 mod ui;
@@ -15,6 +16,7 @@ use std::time::Duration;
 use crossterm::event::{self, Event, KeyEventKind};
 
 use crate::i18n;
+use crate::logging;
 use crate::project::Project;
 use crate::settings::Settings;
 
@@ -30,29 +32,50 @@ pub fn run() -> i32 {
     // Idioma la primera vez, el asistente si no hay perfiles y luego el inicio.
     app.start(saved.is_none().then(i18n::current));
     let mut terminal = ratatui::init();
+    guard::install_hook();
     let result = event_loop(&mut terminal, &mut app);
     ratatui::restore();
     match result {
         Ok(()) => 0,
         Err(error) => {
-            eprintln!("Error: {error}");
+            logging::error(format_args!("tui: closed by an error: {error}"));
+            let log = logging::path().map(|p| p.display().to_string()).unwrap_or_else(|| "-".into());
+            eprintln!(
+                "{}",
+                tr!(
+                    es: "El menú se cerró por un error: {error}\nDetalles en el registro: {log}",
+                    en: "The menu closed because of an error: {error}\nDetails in the log: {log}"
+                )
+            );
             1
         }
     }
 }
 
 fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> std::io::Result<()> {
+    // Un dibujo que falla dos veces seguidas no se arregla solo: se sale.
+    let mut failed_draws = 0;
     while !app.should_quit {
         app.poll_worker();
         app.poll_tools();
-        terminal.draw(|frame| ui::draw(frame, app))?;
+        let mut drawn = Ok(());
+        terminal.draw(|frame| drawn = guard::run(|| ui::draw(frame, app)))?;
+        match drawn {
+            Ok(()) => failed_draws = 0,
+            Err(message) if failed_draws == 0 => {
+                failed_draws += 1;
+                app.recover(message);
+            }
+            Err(message) => return Err(std::io::Error::other(message)),
+        }
         // Espera corta para refrescar el panel mientras se genera el PDF.
         if event::poll(Duration::from_millis(100))? {
             // En Windows llegan también los eventos de soltar la tecla.
             if let Event::Key(key) = event::read()?
                 && key.kind == KeyEventKind::Press
+                && let Err(message) = guard::run(|| app.handle_key(key))
             {
-                app.handle_key(key);
+                app.recover(message);
             }
         }
     }

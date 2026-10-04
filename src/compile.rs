@@ -163,7 +163,15 @@ fn restore_state(state_dir: &Path, tex_path: &Path) -> Option<String> {
 fn save_state(state_dir: &Path, tex_path: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(state_dir)?;
     for extension in STATE_EXTENSIONS {
-        std::fs::copy(tex_path.with_extension(extension), state_dir.join(format!("trabajo.{extension}")))?;
+        let source = tex_path.with_extension(extension);
+        let target = state_dir.join(format!("trabajo.{extension}"));
+        // Un diseño sin índice no escribe `.toc`: se guarda vacío, que es lo
+        // mismo que lee `run_passes`, y la caché sirve igual.
+        if source.is_file() {
+            std::fs::copy(source, target)?;
+        } else {
+            std::fs::write(target, "")?;
+        }
     }
     Ok(())
 }

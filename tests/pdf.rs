@@ -158,6 +158,14 @@ fn every_design_compiles_with_each_compatible_format_and_without_optional_fields
                 )
                 .unwrap_or_else(|e| panic!("{design} + {format}: {e}"));
                 assert!(pdf.is_file());
+                // El estado de LaTeX se guarda aunque el diseño no tenga índice.
+                let prefix = format!("{design}-{format}-{index}-");
+                let saved =
+                    std::fs::read_dir(project.cache_dir().join("latex")).unwrap().flatten().any(|e| {
+                        e.file_name().to_string_lossy().starts_with(&prefix)
+                            && e.path().join("trabajo.toc").is_file()
+                    });
+                assert!(saved, "{design} + {format}: the latex state was not saved");
             }
         }
     }

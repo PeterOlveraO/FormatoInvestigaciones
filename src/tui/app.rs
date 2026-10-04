@@ -10,10 +10,12 @@ use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose};
 use crate::cli::{Args, Reporter, execute};
 use std::collections::BTreeMap;
 
+use super::guard;
 use super::tools::{self, Tool};
 use super::wizard::{Outcome as WizardOutcome, Wizard};
 use crate::courses::{Course, list_courses, save_profile};
 use crate::i18n::{self, LANG_SETTINGS, Lang, Text};
+use crate::logging;
 use crate::project::Project;
 use crate::settings::Settings;
 use crate::template::Design;
@@ -247,6 +249,7 @@ pub enum OptionAction {
     NewProfile,
     Folders,
     Language,
+    Log,
     Home,
 }
 
@@ -291,6 +294,11 @@ pub const OPTIONS: &[OptionEntry] = &[
         keys: ['l', 'l'],
         label: Text::new("English (idioma del menú)", "Español (menu language)"),
         action: OptionAction::Language,
+    },
+    OptionEntry {
+        keys: ['r', 'r'],
+        label: Text::new("Ver el registro (qué pasó, errores)", "View the log (what happened, errors)"),
+        action: OptionAction::Log,
     },
     OptionEntry {
         keys: ['i', 'h'],
@@ -369,6 +377,22 @@ pub enum Mode {
     Editing(TextInput),
     Picking(Picker),
     Generating(Receiver<WorkerMessage>),
+}
+
+impl Mode {
+    /// Nombre del modo para el registro (técnico, en inglés).
+    pub fn name(&self) -> &'static str {
+        match self {
+            Mode::ChooseLanguage(_) => "language",
+            Mode::Home(_) => "home",
+            Mode::Wizard(_) => "wizard",
+            Mode::Form => "form",
+            Mode::Options(_) => "options",
+            Mode::Editing(_) => "editing",
+            Mode::Picking(_) => "picking",
+            Mode::Generating(_) => "generating",
+        }
+    }
 }
 
 /// Pantalla completa: el inicio o el formulario. Las ventanas (opciones,
@@ -475,7 +499,14 @@ impl App {
     pub fn poll_tools(&mut self) {
         let Some(receiver) = &self.tools_check else { return };
         match receiver.try_recv() {
-            Ok(tools) => self.tools = tools,
+            Ok(tools) => {
+                let found: Vec<String> = tools
+                    .iter()
+                    .map(|t| format!("{} {}", t.name, if t.found { "found" } else { "missing" }))
+                    .collect();
+                logging::info(format_args!("tools: {}", found.join(", ")));
+                self.tools = tools;
+            }
             Err(TryRecvError::Empty) => return,
             Err(TryRecvError::Disconnected) => {}
         }
@@ -493,6 +524,19 @@ impl App {
             Mode::Form | Mode::Editing(_) | Mode::Generating(_) => Screen::Form,
             _ => self.base,
         }
+    }
+
+    /// Tras un pánico atrapado (tecla o dibujo): se cierra la ventana a medias
+    /// y se avisa, sin cortar una generación en curso.
+    pub fn recover(&mut self, message: String) {
+        logging::error(format_args!("tui: recovered from a panic in {}: {message}", self.mode.name()));
+        if !matches!(self.mode, Mode::Generating(_)) {
+            self.back();
+        }
+        self.log.push(LogLine::Error(tr!(
+            es: "Error interno: {message}. Quedó en el registro (Opciones → r); puedes seguir usando el menú.",
+            en: "Internal error: {message}. It is in the log (Options → r); you can keep using the menu."
+        )));
     }
 
     /// Cierra la ventana actual y vuelve a la pantalla desde la que se abrió.
@@ -674,10 +718,21 @@ impl App {
 
     /// Procesa una tecla según el modo actual.
     pub fn handle_key(&mut self, key: KeyEvent) {
+        let before = self.mode.name();
+        logging::debug(format_args!("tui: key {:?} {:?} in {before}", key.code, key.modifiers));
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            logging::info("tui: quit with Ctrl+C");
             self.should_quit = true;
             return;
         }
+        self.dispatch_key(key);
+        let after = self.mode.name();
+        if after != before {
+            logging::debug(format_args!("tui: {before} -> {after}"));
+        }
+    }
+
+    fn dispatch_key(&mut self, key: KeyEvent) {
         match std::mem::replace(&mut self.mode, Mode::Form) {
             Mode::ChooseLanguage(selected) => self.language_key(key, selected),
             Mode::Home(selected) => self.home_key(key, selected),
@@ -766,6 +821,13 @@ impl App {
                 self.set_language(lang);
                 self.log.push(LogLine::Info(tr!(es: "Idioma: español.", en: "Language: English.")));
             }
+            OptionAction::Log => match logging::path().filter(|p| p.is_file()) {
+                Some(path) => self.open_path(&path),
+                None => self.log.push(LogLine::Warning(tr!(
+                    es: "El registro está apagado (INVESTIGACION_LOG=off) o todavía no existe.",
+                    en: "The log is turned off (INVESTIGACION_LOG=off) or does not exist yet."
+                ))),
+            },
             OptionAction::Home => self.mode = Mode::Home(0),
         }
     }
@@ -1012,6 +1074,7 @@ impl App {
     }
 
     fn apply_choice(&mut self, purpose: PickerPurpose, value: PickValue) {
+        logging::debug(format_args!("tui: chose {purpose:?}: {value:?}"));
         match (purpose, value) {
             (PickerPurpose::Markdown, PickValue::File(path)) => {
                 if self.file_name_is_auto {
@@ -1091,13 +1154,29 @@ impl App {
         let project = self.project.clone();
         // El idioma es por hilo: el que genera hereda el de la interfaz.
         let lang = i18n::current();
-        std::thread::spawn(move || {
+        let worker = std::thread::Builder::new().name("generation".into()).spawn(move || {
             i18n::set(lang);
             let mut reporter = ChannelReporter(sender.clone());
-            let result = execute(&args, &project, &mut reporter).map_err(|e| e.0);
+            // Un pánico aquí no debe tumbar el menú: se vuelve un error más.
+            let result = match guard::run(|| execute(&args, &project, &mut reporter)) {
+                Ok(result) => result.map_err(|e| e.0),
+                Err(panic) => Err(tr!(
+                    es: "Error interno al generar: {panic}. Quedó en el registro (Opciones → r).",
+                    en: "Internal error while generating: {panic}. It is in the log (Options → r)."
+                )),
+            };
             let _ = sender.send(WorkerMessage::Finished(result));
         });
-        self.mode = Mode::Generating(receiver);
+        match worker {
+            Ok(_) => self.mode = Mode::Generating(receiver),
+            Err(error) => {
+                logging::error(format_args!("tui: could not start the generation thread: {error}"));
+                self.log.push(LogLine::Error(tr!(
+                    es: "No se pudo empezar a generar: {error}",
+                    en: "Could not start generating: {error}"
+                )));
+            }
+        }
     }
 
     /// Recoge los mensajes del hilo de generación; se llama en cada ciclo.
@@ -1109,6 +1188,7 @@ impl App {
                 Ok(WorkerMessage::Finished(result)) => break result,
                 Err(TryRecvError::Empty) => return,
                 Err(TryRecvError::Disconnected) => {
+                    logging::error("tui: the generation thread ended without a result");
                     break Err(
                         tr!(es: "La generación se detuvo inesperadamente.", en: "The generation stopped unexpectedly."),
                     );
@@ -1145,19 +1225,26 @@ impl App {
     /// Abre un archivo o carpeta con el programa del sistema (explorador,
     /// visor de PDF). La carpeta se crea si aún no existe.
     fn open_path(&mut self, path: &Path) {
-        if !path.exists() && path.extension().is_none() {
-            let _ = std::fs::create_dir_all(path);
+        if !path.exists()
+            && path.extension().is_none()
+            && let Err(error) = std::fs::create_dir_all(path)
+        {
+            logging::warn(format_args!("tui: could not create {}: {error}", path.display()));
         }
         match opener::open(path) {
             Ok(()) => {
+                logging::info(format_args!("tui: opened {}", path.display()));
                 let shown = self.display_path(&path.display().to_string());
                 self.log.push(LogLine::Info(tr!(es: "Abierto: {shown}", en: "Opened: {shown}")))
             }
-            Err(error) => self.log.push(LogLine::Error(tr!(
-                es: "No se pudo abrir {}: {error}",
-                en: "Could not open {}: {error}",
-                path.display()
-            ))),
+            Err(error) => {
+                logging::error(format_args!("tui: could not open {}: {error}", path.display()));
+                self.log.push(LogLine::Error(tr!(
+                    es: "No se pudo abrir {}: {error}",
+                    en: "Could not open {}: {error}",
+                    path.display()
+                )))
+            }
         }
     }
 }

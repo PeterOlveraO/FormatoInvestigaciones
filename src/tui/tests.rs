@@ -503,6 +503,14 @@ fn each_option_runs_with_enter_and_with_its_letters() {
                     assert!(matches!(app.mode, Mode::Options(i) if i == index), "se queda en las opciones");
                     assert!(render(&app).contains("Español (menu language)"));
                 }
+                // En las pruebas no hay registro: se avisa y no se abre nada.
+                OptionAction::Log => {
+                    assert!(matches!(app.mode, Mode::Options(i) if i == index), "{how}");
+                    assert!(
+                        matches!(app.log.last(), Some(LogLine::Warning(w)) if w.contains("registro")),
+                        "{how}"
+                    );
+                }
                 OptionAction::Home => assert!(matches!(app.mode, Mode::Home(0)), "{how}"),
             }
         }
@@ -763,4 +771,18 @@ fn the_help_does_not_offer_an_empty_value_for_a_required_course() {
     assert!(!render(&app).contains("If empty:"));
     select(&mut app, FieldKey::Teacher);
     assert!(render(&app).contains("If empty:"));
+}
+
+#[test]
+fn a_recovered_panic_closes_the_window_and_keeps_the_menu() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    press(&mut app, KeyCode::Char('o'));
+    assert!(matches!(app.mode, Mode::Options(_)));
+    app.recover("índice fuera de rango".into());
+    assert!(matches!(app.mode, Mode::Form));
+    assert!(matches!(app.log.last(), Some(LogLine::Error(e)) if e.contains("índice fuera de rango")));
+    assert!(!app.should_quit);
+    render(&app);
 }
