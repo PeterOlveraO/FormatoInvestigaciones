@@ -69,8 +69,21 @@
   `LOGOS`), and `--env-file` became `--settings` (the old name still works).
   `.env.example` was removed; the catalog uses `-p example`.
 
+- **Documentation reorganized.** `README.md` is now a short introduction.
+  `GUIDE.md` became `docs/reference.md` (the complete reference), plus
+  `docs/usage.md` (basic use of the menu and the CLI) and `docs/cli.md` (every
+  option). `AI-PROMPT.md` became `docs/prompts/paper.md`, and the new
+  `docs/prompts/design.md` turns a cover idea into a compatible design.
+  `llms.txt` indexes it all for AI assistants.
+- `--check-template` also accepts `--check-template=<design>`, and no longer
+  takes another option (`--lang`) as the design name.
+- `Obras citadas`, `Fuentes consultadas` and `Fuentes` are recognized as
+  reference headings (hanging indent), for MLA in Spanish.
+
 ### Fixed
 
+- Arrows (`->`, `<->`) in ` ```tikz ` blocks and designs broke the build in
+  Spanish documents: the base now loads TikZ's `babel` library.
 - The menu no longer closes when something inside it fails: the error is
   shown, logged with its backtrace, and the menu keeps running.
 - Editing a design's own field (such as `%%SALON%%`) in the menu crashed it.

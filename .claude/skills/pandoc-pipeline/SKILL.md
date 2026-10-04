@@ -29,12 +29,12 @@ and extended). Check which of three places to change:
        emits `CajaMarcada` (box title in the **document** language, from
        `INVESTIGACION_DOC_LANG`) and `ReferenceList`. The latter is defined
        neutral in the base and redefined by each format. Reference headings
-       are recognized in Spanish and English (`referencias`, `references`,
-       `bibliography`, `works cited`…).
+       are recognized in Spanish and English (`referencias`, `obras citadas`,
+       `references`, `bibliography`, `works cited`…).
 3. **`templates/common/investigacion-base.sty`:** the commands Pandoc assumes
    (see the `latex-templates` skill).
 
-**When the accepted syntax changes, update `AI-PROMPT.md`, `GUIDE.md` and
+**When the accepted syntax changes, update `docs/prompts/paper.md`, `docs/reference.md` and
 `examples/catalog.md`.**
 
 To see what Pandoc produces:

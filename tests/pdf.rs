@@ -31,6 +31,11 @@ Una nota al pie[^1] y una cita.
 
 > Cita en bloque.
 
+```tikz
+\draw[->] (0,0) -- (2,0);
+\draw[<->] (0,1) -- (2,1);
+```
+
 # Conclusión
 
 Cierre con símbolos 100% & seguros.

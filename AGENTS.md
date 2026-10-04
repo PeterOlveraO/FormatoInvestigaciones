@@ -131,10 +131,10 @@ courses/         course profiles; only example.toml and README.md are tracked
 examples/        Spanish sample papers; catalog.md is the visual test bench
 ```
 
-Pipeline: `read_markdown` → `normalize_markdown` → `resolve_layout` (design +
-format) → `missing_data` → `validate_markdown` (the format's headings) →
-`pandoc_to_latex` (a LaTeX **fragment**) → `render_template` → `compile_pdf`
-→ `copy_pdf_to`.
+Pipeline (`cli::execute` → `generate::generate_pdf`): `resolve_layout`
+(design + format) → `missing_data` → `read_markdown` (+ `normalize_markdown`)
+→ `validate_markdown` (the format's headings) → `pandoc_to_latex` (a LaTeX
+**fragment**) → `render_template` → `compile_pdf` → `copy_pdf_to`.
 
 ## Domain knowledge (load when relevant)
 
@@ -150,11 +150,17 @@ on the matching files; other agents can open them by path.
 
 ## Docs to update when behavior changes
 
-- `README.md`: overview, install, first run, quick use.
+- `README.md`: short overview for people, install, first use, doc index.
 - `INSTALL.md`: per-OS installation, configure, update, installation problems.
-- `GUIDE.md`: formats and designs, profiles and wizard, menu, options,
-  syntax, troubleshooting, making a design.
-- `AI-PROMPT.md`: the spec an AI follows to write papers. **Update it whenever
-  the accepted Markdown syntax changes.**
+- `docs/usage.md`: basic use of the menu and the CLI (keep it short).
+- `docs/cli.md`: every CLI option, alias, environment variable and exit code.
+  **Update it with every CLI change.**
+- `docs/reference.md`: the complete reference (pipeline, profiles, formats,
+  designs, markers, syntax, filters, compilation, logging, troubleshooting).
+- `docs/prompts/paper.md`: the prompt an AI follows to write papers. **Update
+  it whenever the accepted Markdown syntax changes.**
+- `docs/prompts/design.md`: the prompt an AI follows to make a design.
+  **Update it whenever the design contract changes.**
+- `llms.txt`: index for AI assistants.
 - `CHANGELOG.md`: user-visible changes.
 - These docs are in English; `examples/` are Spanish papers.

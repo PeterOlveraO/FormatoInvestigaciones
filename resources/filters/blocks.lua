@@ -41,6 +41,9 @@ local REFERENCIAS = {
   ["reference list"] = true,
   ["bibliography"] = true,
   ["works cited"] = true,
+  ["obras citadas"] = true,
+  ["fuentes consultadas"] = true,
+  ["fuentes"] = true,
 }
 
 local function crudo(latex)

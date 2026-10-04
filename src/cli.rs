@@ -104,8 +104,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "title",
         Text::new(
-            "Título del trabajo (solo sale en la portada)",
-            "Title of the paper (only shown on the cover)",
+            "Título del trabajo: portada y datos del PDF (no cambia el nombre del archivo)",
+            "Title of the paper: cover and PDF metadata (does not change the file name)",
         ),
         Some(Text::new("TÍTULO", "TITLE")),
     ),
@@ -128,8 +128,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "profile",
         Text::new(
-            "Perfil de materia de courses/ (p. ej. ia): pone materia, docente, grupo, plantilla y carpetas",
-            "Course profile from courses/ (e.g. ia): sets course, teacher, group, template and folders",
+            "Perfil de materia de courses/ (p. ej. ia): todos los datos de portada, formato, diseño y carpetas",
+            "Course profile from courses/ (e.g. ia): all the cover data, format, design and folders",
         ),
         Some(Text::new("PERFIL", "PROFILE")),
     ),
@@ -250,8 +250,8 @@ pub fn localized_command() -> clap::Command {
     let mut command = Args::command()
         .about(
             Text::new(
-                "Genera un trabajo académico en PDF, con formato APA, a partir de un archivo Markdown.",
-                "Generates an APA academic paper in PDF from a Markdown file.",
+                "Genera un trabajo académico en PDF (APA 7, Harvard o MLA 9) a partir de un archivo Markdown.",
+                "Generates an academic paper in PDF (APA 7, Harvard or MLA 9) from a Markdown file.",
             )
             .get(),
         )
@@ -551,8 +551,19 @@ where
     let project = Project::discover();
     i18n::set(prescan_language(&argv, &project));
     // `--check-template <diseño>` revisa un diseño en vez de generar un trabajo.
-    if let Some(position) = argv.iter().position(|a| a == "--check-template" || a == "--revisar-plantilla") {
-        let Some(design) = argv.get(position + 1) else {
+    // Vale `--check-template x` y `--check-template=x`; una opción no es un nombre.
+    let check = argv.iter().enumerate().find_map(|(i, arg)| {
+        let arg = arg.to_string_lossy();
+        let (flag, inline) =
+            arg.split_once('=').map_or((arg.as_ref(), None), |(f, v)| (f, Some(v.to_owned())));
+        matches!(flag, "--check-template" | "--revisar-plantilla").then(|| {
+            inline
+                .or_else(|| argv.get(i + 1).map(|a| a.to_string_lossy().into_owned()))
+                .filter(|d| !d.starts_with('-'))
+        })
+    });
+    if let Some(design) = check {
+        let Some(design) = design else {
             logging::warn("--check-template without a design name");
             eprintln!(
                 "{}",
@@ -563,7 +574,7 @@ where
             );
             return 2;
         };
-        return crate::check::run_cli(&project, &design.to_string_lossy());
+        return crate::check::run_cli(&project, &design);
     }
     let args = match parse_args(argv) {
         Ok(args) => args,

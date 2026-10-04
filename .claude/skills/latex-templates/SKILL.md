@@ -147,6 +147,12 @@ soul loops forever inside `longtable` and breaks in headings. The fix:
 - covered by `the_extended_syntax_compiles_without_lost_symbols`;
 - safety net: `TOOL_TIMEOUT`.
 
+### TikZ and babel
+
+The base loads `\usetikzlibrary{babel}`: Spanish babel makes `<` and `>`
+active, and without it `->` in a ```tikz``` block or a design fails with
+"Argument of \language@active@arg> has an extra }".
+
 ### pgfplots
 
 The base only loads pgfplots. Styles live in the format (apa7: grayscale via

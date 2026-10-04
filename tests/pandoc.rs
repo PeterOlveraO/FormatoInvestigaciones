@@ -132,4 +132,7 @@ fn boxes_and_references_follow_the_document_language() {
     assert!(latex.contains(r"\begin{ReferenceList}"));
     let Some((spanish, _)) = convert_in("::: note\nOjo.\n:::\n", Lang::Es) else { return };
     assert!(spanish.contains(r"\begin{CajaMarcada}{Nota}"));
+    // MLA en español: «Obras citadas» también abre la lista con sangría.
+    let Some((cited, _)) = convert_in("# Obras citadas\n\nAutor, A. *Título*.\n", Lang::Es) else { return };
+    assert!(cited.contains(r"\begin{ReferenceList}"), "{cited}");
 }

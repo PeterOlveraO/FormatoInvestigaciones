@@ -66,7 +66,7 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
 4. If the menu needs it: add a `FIELDS` entry (`label`, `help`, `example`,
    `empty`, all `Text`) and map it in `App::build_args()`.
 5. Add tests (`src/cli.rs` tests and `tests/cli.rs`).
-6. Update `GUIDE.md` (options table), `CHANGELOG.md` and, if it applies,
+6. Update `docs/cli.md`, `docs/reference.md`, `CHANGELOG.md` and, if it applies,
    `README.md`.
 
 ## TUI (`src/tui/`)
@@ -175,7 +175,7 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   output goes to `output/<folder>`.
 - **Adding a profile key:** add it to `CourseProfile`, `save_profile`, `pick()`
   in `execute()`, the wizard if it is cover data, and `App::apply_profile()`.
-  Document it in `courses/README.md`, `courses/example.toml` and `GUIDE.md`.
+  Document it in `courses/README.md`, `courses/example.toml` and `docs/reference.md`.
 - **`Settings::get(&[names])`:** the first non-empty value, with the
   environment first and `settings.toml` second. Spanish and English key names are both
   accepted. It never mutates the process environment.
