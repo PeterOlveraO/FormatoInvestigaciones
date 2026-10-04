@@ -120,8 +120,12 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   - `App::extras` are the design's custom fields, appended after `FIELDS` and
     refreshed by `refresh_design()`;
   - use `total_fields()`, `field_label()`, `field_value()` and
-    `is_required()` instead of indexing `FIELDS`. The course is required only
-    if the design uses `MATERIA`.
+    `is_required()` instead of indexing `FIELDS`. University, faculty,
+    course and semester are required only if the design uses their marker
+    (`required_marker()`, same rules as `missing_data`);
+  - university, faculty, student and semester have no CLI option:
+    `build_args()` sends them as `--set UNIVERSIDAD=…` (`FACULTAD`, `ALUMNO`,
+    `SEMESTRE`).
 - **Keys work in both languages.**
   - Home: ↑↓, Enter, `s`/`q` quit (`v` view PDF, hidden).
   - Form: `g`/F5 generate, `v` view PDF, `o` options, Esc home, `s`/`q`

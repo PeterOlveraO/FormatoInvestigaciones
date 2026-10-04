@@ -60,11 +60,11 @@ Choose **Generate a PDF**. The fields are:
 
 | Field | What to put |
 |---|---|
-| Course profile | Pick one: it fills the course, teacher, group, format, design and output folder. Optional. |
+| Course profile | Pick one: it fills all the cover data, format, design and output folder. Optional. |
 | Markdown file | **Required.** Browse with the arrows; typing filters the list. |
 | Title | **Required.** Shown on the cover; it does not name the file. |
 | PDF file name | Optional. By default, the name of the Markdown file. |
-| Course, Teacher, Team members, Group | Cover data. Empty means "use the profile's". |
+| University, Faculty, Student, Course, Teacher, Team members, Group, Semester | Cover data. Empty means "use the profile's". Marked `*` when the design needs it. |
 | Format | `apa7`, `harvard`, `mla`… Empty: the first one the design accepts. |
 | Design | The cover and look. Empty: `geometric-cover`. |
 | Output folder | Empty: `output/` (or the profile's folder inside it). |

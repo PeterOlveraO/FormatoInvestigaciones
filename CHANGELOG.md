@@ -75,6 +75,9 @@
   option). `AI-PROMPT.md` became `docs/prompts/paper.md`, and the new
   `docs/prompts/design.md` turns a cover idea into a compatible design.
   `llms.txt` indexes it all for AI assistants.
+- The menu form has **University, Faculty, Student and Semester** fields. The
+  profile fills them, and the design decides which are required, so the menu
+  also works without a profile.
 - `--check-template` also accepts `--check-template=<design>`, and no longer
   takes another option (`--lang`) as the design name.
 - `Obras citadas`, `Fuentes consultadas` and `Fuentes` are recognized as

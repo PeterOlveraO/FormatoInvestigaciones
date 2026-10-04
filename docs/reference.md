@@ -1186,25 +1186,29 @@ quits, `v` opens the last PDF (hidden).
 | 2 | Markdown file | list (folder browser, `.md` only) | **yes** | n/a |
 | 3 | Title | text | **yes** | n/a |
 | 4 | PDF file name | text | no | name of the Markdown (proposed automatically from the chosen file until you type one) |
-| 5 | Course | text | only if the design uses `MATERIA` and does not list it optional | n/a |
-| 6 | Teacher | text | no | profile's; if none, omitted |
-| 7 | Team members | text | no | profile's; if none, the student |
-| 8 | Group | text | no | profile's; if none, omitted |
-| 9 | Format | list | no | first one the design accepts |
-| 10 | Design | list (filtered by the chosen format) | no | `geometric-cover` |
-| 11 | Output folder | text (relative to the project root) | no | `output/` or the profile's |
-| 12 | Extra copies | text, folders separated by `;` | no | no copies |
-| 13+ | The design's own fields | text | per `template.toml` | n/a |
+| 5 | University | text | only if the design uses `UNIVERSIDAD` and does not list it optional | profile's; if none, omitted |
+| 6 | Faculty | text | only if the design uses `FACULTAD` and does not list it optional | profile's; if none, omitted |
+| 7 | Student | text | no | profile's; if none, omitted |
+| 8 | Course | text | only if the design uses `MATERIA` and does not list it optional | n/a |
+| 9 | Teacher | text | no | profile's; if none, omitted |
+| 10 | Team members | text | no | profile's; if none, the student |
+| 11 | Group | text | no | profile's; if none, omitted |
+| 12 | Semester | text | only if the design uses `SEMESTRE` and does not list it optional | profile's; if none, omitted |
+| 13 | Format | list | no | first one the design accepts |
+| 14 | Design | list (filtered by the chosen format) | no | `geometric-cover` |
+| 15 | Output folder | text (relative to the project root) | no | `output/` or the profile's |
+| 16 | Extra copies | text, folders separated by `;` | no | no copies |
+| 17+ | The design's own fields | text | per `template.toml` | n/a |
 
 - A `*` after the label marks required fields; `▸` before the label marks
   fields chosen from a list. Missing required fields show `[missing]` in red.
 - The design's own fields (for example *Salón*) appear at the end when the
   chosen design uses them; values are kept while the design still has them.
-- **University, faculty, student and semester are not form fields.** They come
-  from the profile; without a profile the form cannot give them and a design that
-  requires them fails with "Missing data used by the design...". Create a
-  profile.
-- Choosing a profile fills course, teacher, members, group, format, design, the
+- University, faculty, student and semester reach `execute()` as `--set
+  UNIVERSIDAD=…`, `FACULTAD`, `ALUMNO`, `SEMESTRE` (there are no dedicated CLI
+  options for them), so the form works without a profile too.
+- Choosing a profile fills university, faculty, student, semester, course,
+  teacher, members, group, format, design, the
   design's own fields and the output folder; what you change afterwards wins
   (the same as a CLI option over a profile).
 - Choosing a format removes the chosen design if it does not accept it.

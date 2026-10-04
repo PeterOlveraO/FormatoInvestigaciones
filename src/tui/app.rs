@@ -27,10 +27,14 @@ pub enum FieldKey {
     Markdown,
     Title,
     FileName,
+    University,
+    Faculty,
+    Student,
     Course,
     Teacher,
     Members,
     Group,
+    Semester,
     Format,
     Template,
     Output,
@@ -61,7 +65,7 @@ const NOTHING: Text = Text::new("", "");
 /// El formulario. No incluye el archivo de ajustes, «permitir LaTeX», la
 /// plantilla por ruta ni la carpeta de logos (las opciones 9 a 12 del menú
 /// anterior): siguen disponibles en el CLI para quien las necesite.
-pub const FIELDS: [Field; 12] = [
+pub const FIELDS: [Field; 16] = [
     Field {
         key: FieldKey::Profile,
         label: Text::new("Perfil de materia", "Course profile"),
@@ -111,6 +115,40 @@ pub const FIELDS: [Field; 12] = [
         empty: Text::new("el nombre del Markdown", "the name of the Markdown file"),
     },
     Field {
+        key: FieldKey::University,
+        label: Text::new("Universidad", "University"),
+        kind: FieldKind::Text,
+        // Obligatorios solo si el diseño los usa: ver `App::is_required`.
+        required: false,
+        help: Text::new(
+            "Nombre de la universidad, tal como sale en la portada.",
+            "Name of the university, as shown on the cover.",
+        ),
+        example: Text::new("Universidad Autónoma de Ejemplo", "Example State University"),
+        empty: Text::new("la del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+    },
+    Field {
+        key: FieldKey::Faculty,
+        label: Text::new("Facultad", "Faculty"),
+        kind: FieldKind::Text,
+        required: false,
+        help: Text::new("Facultad o escuela.", "Faculty or school."),
+        example: Text::new("Facultad de Ingeniería", "School of Engineering"),
+        empty: Text::new("la del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+    },
+    Field {
+        key: FieldKey::Student,
+        label: Text::new("Alumno", "Student"),
+        kind: FieldKind::Text,
+        required: false,
+        help: Text::new(
+            "Tu nombre completo. Si hay integrantes, la portada los muestra a ellos en su lugar.",
+            "Your full name. With team members, the cover shows them instead.",
+        ),
+        example: Text::new("Ana Ruiz Pérez", "Ana Ruiz Pérez"),
+        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+    },
+    Field {
         key: FieldKey::Course,
         label: Text::new("Materia", "Course"),
         kind: FieldKind::Text,
@@ -151,6 +189,15 @@ pub const FIELDS: [Field; 12] = [
         required: false,
         help: Text::new("Grupo de la materia.", "Group of the course."),
         example: Text::new("7-A", "7-A"),
+        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+    },
+    Field {
+        key: FieldKey::Semester,
+        label: Text::new("Semestre", "Semester"),
+        kind: FieldKind::Text,
+        required: false,
+        help: Text::new("Semestre o periodo escolar.", "Semester or term."),
+        example: Text::new("7", "7"),
         empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
     },
     Field {
@@ -442,6 +489,17 @@ pub struct App {
     tools_check: Option<Receiver<Vec<Tool>>>,
 }
 
+/// El marcador de los datos que el diseño puede exigir (el alumno nunca se exige).
+fn required_marker(key: FieldKey) -> Option<&'static str> {
+    match key {
+        FieldKey::University => Some("UNIVERSIDAD"),
+        FieldKey::Faculty => Some("FACULTAD"),
+        FieldKey::Course => Some("MATERIA"),
+        FieldKey::Semester => Some("SEMESTRE"),
+        _ => None,
+    }
+}
+
 pub fn index_of(key: FieldKey) -> usize {
     FIELDS.iter().position(|f| f.key == key).unwrap()
 }
@@ -626,10 +684,11 @@ impl App {
     /// la usa; los campos propios si su ficha lo dice.
     pub fn is_required(&self, index: usize) -> bool {
         match FIELDS.get(index) {
-            Some(field) if field.key == FieldKey::Course => self
+            // Mismas reglas que `generate::missing_data`.
+            Some(field) if let Some(marker) = required_marker(field.key) => self
                 .design
                 .as_ref()
-                .is_some_and(|d| d.uses("MATERIA") && !d.manifest.optional.iter().any(|o| o == "MATERIA")),
+                .is_some_and(|d| d.uses(marker) && !d.manifest.optional.iter().any(|o| o == marker)),
             Some(field) => field.required,
             None => self.extras[index - FIELDS.len()].required,
         }
@@ -702,12 +761,18 @@ impl App {
             allow_latex: false,
             design: optional(FieldKey::Template),
             format: optional(FieldKey::Format),
-            fields: self
-                .extras
-                .iter()
-                .filter(|e| !e.value.trim().is_empty())
-                .map(|e| (e.name.clone(), e.value.trim().to_owned()))
-                .collect(),
+            // Los datos generales sin opción propia viajan como `--set`, igual que en el CLI.
+            fields: [
+                ("UNIVERSIDAD", FieldKey::University),
+                ("FACULTAD", FieldKey::Faculty),
+                ("ALUMNO", FieldKey::Student),
+                ("SEMESTRE", FieldKey::Semester),
+            ]
+            .into_iter()
+            .map(|(name, key)| (name.to_owned(), self.value(key).to_owned()))
+            .chain(self.extras.iter().map(|e| (e.name.clone(), e.value.trim().to_owned())))
+            .filter(|(_, value)| !value.is_empty())
+            .collect(),
             doc_lang: None,
             logos: None,
             lang: Some(i18n::current()),
@@ -1109,6 +1174,10 @@ impl App {
         let profile = &course.profile;
         self.set(FieldKey::Course, profile.name.trim());
         for (field, value) in [
+            (FieldKey::University, &profile.university),
+            (FieldKey::Faculty, &profile.faculty),
+            (FieldKey::Student, &profile.student),
+            (FieldKey::Semester, &profile.semester),
             (FieldKey::Teacher, &profile.teacher),
             (FieldKey::Members, &profile.members),
             (FieldKey::Group, &profile.group),

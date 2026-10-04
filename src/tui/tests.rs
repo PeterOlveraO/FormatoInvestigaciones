@@ -849,3 +849,39 @@ fn random_keys_never_panic_at_any_size() {
         }
     }
 }
+
+/// Universidad, facultad, alumno y semestre: se llenan con el perfil, se
+/// exigen solo si el diseño los usa y viajan al CLI como `--set`.
+#[test]
+fn the_general_cover_data_is_in_the_form() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    std::fs::write(
+        project.courses_dir().join("ia.toml"),
+        "name = \"IA\"\nuniversity = \"U\"\nstudent = \"Ana\"\nsemester = \"7\"\n",
+    )
+    .unwrap();
+    let mut app = App::new(project);
+    // El diseño de omisión (geometric-cover) usa UNIVERSIDAD pero no FACULTAD.
+    assert!(app.is_required(index_of(FieldKey::University)));
+    assert!(!app.is_required(index_of(FieldKey::Faculty)));
+    assert!(!app.is_required(index_of(FieldKey::Student)));
+
+    select(&mut app, FieldKey::Profile);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ia");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.value(FieldKey::University), "U");
+    assert_eq!(app.value(FieldKey::Semester), "7");
+    assert!(!app.missing_fields().contains(&"Universidad".to_owned()));
+
+    select(&mut app, FieldKey::Faculty);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "Ingeniería");
+    press(&mut app, KeyCode::Enter);
+    let fields = app.build_args().fields;
+    for pair in [("UNIVERSIDAD", "U"), ("FACULTAD", "Ingeniería"), ("ALUMNO", "Ana"), ("SEMESTRE", "7")] {
+        assert!(fields.contains(&(pair.0.to_owned(), pair.1.to_owned())), "{pair:?} in {fields:?}");
+    }
+    assert!(render(&app).contains("Universidad"));
+}
