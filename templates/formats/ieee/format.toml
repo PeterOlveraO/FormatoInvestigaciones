@@ -1,0 +1,6 @@
+# IEEE (artículo de conferencia, versión genérica): dos columnas, letra de
+# 10 pt, encabezados en números romanos y referencias numeradas.
+name = { es = "IEEE", en = "IEEE" }
+language = "en"
+class_options = "10pt, twocolumn, letterpaper"
+headings = []

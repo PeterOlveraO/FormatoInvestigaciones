@@ -1,0 +1,47 @@
+% format.sty de Harvard (versión genérica). El programa lo copia al temporal
+% como investigacion-format.sty y lo carga después de la base y de babel.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{investigacion-format}[2026/10/04 Formato Harvard]
+
+\RequirePackage[margin=2.5cm]{geometry}
+\RequirePackage{titlesec}
+\RequirePackage{ragged2e}
+\RequirePackage{fancyhdr}
+\RequirePackage{newtxtext, newtxmath}         % Times
+
+% Interlineado de 1.5, sin sangría y con espacio entre párrafos.
+\onehalfspacing
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.8em}
+\setlength{\emergencystretch}{3em}
+
+% Encabezados numerados (1, 1.1, 1.1.1).
+\setcounter{secnumdepth}{3}
+\setcounter{tocdepth}{3}
+\titleformat{\section}{\normalfont\large\bfseries}{\thesection}{0.8em}{}
+\titleformat{\subsection}{\normalfont\normalsize\bfseries}{\thesubsection}{0.8em}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\itshape}{\thesubsubsection}{0.8em}{}
+\titlespacing*{\section}{0pt}{1.2em}{0.4em}
+\titlespacing*{\subsection}{0pt}{1em}{0.3em}
+\titlespacing*{\subsubsection}{0pt}{0.8em}{0.2em}
+
+% «Tabla 1:» y «Figura 1:» en negrita; la tabla con su título arriba y la
+% figura con el pie abajo.
+\captionsetup{labelfont=bf, labelsep=colon, justification=raggedright, singlelinecheck=false}
+\@ifpackageloaded{floatrow}{\floatsetup[figure]{capposition=bottom}}{}
+\AtBeginEnvironment{longtable}{\singlespacing}
+
+% Número de página abajo al centro.
+\pagestyle{fancy}
+\fancyhf{}
+\fancyfoot[C]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+
+% Lista de referencias en orden alfabético con sangría francesa.
+\renewenvironment{ReferenceList}%
+  {\par\setlength{\parindent}{-1.27cm}\setlength{\leftskip}{1.27cm}}%
+  {\par}
+
+% Cuerpo alineado a la izquierda (sin sangría: Harvard separa con espacio).
+\renewcommand{\FormatBodySetup}{\RaggedRight\setlength{\parindent}{0pt}\setlength{\parskip}{0.8em}}
+\endinput

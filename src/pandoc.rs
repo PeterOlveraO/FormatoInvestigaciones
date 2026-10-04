@@ -15,12 +15,14 @@ pub const MARKDOWN_EXTENSIONS: [&str; 3] = ["mark", "emoji", "autolink_bare_uris
 
 /// Filtros Lua, en el orden en que se aplican. Van embebidos en el binario
 /// para no depender de dónde se instale; se escriben a un temporal al usarse.
-pub const LUA_FILTERS: [(&str, &str); 5] = [
+pub const LUA_FILTERS: [(&str, &str); 6] = [
     ("inline_html", include_str!("../resources/filters/inline_html.lua")),
     ("images", include_str!("../resources/filters/images.lua")),
     ("diagrams", include_str!("../resources/filters/diagrams.lua")),
     ("charts", include_str!("../resources/filters/charts.lua")),
     ("blocks", include_str!("../resources/filters/blocks.lua")),
+    // Al final: reescribe las tablas ya filtradas cuando el formato es a dos columnas.
+    ("tables", include_str!("../resources/filters/tables.lua")),
 ];
 
 /// Prefijo con el que los filtros marcan sus avisos en stderr.
@@ -59,6 +61,7 @@ pub fn pandoc_to_latex(
     markdown: &str,
     allow_raw_latex: bool,
     doc_lang: crate::i18n::Lang,
+    two_column: bool,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<String> {
     let (remote, diagrams) = project.media_directories()?;
@@ -101,7 +104,9 @@ pub fn pandoc_to_latex(
         // Los filtros redactan sus avisos en el idioma de la interfaz.
         .env("INVESTIGACION_LANG", crate::i18n::current().code())
         // Y el texto que va dentro del PDF (títulos de las cajas), en el del documento.
-        .env("INVESTIGACION_DOC_LANG", doc_lang.code());
+        .env("INVESTIGACION_DOC_LANG", doc_lang.code())
+        // longtable no funciona a dos columnas: el filtro `tables` lo resuelve.
+        .env("INVESTIGACION_TWOCOLUMN", if two_column { "1" } else { "0" });
 
     let started = std::time::Instant::now();
     let output =

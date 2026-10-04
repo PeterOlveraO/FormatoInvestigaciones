@@ -82,8 +82,15 @@ pub fn generate_pdf(
     let template = template
         .replace("%%FORMAT%%", &layout.format_block(doc_lang))
         .replace("%%CLASS_OPTIONS%%", &layout.class_options());
-    let content =
-        pandoc_to_latex(project, &markdown_path, &markdown, options.allow_raw_latex, doc_lang, on_warning)?;
+    let content = pandoc_to_latex(
+        project,
+        &markdown_path,
+        &markdown,
+        options.allow_raw_latex,
+        doc_lang,
+        layout.is_two_column(),
+        on_warning,
+    )?;
     let rendered = render_template(&template, &content, data)?;
 
     let output_directory = absolute(&expand_home(output_directory));
@@ -133,7 +140,11 @@ pub fn missing_data(layout: &Layout, data: &DocumentData) -> Vec<String> {
     ];
     let mut missing: Vec<String> = standard
         .iter()
-        .filter(|(marker, value)| design.uses(marker) && value.trim().is_empty())
+        .filter(|(marker, value)| {
+            design.uses(marker)
+                && !design.manifest.optional.iter().any(|o| o == marker)
+                && value.trim().is_empty()
+        })
         .map(|(marker, _)| (*marker).to_owned())
         .collect();
     for name in design.custom_fields() {

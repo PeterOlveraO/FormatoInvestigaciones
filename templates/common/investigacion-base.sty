@@ -44,7 +44,8 @@
 \RequirePackage{graphicx}                     % Imágenes incluidas desde Markdown
 \RequirePackage{longtable}                    % Tablas extensas de Markdown
 \RequirePackage{booktabs}                     % Líneas de tablas generadas por Pandoc
-\RequirePackage{array}                        % Columnas de tablas
+\RequirePackage{array}                       % Columnas de tablas
+\IfFileExists{tabularx.sty}{\RequirePackage{tabularx}}{}  % Tablas a dos columnas (filtro tables)
 \RequirePackage{calc}                         % \real{} en los anchos de columna de Pandoc
 \RequirePackage{caption}                      % Pies de tabla y figura
 \RequirePackage{etoolbox}                     % Parches para longtable

@@ -1,0 +1,45 @@
+% format.sty de IEEE (versión genérica de artículo de conferencia). El programa
+% lo copia al temporal como investigacion-format.sty.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{investigacion-format}[2026/10/04 Formato IEEE]
+
+% Márgenes de conferencia IEEE y separación entre columnas.
+\RequirePackage[top=0.75in, bottom=1in, left=0.625in, right=0.625in, columnsep=0.25in]{geometry}
+\RequirePackage{titlesec}
+\RequirePackage{newtxtext, newtxmath}         % Times
+
+\singlespacing
+\setlength{\parindent}{1em}
+\setlength{\parskip}{0pt}
+
+% Encabezados: I. en versalitas centrado, A. en cursiva, 1) en cursiva corrido.
+\setcounter{secnumdepth}{3}
+\renewcommand{\thesection}{\Roman{section}}
+\renewcommand{\thesubsection}{\Alph{subsection}}
+\renewcommand{\thesubsubsection}{\arabic{subsubsection}}
+\titleformat{\section}{\normalfont\normalsize\scshape\centering}{\thesection.}{0.5em}{}
+\titleformat{\subsection}{\normalfont\normalsize\itshape}{\thesubsection.}{0.5em}{}
+\titleformat{\subsubsection}[runin]{\normalfont\normalsize\itshape}{\thesubsubsection)}{0.5em}{}[:]
+\titlespacing*{\section}{0pt}{1.2em}{0.6em}
+\titlespacing*{\subsection}{0pt}{0.8em}{0.4em}
+\titlespacing*{\subsubsection}{\parindent}{0.5em}{0.5em}
+
+% Pies pequeños: «Fig. 1.» abajo de la figura; tablas con número romano arriba.
+\captionsetup{font=footnotesize, labelsep=period}
+\captionsetup[figure]{name=Fig.}
+\renewcommand{\thetable}{\Roman{table}}
+\captionsetup[table]{justification=centering, labelsep=newline}
+\@ifpackageloaded{floatrow}{\floatsetup[figure]{capposition=bottom}\floatsetup[table]{capposition=top}}{}
+
+% Sin número de página (como en las actas de conferencia).
+\pagestyle{empty}
+
+% Referencias numeradas solas: cada párrafo de la lista recibe [1], [2]...
+% en el margen (\llap no abre otro párrafo, así que no se repite).
+\newcounter{ReferenceItem}
+\renewenvironment{ReferenceList}%
+  {\par\footnotesize\setcounter{ReferenceItem}{0}%
+   \setlength{\parindent}{0pt}\setlength{\leftskip}{2.2em}%
+   \everypar{\refstepcounter{ReferenceItem}\llap{[\theReferenceItem]\hspace{0.6em}}}}%
+  {\par}
+\endinput

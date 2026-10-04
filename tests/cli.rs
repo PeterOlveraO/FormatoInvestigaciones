@@ -57,6 +57,9 @@ fn only_the_data_the_design_uses_is_required() {
     std::fs::write(mine.join("template.toml"), "[fields.SALON]\nrequired = true\n").unwrap();
     let without_field = run(dir, "", &["--design", "simple"]);
     assert!(without_field.contains("SALON") && !without_field.contains("UNIVERSIDAD"), "{without_field}");
+    // El informe muestra universidad y materia si existen, pero no las exige.
+    let report = run(dir, "", &["--design", "report"]);
+    assert!(report.contains("no-existe.md"), "{report}");
     // Con el campo, los datos están completos y el error ya es el Markdown que no existe.
     let complete = run(dir, "", &["--design", "simple", "--set", "SALON=B-204"]);
     assert!(complete.contains("no-existe.md"), "{complete}");

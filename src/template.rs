@@ -97,6 +97,9 @@ pub struct DesignManifest {
     pub formats: Vec<String>,
     #[serde(default)]
     pub fields: BTreeMap<String, FieldSpec>,
+    /// Marcadores estándar que el diseño usa pero no exige (`UNIVERSIDAD`…).
+    #[serde(default)]
+    pub optional: Vec<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -293,6 +296,11 @@ impl Layout {
             Lang::En => "english",
         };
         format!("\\usepackage[{babel}]{{babel}}\n\\usepackage{{investigacion-format}}")
+    }
+
+    /// Formatos a dos columnas (IEEE): las tablas se escriben de otra forma.
+    pub fn is_two_column(&self) -> bool {
+        self.class_options().split(',').any(|o| o.trim() == "twocolumn")
     }
 
     pub fn class_options(&self) -> String {

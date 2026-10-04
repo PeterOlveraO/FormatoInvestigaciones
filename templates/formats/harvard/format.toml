@@ -1,0 +1,7 @@
+# Harvard: estilo de autor y año. Esta es una versión genérica del diseño de
+# página; si tu institución pide otra cosa, copia la carpeta y ajústala.
+name = { es = "Harvard", en = "Harvard" }
+language = "es"
+class_options = "12pt, letterpaper"
+# Harvard no impone estructura: sin avisos de encabezados.
+headings = []
