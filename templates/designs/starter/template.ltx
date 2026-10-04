@@ -1,0 +1,62 @@
+% =============================================================================
+% DISEÑO DE ARRANQUE: cópialo para hacer el tuyo
+% =============================================================================
+% 1. Copia esta carpeta a my-templates/designs/<tu-diseño>/ (git la ignora).
+% 2. Cambia lo que quieras entre las marcas «TU DISEÑO».
+% 3. Revísalo con:  investigacion --check-template <tu-diseño>
+%
+% Un diseño solo decide la portada (o el bloque de título) y su aspecto. Las
+% reglas de la norma (letra, interlineado, encabezados, referencias) las pone
+% el FORMATO que elijas (APA 7, Harvard, MLA…), y lo universal (tablas,
+% diagramas, gráficas, símbolos) lo pone la BASE. No hace falta tocar eso.
+% =============================================================================
+
+% --- CONTRATO (obligatorio) --------------------------------------------------
+% Las opciones de la clase (tamaño de letra, papel) las pone el formato.
+\documentclass[%%CLASS_OPTIONS%%]{article}
+% La base universal va primero.
+\usepackage{investigacion-base}
+% En la línea siguiente el programa inserta el idioma (babel) y el formato.
+%%FORMAT%%
+
+% --- DATOS -------------------------------------------------------------------
+% Cada %%MARCADOR%% se reemplaza por un dato. Usa solo los que necesites: el
+% programa pide únicamente los que aparecen aquí. Los estándar son:
+%   TITULO, UNIVERSIDAD, FACULTAD, ALUMNO, INTEGRANTES (nombres separados por
+%   \\), MATERIA, DOCENTE, GRUPO, SEMESTRE y FECHA_ENTREGA.
+% Cualquier otro nombre en mayúsculas es un CAMPO PROPIO: el menú lo pide y se
+% guarda en el perfil. Por ejemplo, para el salón quita el % de esta línea y
+% descríbelo en template.toml ([fields.SALON]):
+%   \newcommand{\Salon}{%%SALON%%}
+\newcommand{\TituloTrabajo}{%%TITULO%%}
+\newcommand{\NombreAlumno}{%%ALUMNO%%}
+\newcommand{\ListaIntegrantes}{%%INTEGRANTES%%}
+\newcommand{\NombreMateria}{%%MATERIA%%}
+\newcommand{\NombreMaestro}{%%DOCENTE%%}
+\newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
+
+% --- CONTRATO (obligatorio): enlaces y metadatos, al final del preámbulo -----
+\usepackage{investigacion-final}
+
+\begin{document}
+
+% ===== TU DISEÑO: la portada o el bloque de título ===========================
+% \ifdefempty{\X}{si está vacío}{si tiene algo} sirve para omitir renglones.
+\begin{center}
+  {\LARGE\bfseries \TituloTrabajo\par}
+  \vspace{1em}
+  \ifdefempty{\ListaIntegrantes}{\NombreAlumno}{\ListaIntegrantes}\par
+  \ifdefempty{\NombreMateria}{}{\NombreMateria\par}
+  \ifdefempty{\NombreMaestro}{}{\NombreMaestro\par}
+  \FechaEntrega\par
+\end{center}
+\vspace{2em}
+% ===== FIN DE TU DISEÑO =======================================================
+
+% El formato ajusta el cuerpo (alineación, sangría) después de la portada.
+\FormatBodySetup
+
+% CONTRATO (obligatorio): aquí entra el trabajo convertido desde Markdown.
+%%CONTENIDO_MARKDOWN%%
+
+\end{document}

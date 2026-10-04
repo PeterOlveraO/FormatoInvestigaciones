@@ -205,3 +205,22 @@ fn a_minimal_design_with_a_custom_field_compiles() {
         .unwrap();
     assert!(pdf.is_file());
 }
+
+#[test]
+fn the_starter_design_passes_the_check_with_every_format() {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    // El catálogo de ejemplo es lo que compila la revisión.
+    let examples = directory.path().join("examples");
+    std::fs::create_dir_all(&examples).unwrap();
+    for file in ["catalog.md", "sample-image.png"] {
+        std::fs::copy(common::root().join("examples").join(file), examples.join(file)).unwrap();
+    }
+    let report = investigacion::check::check_design(&project, "starter", &mut |_| {}).unwrap();
+    assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
+    assert_eq!(report.builds.len(), 3);
+    assert!(report.passed(), "{report:?}");
+}

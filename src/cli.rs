@@ -255,8 +255,8 @@ pub fn localized_command() -> clap::Command {
         )
         .after_help(
             Text::new(
-                "Sin argumentos abre el menú interactivo.",
-                "Run it without arguments to open the interactive menu.",
+                "Sin argumentos abre el menú interactivo.\nPara revisar un diseño propio: investigacion --check-template <diseño>",
+                "Run it without arguments to open the interactive menu.\nTo check your own design: investigacion --check-template <design>",
             )
             .get(),
         )
@@ -494,6 +494,20 @@ where
     let argv: Vec<OsString> = argv.into_iter().map(Into::into).collect();
     let project = Project::discover();
     i18n::set(prescan_language(&argv, &project));
+    // `--check-template <diseño>` revisa un diseño en vez de generar un trabajo.
+    if let Some(position) = argv.iter().position(|a| a == "--check-template" || a == "--revisar-plantilla") {
+        let Some(design) = argv.get(position + 1) else {
+            eprintln!(
+                "{}",
+                tr!(
+                    es: "error: falta el nombre del diseño: --check-template <diseño>",
+                    en: "error: missing the design name: --check-template <design>"
+                )
+            );
+            return 2;
+        };
+        return crate::check::run_cli(&project, &design.to_string_lossy());
+    }
     let args = match parse_args(argv) {
         Ok(args) => args,
         Err(error) => {

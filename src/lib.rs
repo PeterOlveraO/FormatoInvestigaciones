@@ -4,6 +4,7 @@
 #[macro_use]
 pub mod i18n;
 
+pub mod check;
 pub mod cli;
 pub mod compile;
 pub mod courses;
