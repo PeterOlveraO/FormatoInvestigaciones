@@ -6,6 +6,7 @@ use std::process::Command;
 
 use crate::encoding::decode_process_output;
 use crate::error::{GenerationError, Result};
+use crate::logging;
 use crate::process::{RunError, TOOL_TIMEOUT, run_with_timeout};
 use crate::project::Project;
 
@@ -103,6 +104,13 @@ pub fn pandoc_to_latex(
         // Y el texto que va dentro del PDF (títulos de las cajas), en el del documento.
         .env("INVESTIGACION_DOC_LANG", doc_lang.code());
 
+    logging::info(format_args!(
+        "pandoc: converting {} ({} bytes, raw LaTeX {}, document language {})",
+        markdown_path.display(),
+        markdown.len(),
+        allow_raw_latex,
+        doc_lang.code()
+    ));
     let started = std::time::Instant::now();
     let output =
         run_with_timeout(command, Some(markdown.as_bytes().to_vec()), TOOL_TIMEOUT).map_err(|e| match e {
@@ -131,10 +139,21 @@ pub fn pandoc_to_latex(
             en: "Pandoc could not convert the Markdown{suffix}"
         )));
     }
+    // Lo demás que Pandoc dijo (recursos que no pudo leer, sintaxis vieja...)
+    // no se muestra, pero ayuda a entender un PDF raro.
+    let other: Vec<&str> = stderr
+        .lines()
+        .filter(|line| !line.trim().is_empty() && !line.starts_with(FILTER_WARNING_PREFIX))
+        .collect();
+    if !other.is_empty() {
+        logging::debug(format_args!("pandoc stderr:\n{}", other.join("\n")));
+    }
     for warning in filter_warnings(&stderr) {
         on_warning(warning);
     }
-    Ok(decode_process_output(&output.stdout).trim().to_owned())
+    let latex = decode_process_output(&output.stdout).trim().to_owned();
+    logging::debug(format_args!("pandoc: {} bytes of LaTeX", latex.len()));
+    Ok(latex)
 }
 
 #[cfg(test)]

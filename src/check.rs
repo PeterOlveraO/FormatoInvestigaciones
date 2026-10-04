@@ -6,6 +6,7 @@ use crate::document::DocumentData;
 use crate::encoding::decode_text;
 use crate::error::Result;
 use crate::generate::{GenerateOptions, generate_pdf};
+use crate::logging;
 use crate::project::Project;
 use crate::template::{Design, STANDARD_MARKERS, list_formats, load_design};
 
@@ -155,7 +156,14 @@ pub fn check_design(
     on_progress: &mut dyn FnMut(&str),
 ) -> Result<CheckReport> {
     let design = load_design(project, Some(choice))?;
+    logging::info(format_args!("check design: {} ({})", design.key, design.file.display()));
     let mut report = inspect(project, &design);
+    for error in &report.errors {
+        logging::warn(format_args!("check error: {error}"));
+    }
+    for warning in &report.warnings {
+        logging::warn(format_args!("check warning: {warning}"));
+    }
     if !report.errors.is_empty() {
         return Ok(report);
     }
@@ -165,6 +173,7 @@ pub fn check_design(
             es: "No se encontró examples/catalog.md: no se hizo la compilación de prueba.",
             en: "examples/catalog.md was not found: the test build was skipped."
         ));
+        logging::warn(format_args!("check: test build skipped, {} not found", catalog.display()));
         return Ok(report);
     }
     let formats: Vec<Option<String>> = if design.is_self_contained() {
@@ -183,9 +192,13 @@ pub fn check_design(
             file_name: Some(label.clone()),
             ..Default::default()
         };
-        let result = generate_pdf(project, &catalog, output.path(), &data, &options, &mut |_| {})
-            .map(|_| ())
-            .map_err(|e| e.0.lines().take(4).collect::<Vec<_>>().join("\n"));
+        let result = generate_pdf(project, &catalog, output.path(), &data, &options, &mut |_| {});
+        // El registro guarda el error entero; el informe, solo el principio.
+        match &result {
+            Ok(_) => logging::info(format_args!("check build with {label}: ok")),
+            Err(error) => logging::warn(format_args!("check build with {label} failed: {error}")),
+        }
+        let result = result.map(|_| ()).map_err(|e| e.0.lines().take(4).collect::<Vec<_>>().join("\n"));
         report.builds.push((label, result));
     }
     Ok(report)
@@ -202,6 +215,7 @@ pub fn run_cli(project: &Project, choice: &str) -> i32 {
     }) {
         Ok(report) => report,
         Err(error) => {
+            logging::error(format_args!("check design {choice} failed: {error}"));
             eprintln!("Error: {error}");
             return 1;
         }
@@ -221,6 +235,10 @@ pub fn run_cli(project: &Project, choice: &str) -> i32 {
             ),
         }
     }
+    logging::info(format_args!(
+        "check design {choice}: {}",
+        if report.passed() { "passed" } else { "failed" }
+    ));
     if report.passed() {
         println!("{}", tr!(es: "Listo: el diseño se puede usar.", en: "Done: the design is ready to use."));
         0

@@ -13,6 +13,7 @@ pub mod encoding;
 pub mod error;
 pub mod generate;
 pub mod latex;
+pub mod logging;
 pub mod markdown;
 pub mod pandoc;
 pub mod process;

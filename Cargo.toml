@@ -30,4 +30,6 @@ unicode-normalization = "0.1"
 # Binario pequeño y rápido de arrancar; el tiempo real lo gastan Pandoc y pdflatex.
 lto = "thin"
 codegen-units = 1
-strip = true
+# Sin depuración, pero con los nombres de las funciones: así el backtrace de
+# un pánico en cache/logs/ dice dónde ocurrió (cuesta ~0.6 MB).
+strip = "debuginfo"

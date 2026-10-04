@@ -163,7 +163,7 @@ templates/designs/      built-in designs
 templates/logos/        your logos (logo-universidad.png, logo-facultad.png)
 my-templates/formats/   your own formats  (not uploaded to git)
 my-templates/designs/   your own designs  (not uploaded to git)
-cache/                  downloaded images, diagrams and LaTeX state (safe to delete)
+cache/                  downloaded images, diagrams, LaTeX state and logs (safe to delete)
 ```
 
 The Markdown is looked up as written, then inside `input/`, then by name in any
@@ -310,6 +310,26 @@ saved next to the PDF.
 | "Missing data used by the design…" | Fill it in the profile (`p` in the menu), in `.env` or with `--set` |
 | "The design … does not work with the format …" | Choose a format the design lists, or another design |
 | Your own design fails | Run `investigacion --check-template <design>` |
+
+### Logs
+
+Every run, from the menu or the command line, appends to
+`cache/logs/investigacion.log`. It records what the program did, step by step:
+the options it received, the design and format it chose, each Pandoc and
+pdflatex run with its time, every warning and error you saw, and crashes with
+their backtrace. When something fails without a clear message, look at the end
+of this file, or attach it when you ask for help.
+
+- **Size:** if the log is over 1 MB when a run starts, it is renamed to
+  `investigacion.old.log` (replacing the previous one) and a new one starts.
+- **More detail:** set `INVESTIGACION_LOG=debug` to also record the full
+  commands, their folders and Pandoc's own messages.
+- **No log:** set `INVESTIGACION_LOG=off` (or `0`).
+- **Privacy:** the log stays on your computer, inside `cache/`, which git
+  ignores. It contains paths, titles and the messages you saw, so review it
+  before sharing it.
+- If the log cannot be written (for example, a read-only folder), the program
+  keeps working without it.
 
 ## Making your own design
 

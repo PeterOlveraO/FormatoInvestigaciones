@@ -11,6 +11,7 @@ use regex::Regex;
 
 use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
+use crate::logging;
 
 #[derive(Debug, Default, Clone)]
 pub struct Settings {
@@ -19,8 +20,23 @@ pub struct Settings {
 
 impl Settings {
     /// Carga un `.env` sencillo (`CLAVE=valor`, comentarios con `#`, `export`
-    /// opcional y comillas). Si el archivo no existe no es error.
+    /// opcional y comillas). Si el archivo no existe no es error. Un `.env`
+    /// que no se puede leer queda en el registro aunque quien llama lo ignore.
     pub fn load(path: &Path) -> Result<Self> {
+        let result = Self::read(path);
+        match &result {
+            Ok(_) if !path.exists() => {
+                logging::debug(format_args!("settings: {} does not exist", path.display()))
+            }
+            Ok(settings) => {
+                logging::debug(format_args!("settings: {} ({} keys)", path.display(), settings.file.len()))
+            }
+            Err(error) => logging::warn(format_args!("settings file {} not read: {error}", path.display())),
+        }
+        result
+    }
+
+    fn read(path: &Path) -> Result<Self> {
         if !path.exists() {
             return Ok(Self::default());
         }
@@ -97,6 +113,7 @@ impl Settings {
             lines.push(new_line);
         }
         std::fs::write(path, lines.join("\n") + "\n")?;
+        logging::info(format_args!("settings: {key} saved in {}", path.display()));
         Ok(())
     }
 
