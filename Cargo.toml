@@ -1,0 +1,35 @@
+[package]
+name = "investigacion"
+version = "2.0.0"
+edition = "2024"
+rust-version = "1.88"
+description = "Generates academic papers in PDF (APA 7, Harvard, MLA 9) from Markdown with Pandoc and LaTeX."
+license = "GPL-3.0-or-later"
+readme = "README.md"
+default-run = "investigacion"
+
+[[bin]]
+name = "investigacion"
+path = "src/main.rs"
+
+[dependencies]
+chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
+clap = { version = "4", features = ["derive"] }
+crossterm = "0.28"
+opener = "0.8"
+ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+sys-locale = "0.3"
+tempfile = "3"
+thiserror = "2"
+toml = { version = "0.9", default-features = false, features = ["parse", "serde", "std"] }
+unicode-normalization = "0.1"
+
+[profile.release]
+# Binario pequeño y rápido de arrancar; el tiempo real lo gastan Pandoc y pdflatex.
+lto = "thin"
+codegen-units = 1
+# Sin depuración, pero con los nombres de las funciones: así el backtrace de
+# un pánico en cache/logs/ dice dónde ocurrió (cuesta ~0.6 MB).
+strip = "debuginfo"

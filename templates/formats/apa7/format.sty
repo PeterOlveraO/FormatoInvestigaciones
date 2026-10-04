@@ -1,0 +1,112 @@
+% format.sty de APA 7 (trabajo estudiantil). El programa lo copia al temporal
+% como investigacion-format.sty y lo carga después de la base y de babel.
+% Aquí va solo el estilo: letra, márgenes, interlineado, encabezados, pies de
+% tabla y figura, número de página y referencias.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{investigacion-format}[2026/10/04 Formato APA 7]
+
+\RequirePackage[margin=2.54cm]{geometry}      % Márgenes APA (1 pulgada)
+\RequirePackage{indentfirst}                  % Sangría en el primer párrafo
+\RequirePackage{titlesec}                     % Formato de títulos APA
+\RequirePackage{ragged2e}                     % Alineación a la izquierda sin justificar
+\RequirePackage{fancyhdr}                     % Número de página en el encabezado
+\RequirePackage{newtxtext, newtxmath}         % Times New Roman (clon libre) en texto y matemáticas
+
+% Estilo sobrio de las gráficas (escala de grises), como pide APA.
+\@ifpackageloaded{pgfplots}{\pgfplotsset{
+    every axis/.append style={
+      width=0.85\linewidth,
+      height=6.5cm,
+      font=\small,
+      axis line style={gray!60, line width=0.4pt},
+      grid=major,
+      grid style={gray!25, line width=0.3pt},
+      tick style={gray!60},
+      legend style={draw=gray!60, fill=white, font=\small},
+      label style={font=\small},
+      title style={font=\small\bfseries},
+    },
+    % Series distinguibles sin color: cambian el trazo y la marca. Aquí no se
+    % pone `fill`, porque en una gráfica de líneas rellenaría el área bajo la
+    % curva y la convertiría en otra cosa; el relleno de las barras va abajo.
+    cycle list={%
+      {black, mark=*, mark size=1.6pt},
+      {black, mark=square*, mark size=1.6pt, densely dashed},
+      {black, mark=triangle*, mark size=2pt, dotted},
+      {gray!70!black, mark=o, mark size=1.6pt, densely dashdotted},
+    },
+    % Las barras no usan la lista de arriba sino la suya propia, que por
+    % omisión es de colores; sin esto un `ybar` sale azul y rojo.
+    /pgfplots/bar cycle list/.style={/pgfplots/cycle list={%
+      {black, fill=gray!65},
+      {black, fill=gray!35},
+      {black, fill=gray!12},
+      {gray!70!black, fill=white},
+    }},
+  }
+}{}
+
+% APA 7 pide el mismo formato para tablas y figuras: el rótulo («Tabla 1» o
+% «Figura 1») en negrita en su propio renglón y, debajo, el título en cursiva.
+% Pandoc ya coloca el \caption de la tabla ANTES de las filas (ver el bloque de
+% arriba), así que con esto queda arriba, como exige APA; solo falta que el
+% documento traiga la línea «: Título» bajo la tabla en Markdown para que
+% Pandoc genere el \caption (y con él el número «Tabla 1»).
+\captionsetup[table]{skip=6pt, labelfont=bf, textfont=it, labelsep=newline,
+                     singlelinecheck=false, justification=raggedright}
+\captionsetup[figure]{labelfont=bf, textfont=it, labelsep=newline,
+                      singlelinecheck=false, justification=raggedright}
+\@ifpackageloaded{floatrow}{\floatsetup[figure]{capposition=top}}{}
+
+% La lista de referencias de APA 7 lleva sangría francesa: la primera línea al
+% margen y las demás sangradas media pulgada. Es al revés que un párrafo normal,
+% de ahí el \parindent negativo compensado con \leftskip.
+\renewenvironment{ReferenceList}%
+  {\par\setlength{\parindent}{-1.27cm}\setlength{\leftskip}{1.27cm}}%
+  {\par}
+
+% ==========================================
+% CONFIGURACIÓN APA 7.ª EDICIÓN (trabajo estudiantil)
+% ==========================================
+\doublespacing
+\setlength{\parindent}{1.27cm}  % Sangría de 1/2 pulgada
+\setlength{\parskip}{0pt}       % APA no añade espacio entre párrafos
+\setlength{\emergencystretch}{3em}
+\setcounter{secnumdepth}{0}     % Los encabezados APA no se numeran
+\setcounter{tocdepth}{3}
+% Babel fija los titulos en \begin{document}: hay que renombrar dentro de
+% \captionsspanish o el \renewcommand se pierde y sigue apareciendo "Índice".
+% Solo si el documento va en español (con babel en inglés no existe).
+\@ifundefined{captionsspanish}{}{\addto\captionsspanish{\renewcommand{\contentsname}{Contenido}}}
+
+% Las tablas largas se leen mejor a un espacio; APA lo permite.
+\AtBeginEnvironment{longtable}{\singlespacing}
+
+% Encabezados APA: nivel 1 centrado y niveles siguientes alineados a la izquierda
+\titleformat{\section}
+  {\normalfont\normalsize\bfseries\centering}{}{0pt}{}
+\titleformat{\subsection}
+  {\normalfont\normalsize\bfseries}{}{0pt}{}
+\titleformat{\subsubsection}
+  {\normalfont\normalsize\bfseries\itshape}{}{0pt}{}
+\titleformat{\paragraph}[runin]
+  {\normalfont\normalsize\bfseries}{}{\parindent}{}[.]
+\titleformat{\subparagraph}[runin]
+  {\normalfont\normalsize\bfseries\itshape}{}{\parindent}{}[.]
+\titlespacing*{\section}{0pt}{0pt}{0pt}
+\titlespacing*{\subsection}{0pt}{0pt}{0pt}
+\titlespacing*{\subsubsection}{0pt}{0pt}{0pt}
+\titlespacing*{\paragraph}{\parindent}{0pt}{1em}
+\titlespacing*{\subparagraph}{\parindent}{0pt}{1em}
+
+% Encabezado para un trabajo estudiantil APA: solo número de página
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\setlength{\headheight}{15pt}
+
+% APA 7 alinea el cuerpo a la izquierda. \RaggedRight reinicia \parindent a 0,
+% así que la sangría se vuelve a fijar.
+\renewcommand{\FormatBodySetup}{\RaggedRight\setlength{\parindent}{1.27cm}}
+\endinput

@@ -1,0 +1,23 @@
+# Example course profile. The wizard (`p` in the menu) creates these for you;
+# to do it by hand, copy this file with a short name (e.g. `ia.toml`) and use
+# it with `investigacion Tarea1.md -p ia --title "..."`.
+
+name = "Nombre de la materia"            # required
+
+# Cover data: only what the design shows is required.
+university = "Nombre de la universidad"
+faculty = "Nombre de la facultad"
+student = "Nombre del alumno"
+# members = "Ana Ruiz, Luis Paz"         # replaces the student
+teacher = "Nombre del docente"
+group = "7-A"
+semester = "2026-2"
+
+format = "apa7"                          # apa7, harvard, mla…
+design = "geometric-cover"               # geometric-cover, classic-cover, report…
+# language = "es"                        # default: the format's
+folder = "IA"                            # input/IA and output/IA
+
+# The design's own fields, if it has any:
+# [fields]
+# SALON = "B-204"

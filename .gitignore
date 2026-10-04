@@ -1,34 +1,37 @@
-# Entorno virtual y artefactos de Python
-.venv/
-__pycache__/
-*.py[cod]
-*.egg-info/
-.pytest_cache/
+# Rust build output
+/target/
 
-# Datos personales: la configuracion real de cada quien
+# Personal data: everyone's own settings, papers and PDFs
 .env
-
-# PDFs generados y restos de una compilacion fallida
-/output/
-ultimo-error.tex
-ultimo-error.log
-
-# Cache: imagenes descargadas de la web y diagramas dibujados con Graphviz.
-# Se vuelven a generar solos, no tiene sentido versionarlos. La barra inicial
-# ancla el patron a la raiz: sin ella tambien taparia docs/imagenes/, que son
-# las capturas del README.
-/imagenes/
-
-# Trabajos propios en Markdown, que no son parte del proyecto
+settings.toml
 /input/
+/output/
 
-# Los logos de tu institucion NO se suben: normalmente no son redistribuibles.
-# Cada quien deja los suyos en Latex/logos/ (ver el LEEME de esa carpeta) o en
-# la carpeta que indique --logos.
-Latex/logos/*
-!Latex/logos/LEEME.md
+# Course profiles hold teachers' names; only the example is shared
+/courses/*
+!/courses/example.toml
+!/courses/README.md
 
-# Restos de editores y del sistema
+# Institution logos are rarely redistributable; only the explanation is shared
+/templates/logos/*
+!/templates/logos/README.md
+/templates/*/logos/
+
+# Your own formats and designs (my-templates/formats, my-templates/designs)
+/my-templates/
+
+# Regenerable cache: downloaded images, diagrams and LaTeX state
+/cache/
+
+# Leftovers of a failed build (saved next to the PDF)
+last-error.tex
+last-error.log
+
+# Editors and operating systems
 *.save
+*.swp
 *~
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/

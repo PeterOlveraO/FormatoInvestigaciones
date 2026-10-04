@@ -1,0 +1,3 @@
+description = { es = "Portada geométrica con líneas y arcos (TikZ)", en = "Geometric cover with lines and arcs (TikZ)" }
+# Formatos con los que combina; el primero es el de omisión.
+formats = ["apa7", "harvard", "mla"]

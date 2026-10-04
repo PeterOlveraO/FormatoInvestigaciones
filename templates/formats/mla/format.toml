@@ -1,0 +1,7 @@
+# MLA 9: estilo de la Modern Language Association (versión genérica del
+# diseño de página). Una sola columna, compatible con todos los elementos.
+name = { es = "MLA 9", en = "MLA 9" }
+language = "es"
+class_options = "12pt, letterpaper"
+# MLA no impone estructura: sin avisos de encabezados.
+headings = []

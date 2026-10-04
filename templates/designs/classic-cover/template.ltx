@@ -1,0 +1,84 @@
+% Opciones de la clase (tamaño de letra, papel, columnas): las pone el formato.
+\documentclass[%%CLASS_OPTIONS%%]{article}
+
+% ==========================================
+% CONTRATO DEL DISEÑO
+% ==========================================
+% La base universal (Pandoc, diagramas, gráficas, símbolos) va primero; en
+% la línea marcada abajo el programa inserta el idioma (babel) y el formato (APA,
+% Harvard, MLA...). Este diseño solo aporta sus datos y su portada.
+\usepackage{investigacion-base}
+%%FORMAT%%
+
+% ==========================================
+% DATOS EDITABLES DE LA PLANTILLA
+% ==========================================
+\newcommand{\NombreUniversidad}{%%UNIVERSIDAD%%}
+\newcommand{\NombreFacultad}{%%FACULTAD%%}
+\newcommand{\TituloTrabajo}{%%TITULO%%}
+\newcommand{\NombreAlumno}{%%ALUMNO%%}
+% Lista de integrantes del equipo: el generador ya la entrega escapada y con los
+% nombres unidos por \\, para que caigan en renglones distintos. Puede quedar
+% vacía; la portada omite entonces la línea completa.
+\newcommand{\ListaIntegrantes}{%%INTEGRANTES%%}
+\newcommand{\NombreMateria}{%%MATERIA%%}
+\newcommand{\GrupoMateria}{%%GRUPO%%}
+\newcommand{\NombreMaestro}{%%DOCENTE%%}
+\newcommand{\SemestreActual}{%%SEMESTRE%%}
+\newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
+
+% hyperref, footnotehyper y los metadatos del PDF: van al final del preámbulo.
+\usepackage{investigacion-final}
+
+\begin{document}
+% ==========================================
+% PORTADA (diseño clásico centrado, sin adornos)
+% ==========================================
+% Misma información y mismas reglas que la portada de `apa`: el orden de los
+% datos es fijo, los integrantes sustituyen al alumno y las líneas vacías se
+% omiten. Solo cambia el diseño: todo centrado y sin TikZ.
+\begin{titlepage}
+    \thispagestyle{fancy}
+    \centering
+    \singlespacing
+    % Los logos son opcionales: sin ellos la portada se compila igual.
+    \IfFileExists{logo-universidad.png}{\includegraphics[height=2cm]{logo-universidad}}{}%
+    \IfFileExists{logo-facultad.png}{\hspace{1.5cm}\includegraphics[height=1.2cm]{logo-facultad}}{}%
+    \par\vspace{1cm}
+    {\large\bfseries \NombreUniversidad\par}
+    \vspace{0.3cm}
+    {\normalsize \NombreFacultad\par}
+    \vfill
+    {\LARGE\bfseries \TituloTrabajo\par}
+    \vfill
+    % Cada línea lleva su propio salto dentro del condicional, para no dejar
+    % un renglón vacío cuando el dato falta.
+    \ifdefempty{\ListaIntegrantes}{%
+        \ifdefempty{\NombreAlumno}{}{\textbf{Alumno:} \NombreAlumno\par\vspace{0.25cm}}%
+    }{%
+        \textbf{Integrantes:}\par
+        \begin{tabular}{c}\ListaIntegrantes\end{tabular}\par\vspace{0.25cm}%
+    }%
+    \textbf{Materia:} \NombreMateria\par\vspace{0.25cm}
+    \ifdefempty{\NombreMaestro}{}{\textbf{Docente:} \NombreMaestro\par\vspace{0.25cm}}%
+    \textbf{Semestre:} \SemestreActual\par
+    \ifdefempty{\GrupoMateria}{}{\vspace{0.25cm}\textbf{Grupo:} \GrupoMateria\par}%
+    \vfill
+    {\bfseries Fecha de entrega: \FechaEntrega\par}
+\end{titlepage}
+
+% El entorno titlepage reinicia el contador; APA cuenta la portada como página 1.
+\setcounter{page}{2}
+
+% El formato decide cómo empieza el cuerpo (alineación, sangría...).
+\FormatBodySetup
+
+\tableofcontents
+\newpage
+
+% ==========================================
+% CONTENIDO CONVERTIDO DESDE MARKDOWN
+% ==========================================
+%%CONTENIDO_MARKDOWN%%
+
+\end{document}

@@ -1,0 +1,38 @@
+# Formato de Investigaciones (`investigacion`)
+
+> Rust CLI and full-screen terminal menu that turns an academic paper written in Markdown into a PDF: Pandoc → LaTeX (format + design) → pdflatex. Formats: APA 7 (default), Harvard, MLA 9. Designs: geometric-cover (default), classic-cover, report, starter, or user-made ones in my-templates/. Cover data comes from course profiles (courses/<key>.toml) or `--set NAME=value`. Interface in Spanish or English; papers Spanish by default. Version 2.0.0 supports Linux; Windows and macOS are planned. GPL-3.0-or-later.
+
+Facts that are easy to get wrong:
+
+- The Markdown holds only the content. The program adds the cover, title, author, date and table of contents.
+- There is no `.env`. Data precedence: CLI option (including `--set UNIVERSIDAD=…`) > course profile. `settings.toml` only remembers the interface language (`IDIOMA`) and an optional `LOGOS` folder.
+- Running `investigacion` with no arguments opens the menu; with arguments it is the CLI.
+- A missing image, symbol or Graphviz is a warning. A broken ```pgfplot``` or ```tikz``` block is the only intended hard failure.
+- Diagnostic log: `cache/logs/investigacion.log` (`INVESTIGACION_LOG=debug|off`).
+
+## Docs
+
+- [README.md](README.md): what it is, install, first use
+- [docs/usage.md](docs/usage.md): basic use of the menu and the CLI
+- [docs/cli.md](docs/cli.md): every command, option, alias, environment variable and exit code
+- [docs/reference.md](docs/reference.md): complete reference: pipeline, profiles, formats, designs, markers, Markdown syntax, filters, compilation, logging, troubleshooting
+- [INSTALL.md](INSTALL.md): installation per OS
+
+## Prompts
+
+- [docs/prompts/paper.md](docs/prompts/paper.md): prompt for an AI to write a paper that uses every supported element
+- [docs/prompts/design.md](docs/prompts/design.md): prompt for an AI to turn a cover description into a compatible design (template.ltx + template.toml)
+
+## Working on the code
+
+- [AGENTS.md](AGENTS.md): rules, layout, commands for coding agents
+- [.claude/skills/latex-templates/SKILL.md](.claude/skills/latex-templates/SKILL.md): template layers, design contract, LaTeX traps
+- [.claude/skills/pandoc-pipeline/SKILL.md](.claude/skills/pandoc-pipeline/SKILL.md): Markdown reading, Lua filters, caches
+- [.claude/skills/bilingual-interface/SKILL.md](.claude/skills/bilingual-interface/SKILL.md): i18n, CLI, TUI, profiles
+
+## Optional
+
+- [examples/catalog.md](examples/catalog.md): every supported element (rendered: examples/catalog.pdf)
+- [examples/syntax.md](examples/syntax.md): syntax reference paper
+- [courses/example.toml](courses/example.toml): profile schema with placeholder data
+- [CHANGELOG.md](CHANGELOG.md): user-visible changes

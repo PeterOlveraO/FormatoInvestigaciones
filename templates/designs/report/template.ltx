@@ -1,0 +1,45 @@
+% Diseño «report»: informe con un bloque de título compacto, sin portada.
+% Combina con cualquier formato de una columna.
+\documentclass[%%CLASS_OPTIONS%%]{article}
+
+% Contrato del diseño: la base primero y, en la línea marcada abajo, el idioma
+% y el formato que inserta el programa.
+\usepackage{investigacion-base}
+%%FORMAT%%
+
+% Datos (los opcionales pueden llegar vacíos; ver template.toml).
+\newcommand{\TituloTrabajo}{%%TITULO%%}
+\newcommand{\NombreAlumno}{%%ALUMNO%%}
+\newcommand{\ListaIntegrantes}{%%INTEGRANTES%%}
+\newcommand{\NombreMateria}{%%MATERIA%%}
+\newcommand{\NombreMaestro}{%%DOCENTE%%}
+\newcommand{\GrupoMateria}{%%GRUPO%%}
+\newcommand{\NombreFacultad}{%%FACULTAD%%}
+\newcommand{\NombreUniversidad}{%%UNIVERSIDAD%%}
+\newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
+
+% Bloque de título: cada renglón aparece solo si tiene datos.
+\newcommand{\ReportTitleBlock}{%
+  \begin{center}
+    {\LARGE\bfseries \TituloTrabajo\par}\vspace{0.8em}
+    {\large\ifdefempty{\ListaIntegrantes}{\NombreAlumno}{\ListaIntegrantes}\par}\vspace{0.4em}
+    \ifdefempty{\NombreMateria}{}{\NombreMateria
+      \ifdefempty{\NombreMaestro}{}{ \textperiodcentered{} \NombreMaestro}%
+      \ifdefempty{\GrupoMateria}{}{ \textperiodcentered{} \GrupoMateria}\par}
+    \ifdefempty{\NombreFacultad}{}{\NombreFacultad\par}
+    \ifdefempty{\NombreUniversidad}{}{\NombreUniversidad\par}
+    \vspace{0.4em}{\small \FechaEntrega\par}
+  \end{center}}
+
+% El bloque de título, el índice y un poco de aire antes del contenido.
+\newcommand{\ReportStart}{\ReportTitleBlock\tableofcontents\vspace{1em}}
+
+\usepackage{investigacion-final}
+
+\begin{document}
+\ReportStart
+\FormatBodySetup
+
+%%CONTENIDO_MARKDOWN%%
+
+\end{document}
