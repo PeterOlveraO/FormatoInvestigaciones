@@ -29,7 +29,14 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
 ## CLI (`src/cli.rs`)
 
 - **Option names** are English. Old names are hidden `alias`/`aliases`
-  (`--titulo`, `--materia`, `--subject`, `--perfil`…); never remove them.
+  (`--titulo`, `--materia`, `--subject`, `--perfil`, `--template` for
+  `--design`…); never remove them.
+- **Layout and data options:**
+  - `--format`, `--design`;
+  - `--set NAME=value` (repeatable, `parse_field`, the name is uppercased);
+  - `--doc-lang` (document language, separate from `--lang`).
+- **`--check-template <design>`** is handled in `main_with_args` **before**
+  clap parsing (it needs no Markdown or title) and runs `check::run_cli`.
 - **Help text** lives in `ARG_HELP` (`(id, Text help, Option<Text> value
   name)`), applied by `localized_command()` with `mut_arg`. It provides custom
   `-h/--help` and `-V/--version` and a `help_template` with translated
@@ -41,9 +48,12 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
   `MissingRequiredArgument`, `UnknownArgument` (adding the "put values with
   spaces in quotes" hint when the stray argument has no leading `-`),
   `InvalidValue` and `ValueValidation`. Other kinds use clap's message.
-- **Running a generation.** `execute()` resolves `.env`, the profile and the
-  Markdown, builds `DocumentData` with `pick()` (option > profile > `.env`) and
-  reports through `Reporter`.
+- **Running a generation.** `execute()`:
+  1. loads `.env` and the profile, then `resolve_layout` (design + format);
+  2. builds `DocumentData` with `pick()` (option > profile > `.env`), all
+     cover data included;
+  3. checks `missing_data()` before reading the Markdown;
+  4. validates with the format's headings and reports through `Reporter`.
 
 ### Checklist: adding a CLI option
 
@@ -69,13 +79,32 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   **never draws**; `ui.rs` only draws.
 - **Tests** go in `src/tui/tests.rs`, with `press()`/`type_text()` and
   `render()` (`TestBackend`, 120×32).
-- **Modes:** `ChooseLanguage` → `Form` ↔ `Editing` / `Picking` → `Generating`.
-- **First run.** `tui::run()` opens `ChooseLanguage` when no `IDIOMA` is saved,
-  with the system language preselected. Enter saves it with
-  `Settings::save_value()`; Esc uses it without saving.
-- **Keys work in both languages:** `g`/F5 generate, `v` view PDF, `c`/`f`
-  folders, `l` toggle language (and save), `s`/`q`/Esc quit, digits jump to a
-  field. Each language's footer shows its own letters, and the `l` entry shows
+- **Modes:** `ChooseLanguage` → `Wizard` → `Form` ↔ `Editing` / `Picking` →
+  `Generating`.
+- **First run** (`App::start`):
+  - `ChooseLanguage` when no `IDIOMA` is saved, with the system language
+    preselected. Enter saves it with `Settings::save_value()`; Esc uses it
+    without saving.
+  - Then the profile wizard if `courses/` has no profiles
+    (`pending_wizard`).
+- **Profile wizard** (`wizard.rs`, `p` in the form):
+  - steps: key → format → design (filtered by `accepts`) → one step per marker
+    the design uses (`STANDARD_STEPS` order) plus its custom fields → folder;
+  - required data follows the same rules as `missing_data`;
+  - Shift+Tab goes back;
+  - `courses::save_profile` writes the TOML (only non-empty keys);
+  - each profile holds **all** its data.
+- **Form:**
+  - `FIELDS` are the fixed fields (including Format and Design pickers; the
+    design list is filtered by the chosen format);
+  - `App::extras` are the design's custom fields, appended after `FIELDS` and
+    refreshed by `refresh_design()`;
+  - use `total_fields()`, `field_label()`, `field_value()` and
+    `is_required()` instead of indexing `FIELDS`. The course is required only
+    if the design uses `MATERIA`.
+- **Keys work in both languages:** `g`/F5 generate, `v` view PDF, `p` profile
+  wizard, `c`/`f` folders, `l` toggle language (and save), `s`/`q`/Esc quit,
+  digits jump to a field. Each language's footer shows its own letters, and the `l` entry shows
   the *other* language's name.
 - **One picker for everything.** `picker.rs` serves the Markdown (folder
   browsing, `.md` only), profiles, templates and project folders. The filter
@@ -90,15 +119,19 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
 
 ## Course profiles and settings
 
-- **`courses/<key>.toml`** (`CourseProfile`) holds `name` (required; alias
-  `subject`), `teacher`, `group`, `members`, `template` and `folder`.
+- **`courses/<key>.toml`** (`CourseProfile`) holds:
+  - `name` (required; alias `subject`);
+  - `university`, `faculty`, `student`, `semester`, `members`, `teacher`,
+    `group`;
+  - `format` and `design` (alias `template`);
+  - `language`, `folder`, and `[fields]` for custom fields.
 - **`deny_unknown_fields`:** a typo is an error, not silently ignored. The
   `toml` crate's detail message stays English.
 - **`folder`:** the Markdown is looked up in `input/<folder>` first, and the
   output goes to `output/<folder>`.
-- **Adding a profile key:** add it to `CourseProfile`, use it through `pick()`,
-  fill it in `App::apply_profile()`, and document it in `courses/README.md`,
-  `courses/example.toml` and `GUIDE.md`.
+- **Adding a profile key:** add it to `CourseProfile`, `save_profile`, `pick()`
+  in `execute()`, the wizard if it is cover data, and `App::apply_profile()`.
+  Document it in `courses/README.md`, `courses/example.toml` and `GUIDE.md`.
 - **`Settings::get(&[names])`:** the first non-empty value, with the
   environment first and `.env` second. Spanish and English key names are both
   accepted. It never mutates the process environment.

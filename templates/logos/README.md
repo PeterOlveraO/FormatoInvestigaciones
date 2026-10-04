@@ -18,4 +18,4 @@ institutional logos are rarely redistributable.
 - **Another folder.** To keep them outside the project, use `--logos <folder>`
   or set `LOGOS="<folder>"` in `.env`.
 - **Position.** If they look misplaced, adjust the `LOGOS` block of
-  `templates/apa/template.ltx` (`xshift`, `yshift`, `height`).
+  `templates/designs/geometric-cover/template.ltx` (`xshift`, `yshift`, `height`).

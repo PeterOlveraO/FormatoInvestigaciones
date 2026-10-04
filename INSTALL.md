@@ -98,28 +98,30 @@ new location.
 
 ## 3. Configure
 
-```bash
-cp .env.example .env          # Windows: copy .env.example .env
-```
+Run `investigacion`. The first time it asks for the language and opens the
+**profile wizard**. The wizard asks for the format (APA 7, Harvard, MLA), the
+design and all the cover data, and saves them in `courses/<name>.toml`. There
+is nothing else to configure.
 
-Edit `.env`:
+Optional:
 
-| Variable | Required | Example |
-|---|---|---|
-| `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE` | Yes | `"Universidad X"`, `"Facultad de Ingeniería"`, `"2026-2"` |
-| `ALUMNO` | No | Your name, for individual papers |
-| `INTEGRANTES`, `DOCENTE`, `GRUPO` | No | Defaults when there is no option or course profile |
-| `LOGOS` | No | A logos folder outside the project |
-| `IDIOMA` | No | `es` or `en`. The menu saves it after you choose the language |
+- **Logos:** add them to `templates/logos/` (`logo-universidad.png`,
+  `logo-facultad.png`).
+- **A `.env` file** with fallback data (`cp .env.example .env`). It is used
+  only when a profile does not give a value:
 
-Optionally add your logos to `templates/logos/` and your course profiles to
-`courses/` (see [GUIDE.md](GUIDE.md#course-profiles)).
+| Variable | Example |
+|---|---|
+| `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `ALUMNO` | `"Universidad X"`, `"Facultad de Ingeniería"`, `"2026-2"`, your name |
+| `INTEGRANTES`, `DOCENTE`, `GRUPO` | Team, teacher, group |
+| `LOGOS` | A logos folder outside the project |
+| `IDIOMA` | `es` or `en`. The menu saves it after you choose the language |
 
 ## 4. Check that it works
 
 ```bash
 cargo --version && pandoc --version && pdflatex --version && dot -V
-investigacion examples/catalog.md --title "Catalogo" --course "Prueba"
+investigacion examples/catalog.md --title "Catalogo" --course "Prueba" --env-file .env.example
 ```
 
 Run the second command from the project folder. If it ends with `PDF

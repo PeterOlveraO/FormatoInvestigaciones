@@ -18,7 +18,7 @@ git. They **must not contain personal data or institutional logos**:
    ```bash
    cargo build --release
    mkdir -p /tmp/nologos
-   target/release/investigacion examples/catalog.md \
+   target/release/investigacion examples/catalog.md --design geometric-cover --format apa7 \
      --title "Catalogo de elementos" --course "Nombre de la materia" \
      --teacher "Nombre del docente" --group "7-A" \
      --env-file .env.example --logos /tmp/nologos --output /tmp/pub --lang es

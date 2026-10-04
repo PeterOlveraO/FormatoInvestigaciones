@@ -25,11 +25,14 @@ and extended). Check which of three places to change:
        block stays as code and a warning is printed.
      - `charts`: wraps ` ```pgfplot `/` ```tikz ` in `tikzpicture`, plus a
        figure when there is a caption. Real LaTeX, so errors stop the build.
-     - `blocks`: `::: nota` boxes and hanging-indent references. They emit
-       `CajaMarcada`/`ReferenciasAPA`, defined in `investigacion.sty`; change
-       both together.
-3. **`templates/common/investigacion.sty`:** the commands Pandoc assumes (see
-   the `latex-templates` skill).
+     - `blocks`: `::: nota`/`::: note` boxes and the references section. It
+       emits `CajaMarcada` (box title in the **document** language, from
+       `INVESTIGACION_DOC_LANG`) and `ReferenceList`. The latter is defined
+       neutral in the base and redefined by each format. Reference headings
+       are recognized in Spanish and English (`referencias`, `references`,
+       `bibliography`, `works cited`…).
+3. **`templates/common/investigacion-base.sty`:** the commands Pandoc assumes
+   (see the `latex-templates` skill).
 
 **When the accepted syntax changes, update `AI-PROMPT.md`, `GUIDE.md` and
 `examples/catalog.md`.**
@@ -46,8 +49,13 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
 - **Warnings.** Write them to stderr as `[investigacion] <message>`.
   `filter_warnings()` picks them out and they reach the same `on_warning`
   callback as the LaTeX warnings.
-- **Language.** Messages are bilingual: use `texto(es, en)`, driven by
-  `INVESTIGACION_LANG`, which `pandoc_to_latex()` sets.
+- **Two languages, two variables.**
+  - **Warnings** to the user follow the interface language: use
+    `texto(es, en)` driven by `INVESTIGACION_LANG`.
+  - **Text that goes into the PDF** (box titles) follows the document
+    language: `INVESTIGACION_DOC_LANG`.
+  - `pandoc_to_latex()` sets both; the document language comes from
+    `Layout::document_language()`.
 - **Never fail.** On a problem, replace the image with its alt text (or leave
   the diagram as code) and warn.
 - **Paths from Rust.** `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`
@@ -105,7 +113,7 @@ With a course profile, `locate_markdown()` searches `input/<folder>` first.
 - **raw_tex is off by default.** Pandoc runs with `markdown-raw_tex` unless
   `--allow-latex` is given, so a path like `C:\Users\...` prints literally
   instead of breaking LaTeX. `$...$` math works in both modes.
-- **Structure warnings.** `validate_markdown()` only warns about missing or
-  out-of-order `Introducción`, `Desarrollo`, `Conclusión` and `Referencias`.
-  The heading names stay Spanish in both interface languages.
+- **Structure warnings.** `validate_markdown(markdown, headings)` warns about
+  missing or out-of-order headings from the format's `format.toml` `headings`.
+  Only `apa7` defines them; no headings means no warnings.
   `markdown_headings()` ignores fenced code.

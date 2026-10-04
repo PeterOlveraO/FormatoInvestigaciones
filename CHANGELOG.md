@@ -1,5 +1,44 @@
 # Changelog
 
+## Unreleased (branch `mejoras-rust`)
+
+### Added
+
+- **Formats and designs, kept separate.**
+  - The format is the norm (`apa7`, `harvard`, `mla`); the design is the
+    cover and the look (`geometric-cover`, `classic-cover`, `report`,
+    `starter`).
+  - Each design lists the formats it works with.
+  - Choose them with `--format`/`--design`, in the menu or in the profile.
+- **Harvard and MLA 9** formats (generic versions) next to APA 7.
+- **`report` design:** a compact title block without a cover.
+- **`starter` design:** heavily commented, to copy when making your own.
+- **Your own formats and designs** in `my-templates/` (not uploaded to git).
+  - Any `%%NAME%%` a design uses that is not a standard field becomes a field
+    of its own, asked for in the menu and the wizard, saved in the profile or
+    given with `--set NAME=value`.
+  - `investigacion --check-template <design>` checks a design and builds the
+    example catalog with each format it accepts.
+- **Profile wizard.** It opens the first time and with `p`, and asks for the
+  format, the design and all the data the design shows. Each profile keeps
+  all its own data (university, faculty, student, semester…).
+- **Document language** (`--doc-lang`, or `language` in the profile): the
+  date, "Contents", "Figure" and the box titles.
+
+### Changed
+
+- Only the data the chosen design uses is required. A design without
+  `%%UNIVERSIDAD%%` no longer asks for it.
+- The structure warning (Introducción… Referencias) only applies to formats
+  that define it (APA 7).
+- `--template` is now `--design`. The old name and the old profile key
+  `template` still work, and `apa`/`apa-simple` map to
+  `geometric-cover`/`classic-cover` with `apa7`.
+- `templates/apa/` and `templates/apa-simple/` moved to
+  `templates/designs/geometric-cover/` and `classic-cover/`. The shared
+  preamble is now `templates/common/investigacion-base.sty`, plus one
+  `format.sty` per format.
+
 ## 0.2.0 (2026-10, branch `mejoras-rust`)
 
 The program was rewritten in Rust and gained a full-screen menu, course
