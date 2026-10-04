@@ -125,6 +125,9 @@ people and AI assistants.
 
 ### Fixed
 
+- The placeholder profile `example.toml` counted as a profile, so a new user
+  never got the wizard on the first run. It is no longer listed in the menu;
+  `-p example` still works.
 - If the project folder cannot be found (for example, the clone was moved
   after `cargo install`), the program says so and how to fix it, instead of
   reporting "no profiles" or "no designs".

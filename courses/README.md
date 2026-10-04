@@ -21,5 +21,8 @@ The file name is the profile's key: `ia.toml` is used with `-p ia`.
 Precedence: command-line option > profile. Every cover datum the design shows
 comes from here (there is no `.env`); the wizard asks for all of them.
 
+`example.toml` is not listed in the menu (so a new user gets the wizard), but
+`-p example` works on the command line.
+
 This folder is ignored by git except for `example.toml` and this file, because
 the data in it (names, teachers) is your own.

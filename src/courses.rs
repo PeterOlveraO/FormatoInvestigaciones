@@ -100,6 +100,9 @@ impl Course {
 
 /// Todos los perfiles de `courses/`, ordenados por clave. Un perfil roto no
 /// impide ver los demás: se devuelve aparte para poder avisar.
+/// El perfil de ejemplo que trae el repositorio.
+pub const EXAMPLE_PROFILE: &str = "example";
+
 pub fn list_courses(project: &Project) -> (Vec<Course>, Vec<GenerationError>) {
     let mut paths: Vec<PathBuf> = std::fs::read_dir(project.courses_dir())
         .into_iter()
@@ -107,6 +110,9 @@ pub fn list_courses(project: &Project) -> (Vec<Course>, Vec<GenerationError>) {
         .flatten()
         .map(|entry| entry.path())
         .filter(|path| path.extension().is_some_and(|ext| ext == "toml") && path.is_file())
+        // `example.toml` es de relleno (docs, `-p example`): no cuenta como perfil
+        // propio, así el asistente se abre la primera vez. `find_course` lo sigue leyendo.
+        .filter(|path| path.file_stem().is_none_or(|stem| stem != EXAMPLE_PROFILE))
         .collect();
     paths.sort();
     let (mut courses, mut errors) = (Vec::new(), Vec::new());
@@ -205,6 +211,16 @@ pub fn save_profile(project: &Project, key: &str, profile: &CourseProfile) -> Re
 
 #[cfg(test)]
 mod tests {
+
+    #[test]
+    fn the_example_profile_is_not_listed_but_can_be_used() {
+        let directory = tempfile::tempdir().unwrap();
+        let project = Project::at(directory.path());
+        std::fs::create_dir_all(project.courses_dir()).unwrap();
+        std::fs::write(project.courses_dir().join("example.toml"), "name = \"Materia\"\n").unwrap();
+        assert!(list_courses(&project).0.is_empty());
+        assert_eq!(find_course(&project, "example").unwrap().profile.name, "Materia");
+    }
     use super::*;
 
     fn project_with(files: &[(&str, &str)]) -> (tempfile::TempDir, Project) {

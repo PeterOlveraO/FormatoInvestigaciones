@@ -429,6 +429,9 @@ Behavior:
   format, design, language, folder`, then `[fields]`. The key is `slugify`'d.
   An existing file with the same key is replaced.
 - **Privacy:** `courses/*.toml` is git-ignored except `example.toml`.
+- **`example.toml`** holds placeholders. It is not listed in the menu and does
+  not count as a profile (so the wizard opens on the first run), but
+  `-p example` still works on the command line.
 
 ### The profile wizard (`src/tui/wizard.rs`)
 
