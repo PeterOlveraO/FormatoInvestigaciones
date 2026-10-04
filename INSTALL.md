@@ -80,13 +80,10 @@ sudo tlmgr install newtx pgfplots pgf-pie twemojis pmboxdraw floatrow \
 ## 2. Install the program
 
 ```bash
-git clone -b mejoras-rust https://github.com/PeterOlveraO/FormatoInvestigaciones.git
+git clone https://github.com/PeterOlveraO/FormatoInvestigaciones.git
 cd FormatoInvestigaciones
 cargo install --path .
 ```
-
-The `-b mejoras-rust` is needed while this version lives on that branch. Once
-it is merged, a plain `git clone` is enough.
 
 `cargo install` downloads the dependencies (internet is needed only this time),
 builds the program and leaves `investigacion` in `~/.cargo/bin`, which rustup

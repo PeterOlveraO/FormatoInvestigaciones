@@ -1,9 +1,24 @@
 # Changelog
 
-## Unreleased (branch `mejoras-rust`)
+## 2.0.0 (2026-10-04)
+
+The program was rewritten in Rust. It gained a full-screen menu, course
+profiles with a wizard, separate formats (APA 7, Harvard, MLA 9) and cover
+designs, a bilingual interface, a diagnostic log and documentation for
+people and AI assistants.
 
 ### Added
 
+- **Interactive menu** (`investigacion` with no arguments). Files, profiles,
+  formats and designs are chosen from lists, so no paths are typed.
+- **Bilingual interface (Spanish/English).** The menu asks the first time,
+  using the system language as the default, and remembers it in
+  `settings.toml`. `l` in the options switches it, and `--lang` overrides it
+  for one command.
+- **Course profiles** in `courses/<key>.toml` with all the cover data, the
+  format, the design and the course folder (`-p ia`).
+- **`--file-name`**: the PDF is named after the Markdown file, independent of
+  the title.
 - **Formats and designs, kept separate.**
   - The format is the norm (`apa7`, `harvard`, `mla`); the design is the
     cover and the look (`geometric-cover`, `classic-cover`, `report`,
@@ -44,6 +59,30 @@
 
 ### Changed
 
+- **Speed.** Most of the time is spent in pdflatex, not in the program, so
+  re-runs now reuse the previous `.aux`/`.toc`:
+
+  | Document | 0.1 | 0.2, first run | 0.2, re-run |
+  |---|---|---|---|
+  | `catalog.md`, 23 pages | 5.5 s | 5.5 s | **2.0 s** |
+  | `binary-trees.md`, 12 pages | 1.9 s | 1.9 s | **1.1 s** |
+
+- **A single binary.** There is no virtual environment, and the Lua filters
+  are built into the program.
+- **It runs from any folder.** `output/` is now the project's output folder,
+  not the current directory's.
+- **English names** for options, folders and files:
+
+  | Before | Now |
+  |---|---|
+  | `--titulo`, `--materia`, `--docente`, `--integrantes`, `--grupo`, `--salida`, `--copia`, `--plantilla`, `--permitir-latex` | `--title`, `--course`, `--teacher`, `--members`, `--group`, `--output`, `--copy`, `--template`, `--allow-latex` |
+  | `Latex/base.ltx`, `Latex/logos/` | `templates/apa/template.ltx` (plus `templates/common/`), `templates/logos/` |
+  | `imagenes/` | `cache/` |
+  | `ejemplo/` | `examples/` |
+  | `ultimo-error.log` | `last-error.log` |
+
+  The old option names still work.
+
 - Only the data the chosen design uses is required. A design without
   `%%UNIVERSIDAD%%` no longer asks for it.
 - The structure warning (Introducción… Referencias) only applies to formats
@@ -60,7 +99,6 @@
   `templates/designs/geometric-cover/` and `classic-cover/`. The shared
   preamble is now `templates/common/investigacion-base.sty`, plus one
   `format.sty` per format.
-
 - **No more `.env`.** All the cover data (university, faculty, student,
   semester, teacher, group, members) comes from the profile; the wizard asks
   for all of it. Without a profile, give it with `--set UNIVERSIDAD=…`
@@ -100,52 +138,6 @@
 - An empty Markdown no longer warns about missing headings before saying it
   is empty.
 
-## 0.2.0 (2026-10, branch `mejoras-rust`)
-
-The program was rewritten in Rust and gained a full-screen menu, course
-profiles and a choice of templates.
-
-### Added
-
-- **Interactive menu** (`investigacion` with no arguments). Files, course
-  profiles and templates are chosen from lists, so no paths are typed. `v`
-  opens the last PDF and `c`/`f` opens a project folder.
-- **Bilingual interface (Spanish/English).** The menu asks the first time,
-  using the system language as the default, and saves the choice as `IDIOMA` in
-  `.env`. `l` switches it later, and `--lang` overrides it for one command.
-- **Course profiles** in `courses/<key>.toml`: course name, teacher, group,
-  members, template and folder (`-p ia`).
-- **Template `apa-simple`**, a classic centered cover, alongside `apa`.
-  `--template` takes a name or a path.
-- **`--file-name`**: the PDF is now named after the Markdown file, independent
-  of the title.
-
-### Changed
-
-- **Speed.** Most of the time is spent in pdflatex, not in the program, so
-  re-runs now reuse the previous `.aux`/`.toc`:
-
-  | Document | 0.1 | 0.2, first run | 0.2, re-run |
-  |---|---|---|---|
-  | `catalog.md`, 23 pages | 5.5 s | 5.5 s | **2.0 s** |
-  | `binary-trees.md`, 12 pages | 1.9 s | 1.9 s | **1.1 s** |
-
-- **A single binary.** There is no virtual environment, and the Lua filters
-  are built into the program.
-- **It runs from any folder.** `output/` is now the project's output folder,
-  not the current directory's.
-- **English names** for options, folders and files:
-
-  | Before | Now |
-  |---|---|
-  | `--titulo`, `--materia`, `--docente`, `--integrantes`, `--grupo`, `--salida`, `--copia`, `--plantilla`, `--permitir-latex` | `--title`, `--course`, `--teacher`, `--members`, `--group`, `--output`, `--copy`, `--template`, `--allow-latex` |
-  | `Latex/base.ltx`, `Latex/logos/` | `templates/apa/template.ltx` (plus `templates/common/`), `templates/logos/` |
-  | `imagenes/` | `cache/` |
-  | `ejemplo/` | `examples/` |
-  | `ultimo-error.log` | `last-error.log` |
-
-  The old option names still work.
-
 ### Removed
 
 - The Python package, `pyproject.toml` and the `investigacion-tui` command.
@@ -153,7 +145,7 @@ profiles and a choice of templates.
 - `.env`, "allow LaTeX", template path and logos from the menu. They remain
   available on the command line.
 
-### Upgrading from an earlier version of this branch
+### Upgrading from the `mejoras-rust` preview
 
 Copy what your `.env` had (`UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `SEMESTRE`…)
 into each profile as `university`, `faculty`, `student`, `semester`…, or open

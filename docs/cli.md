@@ -24,7 +24,7 @@ Every command and option of `investigacion`. For a friendly introduction see
 | `investigacion <MARKDOWN> --title <TITLE> [options]` | Generates one PDF. |
 | `investigacion --check-template <design>` | Checks a design and builds the catalog with it. |
 | `investigacion --help` (`-h`) | Shows the help, in the interface language. |
-| `investigacion --version` (`-V`) | Shows the version (`investigacion 0.2.0`). |
+| `investigacion --version` (`-V`) | Shows the version (`investigacion 2.0.0`). |
 
 Only the Markdown file and `--title` are always required. The rest is
 required only if the chosen design uses it (see

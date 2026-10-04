@@ -1,6 +1,6 @@
 # Technical reference
 
-Complete reference of `investigacion` (crate version 0.2.0): a Rust CLI and
+Complete reference of `investigacion` (version 2.0.0): a Rust CLI and
 full-screen menu that turns a paper written in Markdown into a PDF through
 Pandoc, a LaTeX template (format + design) and `pdflatex`.
 

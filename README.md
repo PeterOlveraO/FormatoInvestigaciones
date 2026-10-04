@@ -1,5 +1,11 @@
 # Formato de Investigaciones
 
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md)
+[![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-green)](LICENSE)
+[![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange)](https://rustup.rs)
+![Linux | Windows | macOS](https://img.shields.io/badge/platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)
+![Español | English](https://img.shields.io/badge/interface-Espa%C3%B1ol%20%7C%20English-informational)
+
 Write your school paper in Markdown and get a finished PDF: cover page, table
 of contents, headings, tables, diagrams and references in **APA 7, Harvard or
 MLA 9**. No Word, no hand-written LaTeX.
@@ -34,7 +40,7 @@ distribution with `pdflatex` ([Graphviz](https://graphviz.org) is optional, for
 diagrams). Linux, Windows and macOS. Step by step: **[INSTALL.md](INSTALL.md)**.
 
 ```bash
-git clone -b mejoras-rust https://github.com/PeterOlveraO/FormatoInvestigaciones.git
+git clone https://github.com/PeterOlveraO/FormatoInvestigaciones.git
 cd FormatoInvestigaciones
 cargo install --path .
 ```
