@@ -508,8 +508,11 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     let markdown_path = locate_markdown(args, project, course.as_ref())?;
     let markdown = read_markdown(&markdown_path)?;
     logging::info(format_args!("markdown: {} ({} bytes)", markdown_path.display(), markdown.len()));
-    for warning in validate_markdown(&markdown, &layout.headings()) {
-        reporter.warning(warning);
+    // Un Markdown vacío ya falla en `generate_pdf`; avisar de sus encabezados sobra.
+    if !markdown.trim().is_empty() {
+        for warning in validate_markdown(&markdown, &layout.headings()) {
+            reporter.warning(warning);
+        }
     }
 
     // Los logos suelen vivir fuera del proyecto: por eso admiten el .env.

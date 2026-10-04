@@ -70,6 +70,11 @@
   wizard without choosing a language.
 - Designs without a table of contents (`starter` and copies of it) never
   reused the saved LaTeX state, so every run took two pdflatex passes.
+- An output or copy folder that cannot be written is reported at once, with
+  its path and a hint (permissions, or the PDF open in another program),
+  instead of a bare "Permission denied" after the whole build.
+- An empty Markdown no longer warns about missing headings before saying it
+  is empty.
 
 ## 0.2.0 (2026-10, branch `mejoras-rust`)
 

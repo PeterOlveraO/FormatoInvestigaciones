@@ -786,3 +786,66 @@ fn a_recovered_panic_closes_the_window_and_keeps_the_menu() {
     assert!(!app.should_quit);
     render(&app);
 }
+
+/// Miles de teclas al azar (semilla fija) en todos los modos, dibujando a
+/// varios tamaños: ninguna combinación debe hacer entrar en pánico al menú.
+/// Sin `g`/F5 (lanzaría Pandoc) ni `v` (no hay PDF que abrir).
+#[test]
+fn random_keys_never_panic_at_any_size() {
+    use KeyCode::*;
+    let keys = [
+        Up,
+        Down,
+        Left,
+        Right,
+        Enter,
+        Esc,
+        Tab,
+        BackTab,
+        Backspace,
+        Delete,
+        Home,
+        End,
+        PageUp,
+        PageDown,
+        Char('1'),
+        Char('2'),
+        Char('4'),
+        Char('9'),
+        Char('o'),
+        Char('p'),
+        Char('n'),
+        Char('c'),
+        Char('f'),
+        Char('l'),
+        Char('r'),
+        Char('i'),
+        Char('h'),
+        Char('a'),
+        Char('x'),
+        Char(' '),
+        Char('ñ'),
+        Char('🚀'),
+        Char('/'),
+        F(2),
+    ];
+    for seed in 1..=4u64 {
+        i18n::set(Lang::Es);
+        let (_dir, project) = sample_project();
+        let mut app = App::new(project);
+        app.start(if seed % 2 == 0 { Some(Lang::En) } else { None });
+        let mut state = seed;
+        for step in 0..1000 {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let code = keys[(state >> 33) as usize % keys.len()];
+            let modifiers = if state % 97 == 0 { KeyModifiers::CONTROL } else { KeyModifiers::NONE };
+            app.handle_key(KeyEvent::new(code, modifiers));
+            app.should_quit = false;
+            if step % 5 == 0 {
+                for (width, height) in [(120, 32), (80, 24), (40, 12), (20, 6), (3, 2)] {
+                    render_sized(&app, width, height);
+                }
+            }
+        }
+    }
+}

@@ -96,7 +96,13 @@ pub fn generate_pdf(
     let rendered = render_template(&template, &content, data)?;
 
     let output_directory = absolute(&expand_home(output_directory));
-    std::fs::create_dir_all(&output_directory)?;
+    // Se prueba la escritura antes de compilar: si falla, que sea ya y con la carpeta.
+    std::fs::create_dir_all(&output_directory)
+        .and_then(|()| {
+            let probe = output_directory.join(".investigacion-write-test");
+            std::fs::File::create(&probe).and_then(|_| std::fs::remove_file(&probe))
+        })
+        .map_err(|e| cannot_write(&output_directory, &e))?;
     let output_pdf = output_directory.join(output_file_name(&markdown_path, options.file_name.as_deref()));
 
     // El temporal se borra solo; en Windows un archivo puede seguir bloqueado
@@ -177,6 +183,17 @@ pub fn missing_data_error(layout: &Layout, missing: &[String]) -> GenerationErro
 
 /// Deja una copia del PDF en cada carpeta extra, sin repetir ni copiar sobre
 /// la propia carpeta de salida.
+/// Error de escritura con la ruta y la causa más común (el PDF abierto en un
+/// visor que lo bloquea, típico de Windows).
+pub fn cannot_write(path: &Path, error: &std::io::Error) -> GenerationError {
+    crate::logging::error(format_args!("cannot write {}: {error}", path.display()));
+    GenerationError::new(tr!(
+        es: "No se pudo escribir en {}: {error}. Revisa los permisos o cierra el PDF si está abierto en otro programa.",
+        en: "Could not write to {}: {error}. Check the permissions, or close the PDF if another program has it open.",
+        path.display()
+    ))
+}
+
 pub fn copy_pdf_to(pdf: &Path, directories: &[PathBuf]) -> Result<Vec<PathBuf>> {
     let mut seen: HashSet<PathBuf> = HashSet::new();
     if let Some(parent) = pdf.parent() {
@@ -195,9 +212,9 @@ pub fn copy_pdf_to(pdf: &Path, directories: &[PathBuf]) -> Result<Vec<PathBuf>> 
                 destination.display()
             )));
         }
-        std::fs::create_dir_all(&destination)?;
+        std::fs::create_dir_all(&destination).map_err(|e| cannot_write(&destination, &e))?;
         let copy = destination.join(pdf.file_name().unwrap_or_default());
-        std::fs::copy(pdf, &copy)?;
+        std::fs::copy(pdf, &copy).map_err(|e| cannot_write(&copy, &e))?;
         copies.push(copy);
     }
     Ok(copies)

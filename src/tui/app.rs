@@ -1231,7 +1231,9 @@ impl App {
         {
             logging::warn(format_args!("tui: could not create {}: {error}", path.display()));
         }
-        match opener::open(path) {
+        // Las pruebas no abren ventanas del sistema.
+        let opened = if cfg!(test) { Ok(()) } else { opener::open(path) };
+        match opened {
             Ok(()) => {
                 logging::info(format_args!("tui: opened {}", path.display()));
                 let shown = self.display_path(&path.display().to_string());
