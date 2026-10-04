@@ -48,7 +48,9 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
 
 - **Warnings.** Write them to stderr as `[investigacion] <message>`.
   `filter_warnings()` picks them out and they reach the same `on_warning`
-  callback as the LaTeX warnings.
+  callback as the LaTeX warnings, and so the log. Pandoc's other stderr
+  lines are not shown; they are logged at debug level
+  (`INVESTIGACION_LOG=debug`).
 - **Two languages, two variables.**
   - **Warnings** to the user follow the interface language: use
     `texto(es, en)` driven by `INVESTIGACION_LANG`.

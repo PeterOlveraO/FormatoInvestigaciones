@@ -24,6 +24,23 @@
   all its own data (university, faculty, student, semester…).
 - **Document language** (`--doc-lang`, or `language` in the profile): the
   date, "Contents", "Figure" and the box titles.
+- **Home view in the menu.** The menu opens on it: generate a PDF, create a
+  profile, options, quit. It also shows your profiles, the last PDF and
+  whether Pandoc, pdflatex and Graphviz are installed.
+- **Options view** (`o` in the form): edit or create a profile, open a
+  project folder, switch the language, view the log, go back home. Their
+  letters (`p`, `n`, `c`/`f`, `l`, `r`, `i`/`h`) still work in the form.
+- **Diagnostic log** in `cache/logs/investigacion.log`, for both the menu and
+  the command line. It records each step: the options, the design and format
+  chosen, every Pandoc/pdflatex run with its exit status and time, the
+  LaTeX-state cache hits, every warning and error you saw, and crashes with
+  their backtrace.
+  - It rotates to `investigacion.old.log` past 1 MB.
+  - `INVESTIGACION_LOG=debug` adds full commands, Pandoc's own messages and
+    every key pressed in the menu. `INVESTIGACION_LOG=off` turns it off.
+  - If it cannot be written, the program keeps working without it.
+  - An unexpected file error (permissions, disk full…) now ends with
+    "Details in the log: <path>", and the log records where it happened.
 
 ### Changed
 
@@ -34,10 +51,25 @@
 - `--template` is now `--design`. The old name and the old profile key
   `template` still work, and `apa`/`apa-simple` map to
   `geometric-cover`/`classic-cover` with `apa7`.
+- The form's key bar only shows move, edit/choose, clear, generate, view
+  PDF, options and quit. `Esc` in the form goes back to the home view
+  instead of quitting.
+- Release builds keep function names (`strip = "debuginfo"`, about +0.6 MB),
+  so a crash backtrace in the log shows where it happened.
 - `templates/apa/` and `templates/apa-simple/` moved to
   `templates/designs/geometric-cover/` and `classic-cover/`. The shared
   preamble is now `templates/common/investigacion-base.sty`, plus one
   `format.sty` per format.
+
+### Fixed
+
+- The menu no longer closes when something inside it fails: the error is
+  shown, logged with its backtrace, and the menu keeps running.
+- Editing a design's own field (such as `%%SALON%%`) in the menu crashed it.
+- On the first-run language screen, the arrow keys jumped to the profile
+  wizard without choosing a language.
+- Designs without a table of contents (`starter` and copies of it) never
+  reused the saved LaTeX state, so every run took two pdflatex passes.
 
 ## 0.2.0 (2026-10, branch `mejoras-rust`)
 

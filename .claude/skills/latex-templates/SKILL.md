@@ -180,8 +180,19 @@ The base only loads pgfplots. Styles live in the format (apa7: grayscale via
   hashed on output path + `Layout::cache_key()` (design + format). A re-run
   usually takes one pass. If the old state breaks the build, it is deleted and
   the build is retried.
+- **Designs without a table of contents** write no `.toc`. `save_state` then
+  saves an empty one, so the cache works for them too.
 - **On failure:** `summarize_latex_errors()` keeps the real errors, and
   `last-error.tex/.log` are saved next to the PDF.
+- **Logged:**
+  - each pdflatex pass (draft or not) and the cache hit or miss;
+  - "stable after pass N";
+  - a failed attempt with the cached state, with its error, before the
+    clean retry;
+  - where `last-error.*` were saved.
+
+  With `INVESTIGACION_LOG=debug`, also the full command, `TEXINPUTS` and
+  timings.
 
 ## Regression rule
 

@@ -16,6 +16,7 @@ cargo test --test pdf                     # only the tests that build real PDFs 
 cargo run --release -- Tarea1.md -p ia --title "Tema"   # CLI; no arguments opens the menu
 target/release/investigacion --check-template starter    # check a design, build the catalog with it
 INVESTIGACION_TIMING=1 target/release/investigacion examples/catalog.md --title T --course M
+INVESTIGACION_LOG=debug target/release/investigacion …   # full log in cache/logs/investigacion.log (off: INVESTIGACION_LOG=off)
 ```
 
 System dependencies (not crates): Pandoc, pdflatex, Graphviz (optional).
@@ -59,6 +60,23 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
 - **Expected failures** are `GenerationError` with a message ready to show. The
   library never prints; it reports through the `Reporter` trait (console in the
   CLI, channel in the TUI).
+- **Log what happens, never break because of it.** `src/logging.rs` writes
+  `cache/logs/investigacion.log`.
+  - Call `logging::{debug,info,warn,error}(format_args!(…))` at each step
+    that can fail or that changes the PDF: `info` for steps, `warn` for
+    recovered problems, `error` for failures, `debug` for detail (full
+    commands, paths, keys in the menu).
+  - Log lines are technical English. `execute()` wraps the `Reporter`, so
+    every warning and info the user sees is already logged.
+  - It is a no-op until `logging::init` (only `main.rs` calls it), so tests
+    leave no files. It never returns errors and never panics; a failed write
+    turns it off.
+  - `std::io::Error → GenerationError` logs the `?` location
+    (`#[track_caller]`) and, when the log is active, adds "Details in the
+    log: <path>" to the message.
+- **The menu must not crash.** Key handling, drawing and the generation
+  thread run inside `tui::guard::run`: a panic is logged with its backtrace
+  and shown as an error line, and the menu keeps running.
 - **Always produce a PDF.** A missing image, symbol or Graphviz becomes a
   warning, not an error. The only intended hard failure is a broken
   ` ```pgfplot `/` ```tikz ` block, because that is real LaTeX.
@@ -87,6 +105,7 @@ src/
   main.rs        CLI entry; no arguments → TUI
   cli.rs         Args (clap), localized help/errors, execute() shared with the TUI, --check-template
   i18n.rs        Lang (thread-local), tr!, Text, detect/resolve
+  logging.rs     diagnostic log (cache/logs/), levels, rotation, panic hook
   template.rs    Format/Design, manifests, markers, resolve_layout (design × format)
   check.rs       --check-template: contract checks, typo suggestions, test builds
   generate.rs    the pipeline: generate_pdf, missing_data, copy_pdf_to, output_file_name
@@ -100,7 +119,8 @@ src/
   document.rs    DocumentData, dates (es/en), slugify
   encoding.rs    UTF-8 with Windows-1252 fallback
   process.rs     run tools with a timeout (TOOL_TIMEOUT = 180 s)
-  tui/           app.rs (state), wizard.rs (profile wizard), ui.rs (drawing), picker.rs, tests.rs
+  tui/           app.rs (state), ui.rs (drawing), wizard.rs (profile wizard), picker.rs,
+                 guard.rs (panic safety net), tools.rs (Pandoc/pdflatex/Graphviz check), tests.rs
 tests/           integration: templates.rs, pandoc.rs, pdf.rs, cli.rs
 resources/filters/   Lua filters: inline_html, images, diagrams, charts, blocks
 templates/       common/ (base + final .sty), formats/{apa7,harvard,mla}/,

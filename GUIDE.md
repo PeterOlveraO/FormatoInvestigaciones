@@ -344,7 +344,8 @@ Every run, from the menu or the command line, appends to
 the options it received, the design and format it chose, each Pandoc and
 pdflatex run with its time, every warning and error you saw, and crashes with
 their backtrace. When something fails without a clear message, look at the end
-of this file, or attach it when you ask for help.
+of this file, or attach it when you ask for help. In the menu, **Options → r**
+opens it.
 
 - **Size:** if the log is over 1 MB when a run starts, it is renamed to
   `investigacion.old.log` (replacing the previous one) and a new one starts.
@@ -356,6 +357,9 @@ of this file, or attach it when you ask for help.
   before sharing it.
 - If the log cannot be written (for example, a read-only folder), the program
   keeps working without it.
+- **Internal errors in the menu** (a bug in the program) do not close it: the
+  menu shows "Internal error: …", writes the details and the backtrace to the
+  log and keeps running.
 
 ## Making your own design
 

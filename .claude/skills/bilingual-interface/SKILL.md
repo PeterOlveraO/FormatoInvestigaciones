@@ -103,7 +103,8 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
 - **Options view:** one const table, `OPTIONS` (`keys: [es, en]`, `Text`
   label, `OptionAction`), drives both `app.rs` and `ui.rs`. To add a row:
   append an entry and handle its action in `App::run_option()`. The letters
-  also work, hidden, in the form (`p`, `n`, `c`/`f`, `l`, `i`/`h`); the
+  also work, hidden, in the form (`p`, `n`, `c`/`f`, `l`, `r` log,
+  `i`/`h`); the
   form's own keys win on a clash.
 - **Profile wizard** (`wizard.rs`; New profile on home, `p`/`n` in the
   options):
@@ -136,6 +137,25 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   without that, `ia` picked the profile `example` ("mater**ia**").
 - **Windows** also sends key-release events; keep the
   `KeyEventKind::Press` filter.
+- **Never crash the menu** (`guard.rs`).
+  - `event_loop` runs `handle_key` and `ui::draw` inside `guard::run`, and
+    the worker runs `execute()` inside it too. A panic there becomes
+    `App::recover()`: an error line, and the window closes back to its base
+    screen.
+  - Two failed draws in a row end the menu cleanly, with a pointer to the
+    log.
+  - `guard::install_hook()` goes **after** `ratatui::init()`. Inside
+    `guard::run` it only logs the panic; restoring the terminal there would
+    break the running menu. Outside it, the normal chain runs: ratatui
+    restores, `logging` writes, Rust prints.
+- **Logging in the TUI.** `main.rs` calls `logging::init()` and
+  `logging::install_panic_hook()` before `tui::run()`.
+  - Everything through `cli::execute()` is already logged.
+  - `handle_key` logs each key and mode change at debug level
+    (`Mode::name()`).
+  - Log TUI-only events yourself in English: opened paths and `opener`
+    errors, picker choices, tool detection, a worker without a result.
+  - Options → `r` opens `logging::path()`.
 - **Not in the menu on purpose:** `.env` path, `--allow-latex`, template by
   path, `--logos` (CLI only).
 - **The PDF name** is proposed from the chosen Markdown until the user types
