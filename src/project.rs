@@ -66,6 +66,18 @@ impl Project {
         self.root.join(ROOT_MARKER).is_file()
     }
 
+    /// Error claro cuando no se encontró la carpeta del proyecto (por ejemplo,
+    /// si se movió o borró el clon después de `cargo install`).
+    pub fn require_templates(&self) -> Result<()> {
+        if self.has_templates() {
+            return Ok(());
+        }
+        Err(GenerationError::new(tr!(
+            es: "No se encontró la carpeta del proyecto (la que tiene templates/). Ejecuta el programa dentro de ella, define INVESTIGACION_HOME=<carpeta> o vuelve a instalar con «cargo install --path .» desde ella.",
+            en: "The project folder (the one with templates/) was not found. Run the program inside it, set INVESTIGACION_HOME=<folder>, or reinstall with \"cargo install --path .\" from it."
+        )))
+    }
+
     pub fn input_dir(&self) -> PathBuf {
         self.root.join("input")
     }

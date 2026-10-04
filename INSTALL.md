@@ -112,6 +112,7 @@ Then delete the project folder.
 
 | Symptom | Fix |
 |---|---|
+| "The project folder (the one with templates/) was not found" | You moved or deleted the cloned folder after installing. Run `cargo install --path .` again from its new place, or set `INVESTIGACION_HOME=<folder>` |
 | `investigacion: command not found` | Open a new terminal, or run `source ~/.cargo/env`. |
 | A `ModuleNotFoundError` from Python appears | An old Python environment is still active: run `deactivate` and delete the `.venv/` folder |
 | `cargo install` says the Rust version is too old | `rustup update` |

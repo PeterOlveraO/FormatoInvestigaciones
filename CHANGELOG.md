@@ -125,6 +125,9 @@ people and AI assistants.
 
 ### Fixed
 
+- If the project folder cannot be found (for example, the clone was moved
+  after `cargo install`), the program says so and how to fix it, instead of
+  reporting "no profiles" or "no designs".
 - Arrows (`->`, `<->`) in ` ```tikz ` blocks and designs broke the build in
   Spanish documents: the base now loads TikZ's `babel` library.
 - The menu no longer closes when something inside it fails: the error is

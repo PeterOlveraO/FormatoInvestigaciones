@@ -68,3 +68,15 @@ fn only_the_data_the_design_uses_is_required() {
     let complete = run(dir, "", &["--design", "simple", "--set", "SALON=B-204"]);
     assert!(complete.contains("no-existe.md"), "{complete}");
 }
+
+#[test]
+fn a_missing_project_folder_is_explained() {
+    investigacion::i18n::set(investigacion::i18n::Lang::En);
+    let directory = tempfile::tempdir().unwrap();
+    let markdown = common::write(directory.path(), "t.md", "# A\n");
+    let args: Args =
+        clap::Parser::try_parse_from(["investigacion", markdown.to_str().unwrap(), "--title", "T"]).unwrap();
+    let project = investigacion::project::Project::at(directory.path());
+    let error = execute(&args, &project, &mut Silent).unwrap_err().0;
+    assert!(error.contains("project folder") && error.contains("INVESTIGACION_HOME"), "{error}");
+}

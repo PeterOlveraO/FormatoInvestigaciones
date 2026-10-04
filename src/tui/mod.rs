@@ -23,6 +23,11 @@ use crate::settings::Settings;
 /// Abre el menú y devuelve el código de salida.
 pub fn run() -> i32 {
     let project = Project::discover();
+    // Sin plantillas el menú no sirve de nada: mejor decirlo antes de abrirlo.
+    if let Err(error) = project.require_templates() {
+        eprintln!("Error: {error}");
+        return 1;
+    }
     // El idioma guardado manda; si no hay, se pregunta con el del sistema marcado.
     let settings = Settings::load(&project.settings_file()).unwrap_or_default();
     let saved = i18n::configured(&settings);

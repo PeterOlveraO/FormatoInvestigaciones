@@ -442,6 +442,7 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
 }
 
 fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> Result<PathBuf> {
+    project.require_templates()?;
     let settings = Settings::load(&args.settings.clone().unwrap_or_else(|| project.settings_file()))?;
     let course = args.profile.as_deref().map(|key| find_course(project, key)).transpose()?;
     if let Some(course) = &course {
@@ -574,6 +575,10 @@ where
             );
             return 2;
         };
+        if let Err(error) = project.require_templates() {
+            eprintln!("Error: {error}");
+            return 1;
+        }
         return crate::check::run_cli(&project, &design);
     }
     let args = match parse_args(argv) {
