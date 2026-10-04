@@ -1,12 +1,15 @@
 # Installation
 
+Version 2.0.0 supports **Linux**. Windows and macOS are planned for a later
+update.
+
 ## What you need
 
 | Tool | Required | What for |
 |---|---|---|
 | **Rust 1.88+** (installed with [rustup](https://rustup.rs)) | Yes | Building the program once |
 | **Pandoc** | Yes | Converting the Markdown |
-| **TeX** with `pdflatex` (TeX Live or MiKTeX) | Yes | Typesetting the PDF |
+| **TeX** with `pdflatex` (TeX Live) | Yes | Typesetting the PDF |
 | **Graphviz** | No | Drawing ` ```dot ` diagrams. Without it, diagrams stay as code and you get a warning |
 
 ## 1. Install the tools
@@ -46,35 +49,6 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 sudo zypper install pandoc graphviz texlive-latex texlive-latexextra \
   texlive-fontsextra texlive-babel-spanish
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-```
-
-### Windows
-
-```powershell
-winget install Rustlang.Rustup JohnMacFarlane.Pandoc Graphviz.Graphviz MiKTeX.MiKTeX
-```
-
-- The first time you build, rustup may ask to install the Visual Studio *Build
-  Tools*. Accept.
-- MiKTeX downloads the LaTeX packages it is missing the first time you generate
-  a PDF. To avoid being asked each time, set *Install missing packages
-  on-the-fly: Yes* in the MiKTeX Console.
-
-### macOS
-
-```bash
-brew install rustup pandoc graphviz && rustup-init -y
-brew install --cask mactex-no-gui
-```
-
-`mactex-no-gui` takes about 5 GB. For something lighter, use `basictex` and add
-the packages by hand:
-
-```bash
-brew install --cask basictex
-sudo tlmgr update --self
-sudo tlmgr install newtx pgfplots pgf-pie twemojis pmboxdraw floatrow \
-  newunicodechar ulem framed footnotehyper xurl titlesec ragged2e babel-spanish
 ```
 
 ## 2. Install the program
@@ -138,8 +112,8 @@ Then delete the project folder.
 
 | Symptom | Fix |
 |---|---|
-| `investigacion: command not found` | Open a new terminal, or run `source ~/.cargo/env`. On Windows, reopen the terminal |
+| `investigacion: command not found` | Open a new terminal, or run `source ~/.cargo/env`. |
 | A `ModuleNotFoundError` from Python appears | An old Python environment is still active: run `deactivate` and delete the `.venv/` folder |
 | `cargo install` says the Rust version is too old | `rustup update` |
-| LaTeX reports a missing `.sty` | Install the package with your TeX distribution (`tlmgr install <name>` or the MiKTeX Console) |
+| LaTeX reports a missing `.sty` | Install the package with your TeX distribution (`tlmgr install <name>` or your distribution's package manager) |
 | Diagrams come out as code | Install Graphviz and check `dot -V` |

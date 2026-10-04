@@ -7,6 +7,8 @@ profiles with a wizard, separate formats (APA 7, Harvard, MLA 9) and cover
 designs, a bilingual interface, a diagnostic log and documentation for
 people and AI assistants.
 
+**Supported platform: Linux.** Windows and macOS will come in a later update.
+
 ### Added
 
 - **Interactive menu** (`investigacion` with no arguments). Files, profiles,

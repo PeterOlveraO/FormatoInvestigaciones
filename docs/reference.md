@@ -4,6 +4,10 @@ Complete reference of `investigacion` (version 2.0.0): a Rust CLI and
 full-screen menu that turns a paper written in Markdown into a PDF through
 Pandoc, a LaTeX template (format + design) and `pdflatex`.
 
+**Supported platform:** version 2.0.0 is released for Linux. Windows and
+macOS are planned for a later update; the code already follows the
+cross-platform rules of section 21 so that port stays small.
+
 This page is written for developers and AI assistants that need to use,
 analyze or extend the program. It is checked against the code under `src/`,
 `templates/` and `resources/filters/`. When this page and the code disagree,
@@ -1474,7 +1478,8 @@ the command line. It is a diagnostic aid and must never break the program.
 
 ## 21. Cross-platform rules
 
-The program must behave the same on Linux, Windows and macOS.
+Version 2.0.0 supports Linux only, but the code must stay portable so the
+Windows and macOS update needs no redesign:
 
 - No `cfg!(windows)`, no fixed paths, no hand-written path separators.
 - Build search paths with `std::env::join_paths` / `split_paths` (the
@@ -1642,7 +1647,7 @@ Only the real LaTeX error is shown. After a failed build, `last-error.tex` and
 | "Invalid syntax in settings.toml, line N: expected KEY=VALUE" | `settings.toml` is KEY=VALUE lines, not TOML tables; fix or delete the file |
 | Menu shows "Internal error: ..." | A bug; the menu keeps running; send the log |
 | The menu says a required tool is missing | Install Pandoc/pdflatex ([`../INSTALL.md`](../INSTALL.md)) |
-| `investigacion: command not found` | Open a new terminal or `source ~/.cargo/env`; on Windows reopen the terminal |
+| `investigacion: command not found` | Open a new terminal or `source ~/.cargo/env` |
 | The program cannot find its templates after moving the folder | Run `cargo install --path .` again or set `INVESTIGACION_HOME` |
 | Log empty or missing | `INVESTIGACION_LOG=off`, or the project root has no templates, or the folder is read-only |
 

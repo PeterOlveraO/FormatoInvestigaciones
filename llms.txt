@@ -1,6 +1,6 @@
 # Formato de Investigaciones (`investigacion`)
 
-> Rust CLI and full-screen terminal menu that turns an academic paper written in Markdown into a PDF: Pandoc → LaTeX (format + design) → pdflatex. Formats: APA 7 (default), Harvard, MLA 9. Designs: geometric-cover (default), classic-cover, report, starter, or user-made ones in my-templates/. Cover data comes from course profiles (courses/<key>.toml) or `--set NAME=value`. Interface in Spanish or English; papers Spanish by default. GPL-3.0-or-later.
+> Rust CLI and full-screen terminal menu that turns an academic paper written in Markdown into a PDF: Pandoc → LaTeX (format + design) → pdflatex. Formats: APA 7 (default), Harvard, MLA 9. Designs: geometric-cover (default), classic-cover, report, starter, or user-made ones in my-templates/. Cover data comes from course profiles (courses/<key>.toml) or `--set NAME=value`. Interface in Spanish or English; papers Spanish by default. Version 2.0.0 supports Linux; Windows and macOS are planned. GPL-3.0-or-later.
 
 Facts that are easy to get wrong:
 
