@@ -1,0 +1,48 @@
+% format.sty de MLA 9 (versión genérica). El programa lo copia al temporal
+% como investigacion-format.sty y lo carga después de la base y de babel.
+\NeedsTeXFormat{LaTeX2e}
+\ProvidesPackage{investigacion-format}[2026/10/04 Formato MLA 9]
+
+\RequirePackage[margin=1in]{geometry}         % Márgenes de 1 pulgada
+\RequirePackage{titlesec}
+\RequirePackage{ragged2e}
+\RequirePackage{fancyhdr}
+\RequirePackage{newtxtext, newtxmath}         % Times
+
+% Doble espacio en todo el documento y sangría de media pulgada.
+\doublespacing
+\setlength{\parindent}{0.5in}
+\setlength{\parskip}{0pt}
+\setlength{\emergencystretch}{3em}
+
+% Encabezados sin numerar, del mismo tamaño que el texto: negrita y cursiva.
+\setcounter{secnumdepth}{0}
+\setcounter{tocdepth}{3}
+\titleformat{\section}{\normalfont\normalsize\bfseries}{}{0pt}{}
+\titleformat{\subsection}{\normalfont\normalsize\itshape}{}{0pt}{}
+\titleformat{\subsubsection}{\normalfont\normalsize\bfseries\itshape}{}{0pt}{}
+\titlespacing*{\section}{0pt}{0pt}{0pt}
+\titlespacing*{\subsection}{0pt}{0pt}{0pt}
+\titlespacing*{\subsubsection}{0pt}{0pt}{0pt}
+
+% Tablas con su número y título arriba; figuras con «Fig. 1.» abajo.
+\captionsetup{labelsep=period, justification=raggedright, singlelinecheck=false}
+\captionsetup[figure]{name=Fig.}
+\@ifpackageloaded{floatrow}{\floatsetup[figure]{capposition=bottom}}{}
+\AtBeginEnvironment{longtable}{\singlespacing}
+
+% Número de página arriba a la derecha.
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0pt}
+\setlength{\headheight}{15pt}
+
+% «Works Cited»: sangría francesa de media pulgada.
+\renewenvironment{ReferenceList}%
+  {\par\setlength{\parindent}{-0.5in}\setlength{\leftskip}{0.5in}}%
+  {\par}
+
+% Cuerpo alineado a la izquierda, con la sangría de media pulgada.
+\renewcommand{\FormatBodySetup}{\RaggedRight\setlength{\parindent}{0.5in}}
+\endinput

@@ -1,4 +1,4 @@
-//! Formatos (las normas: APA 7, Harvard, IEEE…) y diseños (la portada y el
+//! Formatos (las normas: APA 7, Harvard, MLA…) y diseños (la portada y el
 //! aspecto). Un formato es `templates/formats/<f>/format.sty` + `format.toml`;
 //! un diseño es `templates/designs/<d>/template.ltx` + `template.toml`
 //! (opcional). Los propios de cada quien van en `my-templates/`, con la misma
@@ -298,11 +298,6 @@ impl Layout {
         format!("\\usepackage[{babel}]{{babel}}\n\\usepackage{{investigacion-format}}")
     }
 
-    /// Formatos a dos columnas (IEEE): las tablas se escriben de otra forma.
-    pub fn is_two_column(&self) -> bool {
-        self.class_options().split(',').any(|o| o.trim() == "twocolumn")
-    }
-
     pub fn class_options(&self) -> String {
         self.format.as_ref().map(|f| f.manifest.class_options.clone()).unwrap_or_default()
     }
@@ -336,10 +331,10 @@ mod tests {
             &t.join("formats/apa7/format.toml"),
             "name = \"APA 7\"\nclass_options = \"12pt\"\nheadings = [\"Introducción\"]\n",
         );
-        write(&t.join("formats/ieee/format.sty"), "x");
+        write(&t.join("formats/mla/format.sty"), "x");
         write(
-            &t.join("formats/ieee/format.toml"),
-            "name = { es = \"IEEE\", en = \"IEEE\" }\nlanguage = \"en\"\n",
+            &t.join("formats/mla/format.toml"),
+            "name = { es = \"MLA\", en = \"MLA\" }\nlanguage = \"en\"\n",
         );
         write(
             &t.join("designs/cover/template.ltx"),
@@ -371,23 +366,23 @@ mod tests {
         assert_eq!(layout.format.as_ref().unwrap().key, "apa7");
         assert_eq!(layout.class_options(), "12pt");
         assert_eq!(layout.headings(), ["Introducción"]);
-        assert!(resolve_layout(&project, Some("cover"), Some("ieee")).is_err());
+        assert!(resolve_layout(&project, Some("cover"), Some("mla")).is_err());
         assert!(resolve_layout(&project, Some("cover"), Some("nope")).is_err());
         // Diseño propio en my-templates/ y autocontenido (sin %%FORMAT%%).
-        let mine = resolve_layout(&project, Some("mine"), Some("ieee")).unwrap();
+        let mine = resolve_layout(&project, Some("mine"), Some("mla")).unwrap();
         assert!(mine.format.is_none() && mine.design.is_self_contained());
         assert_eq!(list_designs(&project), ["cover", "mine"]);
-        assert_eq!(list_formats(&project), ["apa7", "ieee"]);
+        assert_eq!(list_formats(&project), ["apa7", "mla"]);
     }
 
     #[test]
     fn document_language_and_babel() {
         let (_dir, project) = sample();
         let design = load_design(&project, Some("cover")).unwrap();
-        let ieee = Layout { design, format: Some(load_format(&project, "ieee").unwrap()) };
-        assert_eq!(ieee.document_language(None), Lang::En);
-        assert_eq!(ieee.document_language(Some(Lang::Es)), Lang::Es);
-        assert!(ieee.format_block(Lang::En).contains("[english]{babel}"));
+        let mla = Layout { design, format: Some(load_format(&project, "mla").unwrap()) };
+        assert_eq!(mla.document_language(None), Lang::En);
+        assert_eq!(mla.document_language(Some(Lang::Es)), Lang::Es);
+        assert!(mla.format_block(Lang::En).contains("[english]{babel}"));
     }
 
     #[test]

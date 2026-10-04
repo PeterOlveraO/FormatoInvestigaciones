@@ -10,7 +10,7 @@ porque dependen de lo que el documento diga y no de cómo se compone.
    referencia vaya al margen y las demás sangradas. Aquí se localiza el
    encabezado «Referencias», se deshace la lista de viñetas si se escribió así y
    se envuelve todo en el entorno ReferenceList, que cada formato define
-   (sangría francesa en APA y Harvard, numerada en IEEE).
+   (sangría francesa en APA, Harvard y MLA).
 ]]
 
 local utils = require("pandoc.utils")

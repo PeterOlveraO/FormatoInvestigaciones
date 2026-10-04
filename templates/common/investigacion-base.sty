@@ -45,7 +45,6 @@
 \RequirePackage{longtable}                    % Tablas extensas de Markdown
 \RequirePackage{booktabs}                     % Líneas de tablas generadas por Pandoc
 \RequirePackage{array}                       % Columnas de tablas
-\IfFileExists{tabularx.sty}{\RequirePackage{tabularx}}{}  % Tablas a dos columnas (filtro tables)
 \RequirePackage{calc}                         % \real{} en los anchos de columna de Pandoc
 \RequirePackage{caption}                      % Pies de tabla y figura
 \RequirePackage{etoolbox}                     % Parches para longtable
@@ -124,7 +123,7 @@
 \fi
 
 % La lista de referencias. Aquí es neutral (párrafos normales); cada formato
-% la redefine: sangría francesa en APA y Harvard, numerada en IEEE.
+% la redefine: sangría francesa en APA, Harvard y MLA.
 \newenvironment{ReferenceList}{\par}{\par}
 
 % Lo que el formato hace al empezar el cuerpo (alineación, sangría). Los

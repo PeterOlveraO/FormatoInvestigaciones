@@ -33,7 +33,7 @@ pub struct CourseProfile {
     pub student: String,
     #[serde(default)]
     pub semester: String,
-    /// Formato (`apa7`, `harvard`, `ieee`…) y diseño (`geometric-cover`…).
+    /// Formato (`apa7`, `harvard`, `mla`…) y diseño (`geometric-cover`…).
     /// `template` es el nombre antiguo del diseño.
     #[serde(default)]
     pub format: String,

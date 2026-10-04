@@ -1,5 +1,5 @@
 % Diseño «report»: informe con un bloque de título compacto, sin portada.
-% Combina con cualquier formato; a dos columnas el título ocupa todo el ancho.
+% Combina con cualquier formato de una columna.
 \documentclass[%%CLASS_OPTIONS%%]{article}
 
 % Contrato del diseño: la base primero y, en la línea marcada abajo, el idioma
@@ -31,17 +31,8 @@
     \vspace{0.4em}{\small \FechaEntrega\par}
   \end{center}}
 
-% A dos columnas el título va a lo ancho y no hay índice; a una, sí lo hay.
-\makeatletter
-\newcommand{\ReportStart}{%
-  \if@twocolumn
-    \twocolumn[{\ReportTitleBlock\vspace{1em}}]
-  \else
-    \ReportTitleBlock
-    \tableofcontents
-    \vspace{1em}
-  \fi}
-\makeatother
+% El bloque de título, el índice y un poco de aire antes del contenido.
+\newcommand{\ReportStart}{\ReportTitleBlock\tableofcontents\vspace{1em}}
 
 \usepackage{investigacion-final}
 

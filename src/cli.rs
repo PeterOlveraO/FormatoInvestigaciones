@@ -198,8 +198,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "format",
         Text::new(
-            "Formato (la norma): apa7, harvard, ieee… Por omisión, el primero que acepta el diseño",
-            "Format (the norm): apa7, harvard, ieee… Default: the first one the design accepts",
+            "Formato (la norma): apa7, harvard, mla… Por omisión, el primero que acepta el diseño",
+            "Format (the norm): apa7, harvard, mla… Default: the first one the design accepts",
         ),
         Some(Text::new("FORMATO", "FORMAT")),
     ),
@@ -669,7 +669,7 @@ mod tests {
             "--design",
             "report",
             "--format",
-            "ieee",
+            "mla",
             "--set",
             "salon=B-204",
             "--set",
@@ -677,7 +677,7 @@ mod tests {
             "--doc-lang",
             "en",
         ]);
-        assert_eq!((args.design.as_deref(), args.format.as_deref()), (Some("report"), Some("ieee")));
+        assert_eq!((args.design.as_deref(), args.format.as_deref()), (Some("report"), Some("mla")));
         assert_eq!(
             args.fields,
             [("SALON".to_owned(), "B-204".to_owned()), ("AULA".to_owned(), String::new())]

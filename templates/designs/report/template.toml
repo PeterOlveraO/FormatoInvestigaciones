@@ -1,4 +1,4 @@
 description = { es = "Informe con bloque de título compacto, sin portada", en = "Report with a compact title block, no cover page" }
-formats = ["apa7", "harvard", "ieee"]
+formats = ["apa7", "harvard", "mla"]
 # Se muestran si existen, pero no se exigen.
 optional = ["UNIVERSIDAD", "FACULTAD", "MATERIA"]

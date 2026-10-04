@@ -12,10 +12,6 @@ fn convert_with_warnings(markdown: &str) -> Option<(String, Vec<String>)> {
 }
 
 fn convert_in(markdown: &str, doc_lang: Lang) -> Option<(String, Vec<String>)> {
-    convert_with(markdown, doc_lang, false)
-}
-
-fn convert_with(markdown: &str, doc_lang: Lang, two_column: bool) -> Option<(String, Vec<String>)> {
     if !has_tool("pandoc") {
         eprintln!("skipped: pandoc is not installed");
         return None;
@@ -23,10 +19,8 @@ fn convert_with(markdown: &str, doc_lang: Lang, two_column: bool) -> Option<(Str
     let directory = tempfile::tempdir().unwrap();
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
-    let latex = pandoc_to_latex(&project(), &source, markdown, false, doc_lang, two_column, &mut |w| {
-        warnings.push(w)
-    })
-    .unwrap();
+    let latex =
+        pandoc_to_latex(&project(), &source, markdown, false, doc_lang, &mut |w| warnings.push(w)).unwrap();
     Some((latex, warnings))
 }
 
@@ -138,17 +132,4 @@ fn boxes_and_references_follow_the_document_language() {
     assert!(latex.contains(r"\begin{ReferenceList}"));
     let Some((spanish, _)) = convert_in("::: note\nOjo.\n:::\n", Lang::Es) else { return };
     assert!(spanish.contains(r"\begin{CajaMarcada}{Nota}"));
-}
-
-#[test]
-fn tables_become_tabularx_in_two_column_formats() {
-    let table = "| Modelo | Riesgo |\n|:---|---:|\n| **Cascada** | Bajo |\n\n: Modelos de desarrollo\n";
-    let Some((one, _)) = convert_with(table, Lang::Es, false) else { return };
-    assert!(one.contains(r"\begin{longtable}"));
-    let Some((two, _)) = convert_with(table, Lang::Es, true) else { return };
-    assert!(!two.contains("longtable"), "{two}");
-    assert!(two.contains(r"\begin{tabularx}{\columnwidth}"));
-    assert!(two.contains(r"\caption{Modelos de desarrollo}"));
-    assert!(two.contains(r"\textbf{Cascada} & Bajo \\"));
-    assert!(two.contains(r">{\raggedleft\arraybackslash}X"));
 }
