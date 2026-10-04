@@ -60,6 +60,12 @@ impl Project {
         Self::at(cwd)
     }
 
+    /// Si la raíz tiene las plantillas; si no, `discover` cayó en una carpeta
+    /// cualquiera y no conviene escribir nada en ella.
+    pub fn has_templates(&self) -> bool {
+        self.root.join(ROOT_MARKER).is_file()
+    }
+
     pub fn input_dir(&self) -> PathBuf {
         self.root.join("input")
     }

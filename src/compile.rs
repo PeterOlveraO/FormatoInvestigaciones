@@ -7,6 +7,7 @@ use std::process::Command;
 use crate::encoding::{decode_latex_log, decode_process_output};
 use crate::error::{GenerationError, Result};
 use crate::latex::{summarize_latex_errors, unsupported_character_warnings};
+use crate::logging;
 use crate::process::{RunError, TOOL_TIMEOUT, run_with_timeout};
 
 /// Un índice que cambia de longitud desplaza las páginas; se repite pdflatex
@@ -64,6 +65,17 @@ pub fn latex_search_path(directory: &Path) -> Result<OsString> {
 
 /// Guarda el .tex y el .log fuera del temporal (que se borra) para revisarlos.
 pub fn keep_failure_artifacts(tex_path: &Path, destination: &Path) -> Option<PathBuf> {
+    let saved = copy_failure_artifacts(tex_path, destination);
+    match &saved {
+        Some(log) => logging::info(format_args!("failed build kept: {} and last-error.tex", log.display())),
+        None => {
+            logging::warn(format_args!("could not keep last-error.tex/.log in {}", destination.display()))
+        }
+    }
+    saved
+}
+
+fn copy_failure_artifacts(tex_path: &Path, destination: &Path) -> Option<PathBuf> {
     std::fs::create_dir_all(destination).ok()?;
     let mut saved = None;
     for extension in ["tex", "log"] {
@@ -96,11 +108,19 @@ pub fn compile_pdf(
     on_warning: &mut dyn FnMut(String),
 ) -> Result<()> {
     let restored = state_dir.and_then(|dir| restore_state(dir, tex_path));
+    match (state_dir, &restored) {
+        (Some(dir), Some(_)) => logging::info(format_args!("latex state: cache hit ({})", dir.display())),
+        (Some(dir), None) => logging::info(format_args!("latex state: cache miss ({})", dir.display())),
+        (None, _) => logging::debug("latex state: not used"),
+    }
     // El intento con estado previo no deja `last-error.*`: si falla se repite
     // desde cero, y solo un fallo de ese segundo intento es un error real.
     let log = match run_passes(tex_path, output_pdf, working_directory, restored.clone(), restored.is_none())
     {
-        Err(_) if restored.is_some() => {
+        Err(error) if restored.is_some() => {
+            logging::warn(format_args!(
+                "build with the cached latex state failed; retrying from scratch:\n{error}"
+            ));
             for extension in STATE_EXTENSIONS {
                 let _ = std::fs::remove_file(tex_path.with_extension(extension));
             }
@@ -122,7 +142,10 @@ pub fn compile_pdf(
     std::fs::copy(&generated, output_pdf)?;
     if let Some(dir) = state_dir {
         // La caché es una ayuda: si no se puede guardar, no es un error.
-        let _ = save_state(dir, tex_path);
+        match save_state(dir, tex_path) {
+            Ok(()) => logging::debug(format_args!("latex state saved in {}", dir.display())),
+            Err(error) => logging::warn(format_args!("latex state not saved in {}: {error}", dir.display())),
+        }
     }
     Ok(())
 }
@@ -174,9 +197,11 @@ fn run_passes(
     for run in 1..=MAX_LATEX_RUNS {
         let mut command = Command::new("pdflatex");
         command.args(["-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]);
-        if run == 1 && !has_state {
+        let draft = run == 1 && !has_state;
+        if draft {
             command.arg("-draftmode");
         }
+        logging::info(format_args!("pdflatex pass {run}{}", if draft { " (draft mode)" } else { "" }));
         let mut output_arg = OsString::from("-output-directory=");
         output_arg.push(temp_dir);
         command.arg(output_arg).arg(tex_path).current_dir(working_directory).env("TEXINPUTS", &texinputs);
@@ -228,7 +253,13 @@ fn run_passes(
             || previous_toc.as_deref() != Some(current_toc.as_str());
         previous_toc = Some(current_toc);
         if (run > 1 || has_state) && !needs_rerun {
+            logging::info(format_args!("latex: stable after pass {run}"));
             break;
+        }
+        if run == MAX_LATEX_RUNS {
+            logging::warn(format_args!("latex: the table of contents still changed after {run} passes"));
+        } else if needs_rerun {
+            logging::debug("latex: rerun needed (the .toc changed or LaTeX asked for it)");
         }
     }
     Ok(log)

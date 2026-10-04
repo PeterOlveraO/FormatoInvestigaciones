@@ -8,6 +8,7 @@ use serde::Deserialize;
 
 use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
+use crate::logging;
 use crate::project::Project;
 
 /// Contenido de un perfil. Todos los campos son opcionales salvo `name`.
@@ -112,7 +113,10 @@ pub fn list_courses(project: &Project) -> (Vec<Course>, Vec<GenerationError>) {
     for path in paths {
         match Course::load(&path) {
             Ok(course) => courses.push(course),
-            Err(error) => errors.push(error),
+            Err(error) => {
+                logging::warn(format_args!("course profile skipped: {error}"));
+                errors.push(error);
+            }
         }
     }
     (courses, errors)
@@ -195,6 +199,7 @@ pub fn save_profile(project: &Project, key: &str, profile: &CourseProfile) -> Re
     std::fs::create_dir_all(project.courses_dir())?;
     let path = project.courses_dir().join(format!("{key}.toml"));
     std::fs::write(&path, text)?;
+    logging::info(format_args!("course profile saved: {}", path.display()));
     Ok(path)
 }
 

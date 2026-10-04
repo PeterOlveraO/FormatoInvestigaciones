@@ -9,6 +9,8 @@ use std::process::{Command, ExitStatus, Stdio};
 use std::thread;
 use std::time::{Duration, Instant};
 
+use crate::logging::{self, Level};
+
 /// Ninguna pasada sobre un trabajo escolar tarda tanto; si lo hace, se colgó.
 pub const TOOL_TIMEOUT: Duration = Duration::from_secs(180);
 
@@ -25,13 +27,62 @@ pub enum RunError {
     Io(std::io::Error),
 }
 
+/// La orden completa para el registro: programa, argumentos, carpeta y las
+/// variables que se le añaden.
+fn describe_command(command: &Command, input: Option<&[u8]>) -> String {
+    let mut text = command.get_program().to_string_lossy().into_owned();
+    for arg in command.get_args() {
+        text.push(' ');
+        text.push_str(&arg.to_string_lossy());
+    }
+    if let Some(dir) = command.get_current_dir() {
+        text.push_str(&format!("\ncwd: {}", dir.display()));
+    }
+    for (key, value) in command.get_envs() {
+        let value = value.map(|v| v.to_string_lossy().into_owned()).unwrap_or_default();
+        text.push_str(&format!("\nenv: {}={value}", key.to_string_lossy()));
+    }
+    if let Some(input) = input {
+        text.push_str(&format!("\nstdin: {} bytes", input.len()));
+    }
+    text
+}
+
 /// Lanza el comando, le pasa `input` por stdin y recoge stdout/stderr en hilos
 /// aparte (si no, un log grande llenaría la tubería y bloquearía al proceso).
+/// Registra la orden (debug), el resultado y lo que tardó.
 pub fn run_with_timeout(
-    mut command: Command,
+    command: Command,
     input: Option<Vec<u8>>,
     timeout: Duration,
 ) -> Result<Output, RunError> {
+    let program = command.get_program().to_string_lossy().into_owned();
+    if logging::enabled(Level::Debug) {
+        logging::debug(format_args!("run: {}", describe_command(&command, input.as_deref())));
+    }
+    let started = Instant::now();
+    let result = run(command, input, timeout);
+    let seconds = started.elapsed().as_secs_f64();
+    match &result {
+        Ok(output) if output.status.success() => {
+            logging::info(format_args!("{program}: {} in {seconds:.2} s", output.status));
+        }
+        Ok(output) => logging::warn(format_args!(
+            "{program}: {} in {seconds:.2} s ({} bytes of stdout, {} of stderr)",
+            output.status,
+            output.stdout.len(),
+            output.stderr.len()
+        )),
+        Err(RunError::NotFound) => logging::error(format_args!("{program}: not found on the PATH")),
+        Err(RunError::Timeout) => {
+            logging::error(format_args!("{program}: stopped after the {} s time limit", timeout.as_secs()))
+        }
+        Err(RunError::Io(error)) => logging::error(format_args!("{program}: I/O error: {error}")),
+    }
+    result
+}
+
+fn run(mut command: Command, input: Option<Vec<u8>>, timeout: Duration) -> Result<Output, RunError> {
     command
         .stdin(if input.is_some() { Stdio::piped() } else { Stdio::null() })
         .stdout(Stdio::piped())
@@ -80,9 +131,12 @@ fn read_in_background(mut pipe: impl Read + Send + 'static) -> thread::JoinHandl
 }
 
 /// Con `INVESTIGACION_TIMING=1` imprime cuánto tardó cada herramienta; sirve
-/// para medir dónde se va el tiempo sin instalar un perfilador.
+/// para medir dónde se va el tiempo sin instalar un perfilador. El registro
+/// (en debug) lo anota siempre.
 pub fn report_timing(label: &str, started: Instant) {
+    let seconds = started.elapsed().as_secs_f64();
+    logging::debug(format_args!("[timing] {label}: {seconds:.2} s"));
     if std::env::var_os("INVESTIGACION_TIMING").is_some_and(|v| v == "1") {
-        eprintln!("[timing] {label}: {:.2} s", started.elapsed().as_secs_f64());
+        eprintln!("[timing] {label}: {seconds:.2} s");
     }
 }

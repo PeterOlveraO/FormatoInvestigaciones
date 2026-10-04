@@ -14,9 +14,19 @@ impl GenerationError {
     }
 }
 
+/// Un error de E/S llega sin contexto («Permiso denegado»): se registra con
+/// el lugar del `?` que lo convirtió y el mensaje remite al registro.
 impl From<std::io::Error> for GenerationError {
+    #[track_caller]
     fn from(error: std::io::Error) -> Self {
-        Self(error.to_string())
+        crate::logging::warn(format_args!("I/O error at {}: {error}", std::panic::Location::caller()));
+        let mut message = error.to_string();
+        if let Some(log) = crate::logging::path() {
+            message.push_str(
+                &tr!(es: "\n\nDetalles en el registro: {}", en: "\n\nDetails in the log: {}", log.display()),
+            );
+        }
+        Self(message)
     }
 }
 

@@ -12,6 +12,7 @@ use crate::document::{DocumentData, parse_members, today};
 use crate::error::Result;
 use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf, missing_data, missing_data_error};
 use crate::i18n::{self, Lang, Text};
+use crate::logging;
 use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
 use crate::project::Project;
 use crate::settings::Settings;
@@ -379,6 +380,26 @@ impl Reporter for ConsoleReporter {
     }
 }
 
+/// Envuelve al `Reporter` de quien llama y copia cada mensaje al registro,
+/// tal como se muestra; así el CLI y la TUI lo tienen sin hacer nada.
+struct LoggingReporter<'a>(&'a mut dyn Reporter);
+
+impl Reporter for LoggingReporter<'_> {
+    fn warning(&mut self, message: String) {
+        logging::warn(format_args!("user warning: {message}"));
+        self.0.warning(message);
+    }
+    fn info(&mut self, message: String) {
+        logging::info(format_args!("user message: {message}"));
+        self.0.info(message);
+    }
+}
+
+/// Valor opcional para el registro: `-` si no se dio.
+fn shown(value: Option<impl std::fmt::Display>) -> String {
+    value.map_or_else(|| "-".to_owned(), |v| v.to_string())
+}
+
 /// La opción gana; luego el perfil de la materia y, al final, el `.env`.
 fn pick(option: Option<&str>, profile: Option<&str>, settings: &Settings, names: &[&str]) -> String {
     match (option, profile.map(str::trim).filter(|v| !v.is_empty())) {
@@ -400,11 +421,35 @@ fn locate_markdown(args: &Args, project: &Project, course: Option<&Course>) -> R
     resolve_markdown_path(&args.markdown, &project.input_dir())
 }
 
-/// Ejecuta una generación completa con argumentos ya analizados.
+/// Ejecuta una generación completa con argumentos ya analizados. Registra el
+/// inicio, cada mensaje, el resultado y el tiempo total.
 pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> Result<PathBuf> {
+    let started = std::time::Instant::now();
+    logging::info(format_args!(
+        "generation started: markdown={} profile={} design={} format={} doc_lang={} output={}",
+        args.markdown.display(),
+        shown(args.profile.as_deref()),
+        shown(args.design.as_deref()),
+        shown(args.format.as_deref()),
+        shown(args.doc_lang.map(Lang::code)),
+        shown(args.output.as_ref().map(|o| o.display())),
+    ));
+    let result = run_generation(args, project, &mut LoggingReporter(reporter));
+    let seconds = started.elapsed().as_secs_f64();
+    match &result {
+        Ok(pdf) => logging::info(format_args!("generation finished in {seconds:.2} s: {}", pdf.display())),
+        Err(error) => logging::error(format_args!("generation failed after {seconds:.2} s: {error}")),
+    }
+    result
+}
+
+fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> Result<PathBuf> {
     let env_file = args.env_file.clone().unwrap_or_else(|| project.env_file());
     let settings = Settings::load(&env_file)?;
     let course = args.profile.as_deref().map(|key| find_course(project, key)).transpose()?;
+    if let Some(course) = &course {
+        logging::info(format_args!("course profile: {} ({})", course.key, course.profile.name));
+    }
     let profile = course.as_ref().map(|c| &c.profile);
     let from_profile =
         |get: fn(&CourseProfile) -> &str| profile.map(get).map(str::trim).filter(|v| !v.is_empty());
@@ -417,6 +462,13 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
     )?;
     let doc_lang =
         layout.document_language(args.doc_lang.or(from_profile(|p| &p.language).and_then(i18n::parse)));
+    logging::info(format_args!(
+        "layout: design {} ({}), format {}, document language {}",
+        layout.design.key,
+        layout.design.file.display(),
+        shown(layout.format.as_ref().map(|f| &f.key)),
+        doc_lang.code()
+    ));
 
     // Campos propios: los del perfil y, encima, los de --set.
     let mut fields = profile.map(|p| p.fields.clone()).unwrap_or_default();
@@ -449,11 +501,13 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
     // Solo se exigen los datos que el diseño realmente usa.
     let missing = missing_data(&layout, &data);
     if !missing.is_empty() {
+        logging::warn(format_args!("missing data for design {}: {}", layout.design.key, missing.join(", ")));
         return Err(missing_data_error(&layout, &missing));
     }
 
     let markdown_path = locate_markdown(args, project, course.as_ref())?;
     let markdown = read_markdown(&markdown_path)?;
+    logging::info(format_args!("markdown: {} ({} bytes)", markdown_path.display(), markdown.len()));
     for warning in validate_markdown(&markdown, &layout.headings()) {
         reporter.warning(warning);
     }
@@ -476,6 +530,13 @@ pub fn execute(args: &Args, project: &Project, reporter: &mut dyn Reporter) -> R
         Some(course) => course.output_dir(project),
         None => project.output_dir(),
     });
+    logging::debug(format_args!(
+        "output folder: {}, logos: {}, raw LaTeX: {}, copies: {}",
+        output_dir.display(),
+        shown(options.logos.as_ref().map(|l| l.display())),
+        args.allow_latex,
+        args.copy.len()
+    ));
     let pdf =
         generate_pdf(project, &markdown_path, &output_dir, &data, &options, &mut |w| reporter.warning(w))?;
     reporter.info(tr!(es: "PDF generado: {}", en: "PDF generated: {}", pdf.display()));
@@ -497,6 +558,7 @@ where
     // `--check-template <diseño>` revisa un diseño en vez de generar un trabajo.
     if let Some(position) = argv.iter().position(|a| a == "--check-template" || a == "--revisar-plantilla") {
         let Some(design) = argv.get(position + 1) else {
+            logging::warn("--check-template without a design name");
             eprintln!(
                 "{}",
                 tr!(
@@ -513,9 +575,14 @@ where
         Err(error) => {
             match error.kind() {
                 ErrorKind::DisplayHelp | ErrorKind::DisplayVersion => {
+                    logging::debug(format_args!("shown: {:?}", error.kind()));
                     let _ = error.print();
                 }
-                _ => eprintln!("{}", describe_clap_error(&error)),
+                _ => {
+                    let message = describe_clap_error(&error);
+                    logging::warn(format_args!("invalid arguments:\n{message}"));
+                    eprintln!("{message}");
+                }
             }
             return error.exit_code();
         }

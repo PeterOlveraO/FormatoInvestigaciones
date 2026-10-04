@@ -9,6 +9,7 @@ use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
 use crate::i18n::Lang;
 use crate::latex::render_template;
+use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::pandoc_to_latex;
 use crate::project::{Project, absolute};
@@ -77,6 +78,14 @@ pub fn generate_pdf(
     let doc_lang = layout.document_language(options.doc_lang);
     let template_file = layout.design.file.clone();
     let logos = project.resolve_logos_directory(&template_file, options.logos.as_deref())?;
+    logging::debug(format_args!(
+        "generate: markdown {}, template {}, format {}, document language {}, logos {}",
+        markdown_path.display(),
+        template_file.display(),
+        layout.format.as_ref().map_or("-", |f| f.key.as_str()),
+        doc_lang.code(),
+        logos.as_ref().map_or_else(|| "none".to_owned(), |l| l.display().to_string())
+    ));
     let template = decode_text(&std::fs::read(&template_file)?, &template_file)?;
     // Los marcadores del contrato del diseño se resuelven antes que los datos.
     let template = template
@@ -104,8 +113,16 @@ pub fn generate_pdf(
     )?;
     let working_directory = markdown_path.parent().unwrap_or(Path::new("."));
     let state = latex_state_dir(project, &output_pdf, &layout.cache_key());
+    logging::debug(format_args!(
+        "generate: build folder {}, output {}",
+        temporary.path().display(),
+        output_pdf.display()
+    ));
     compile_pdf(&tex_path, &output_pdf, working_directory, Some(&state), on_warning)?;
-    let _ = temporary.close();
+    // Que no se borre (Windows lo puede tener bloqueado) no es un error.
+    if let Err(error) = temporary.close() {
+        logging::debug(format_args!("build folder not removed: {error}"));
+    }
     Ok(output_pdf)
 }
 
