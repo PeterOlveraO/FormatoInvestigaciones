@@ -8,6 +8,7 @@ use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListSt
 
 use super::app::{App, FIELDS, FieldKey, FieldKind, LogLine, Mode};
 use super::picker::Picker;
+use super::wizard::Wizard;
 use crate::i18n::{Lang, Text};
 
 const ACCENT: Color = Color::Cyan;
@@ -40,6 +41,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
 
     match &app.mode {
         Mode::Picking(picker) => draw_picker(frame, app, picker),
+        Mode::Wizard(wizard) => draw_wizard(frame, wizard),
         Mode::Editing(input) => {
             let field = FIELDS[app.selected];
             let popup = centered(area, 70, 5);
@@ -108,27 +110,32 @@ fn titled_block<'a>(title: impl Into<Line<'a>>) -> Block<'a> {
 fn draw_header(frame: &mut Frame, area: Rect) {
     let title = Line::from(vec![
         Span::styled(" INVESTIGACION ", Style::new().fg(Color::Black).bg(ACCENT).bold()),
-        Span::raw("  Markdown → APA PDF"),
+        Span::raw("  Markdown → PDF"),
     ]);
     frame.render_widget(Paragraph::new(title).block(titled_block("")), area);
 }
 
 fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
     let label_width = 20;
-    let items: Vec<ListItem> = FIELDS
-        .iter()
-        .enumerate()
-        .map(|(index, field)| {
-            let value = app.values[index].trim();
-            let marker = if field.required { "*" } else { " " };
-            let picker = if matches!(field.kind, FieldKind::Pick(_)) { "▸ " } else { "  " };
+    let items: Vec<ListItem> = (0..app.total_fields())
+        .map(|index| {
+            let field = FIELDS.get(index);
+            let value = app.field_value(index);
+            let required = app.is_required(index);
+            let marker = if required { "*" } else { " " };
+            let picker =
+                if field.is_some_and(|f| matches!(f.kind, FieldKind::Pick(_))) { "▸ " } else { "  " };
+            let empty = match field {
+                Some(field) => field.empty.get(),
+                None => Text::new("campo propio del diseño", "the design's own field").get(),
+            };
             let shown = if value.is_empty() {
-                if field.required {
+                if required {
                     Span::styled(Text::new("[falta]", "[missing]").get(), Style::new().fg(Color::Red))
                 } else {
-                    Span::styled(format!("({})", field.empty), Style::new().fg(Color::DarkGray))
+                    Span::styled(format!("({empty})"), Style::new().fg(Color::DarkGray))
                 }
-            } else if field.key == FieldKey::Markdown {
+            } else if field.is_some_and(|f| f.key == FieldKey::Markdown) {
                 Span::raw(app.display_path(value))
             } else {
                 Span::raw(value.to_owned())
@@ -137,7 +144,7 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
                 Span::styled(format!("{:>2} ", index + 1), Style::new().fg(Color::DarkGray)),
                 Span::raw(picker),
                 Span::styled(
-                    format!("{:<label_width$}", format!("{}{marker}", field.label)),
+                    format!("{:<label_width$}", format!("{}{marker}", app.field_label(index))),
                     Style::new().bold(),
                 ),
                 shown,
@@ -152,7 +159,31 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_help(frame: &mut Frame, app: &App, area: Rect) {
-    let field = FIELDS[app.selected];
+    // Un campo propio del diseño: su ayuda (si la ficha la trae) y cómo llenarlo.
+    let Some(&field) = FIELDS.get(app.selected) else {
+        let extra = &app.extras[app.selected - FIELDS.len()];
+        let mut lines = Vec::new();
+        if !extra.help.is_empty() {
+            lines.push(Line::from(extra.help.clone()));
+        }
+        lines.push(Line::styled(
+            tr!(
+                es: "Campo propio del diseño: %%{}%%. Se guarda en el perfil o se da con --set.",
+                en: "The design's own field: %%{}%%. Saved in the profile or given with --set.",
+                extra.name
+            ),
+            Style::new().fg(Color::DarkGray),
+        ));
+        lines.push(Line::styled(
+            Text::new("Enter para escribirlo", "Enter to write it").get(),
+            Style::new().fg(ACCENT),
+        ));
+        frame.render_widget(
+            Paragraph::new(lines).wrap(Wrap { trim: true }).block(titled_block(format!(" {} ", extra.label))),
+            area,
+        );
+        return;
+    };
     let mut lines = vec![
         Line::from(field.help.get()),
         Line::from(vec![
@@ -223,6 +254,11 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
     // Cada idioma muestra sus propias iniciales; la tecla del idioma dice el
     // nombre del otro, para que lo encuentre quien no lee el actual.
     let keys: Vec<(&str, Text)> = match app.mode {
+        Mode::Wizard(_) => vec![
+            ("Enter", Text::new("siguiente", "next")),
+            ("⇧Tab", Text::new("atrás", "back")),
+            ("Esc", Text::new("cancelar", "cancel")),
+        ],
         Mode::ChooseLanguage(_) => {
             vec![("↑↓", Text::new("elegir", "choose")), ("Enter", Text::new("aceptar", "accept"))]
         }
@@ -237,6 +273,7 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
                 (Text::new("Supr", "Del").get(), Text::new("vaciar", "clear")),
                 ("g", Text::new("generar", "generate")),
                 ("v", Text::new("ver PDF", "view PDF")),
+                ("p", Text::new("perfil", "profile")),
                 (folders, Text::new("carpetas", "folders")),
                 ("l", Text::new("English", "Español")),
                 (quit, Text::new("salir", "quit")),
@@ -300,6 +337,11 @@ fn draw_picker(frame: &mut Frame, app: &App, picker: &Picker) {
     };
     frame.render_widget(Paragraph::new(filter_line), filter);
 
+    render_picker_list(frame, picker, list_area);
+}
+
+/// La lista de un selector (también la usa el asistente).
+fn render_picker_list(frame: &mut Frame, picker: &Picker, list_area: Rect) {
     let visible = picker.visible();
     let items: Vec<ListItem> = if visible.is_empty() {
         vec![ListItem::new(Line::styled(
@@ -324,6 +366,49 @@ fn draw_picker(frame: &mut Frame, app: &App, picker: &Picker) {
         .highlight_symbol("› ");
     let mut state = ListState::default().with_selected(Some(picker.selected));
     frame.render_stateful_widget(list, list_area, &mut state);
+}
+
+/// El asistente de perfiles: un paso a la vez, con su ayuda y su campo o lista.
+fn draw_wizard(frame: &mut Frame, wizard: &Wizard) {
+    let area = centered(frame.area(), 80, frame.area().height.saturating_sub(4).max(12));
+    frame.render_widget(Clear, area);
+    let title = if wizard.editing {
+        Text::new(" Editar perfil ", " Edit profile ")
+    } else {
+        Text::new(" Nuevo perfil ", " New profile ")
+    };
+    let block = titled_block(title.get()).border_style(Style::new().fg(ACCENT));
+    let inner = block.inner(area);
+    frame.render_widget(block, area);
+    let [header, body] = Layout::vertical([Constraint::Length(5), Constraint::Min(1)]).areas(inner);
+
+    let step = wizard.step();
+    let mark = if step.required { " *" } else { "" };
+    let progress = tr!(es: "Paso {} de {}", en: "Step {} of {}", wizard.index + 1, wizard.steps.len());
+    let mut lines = vec![
+        Line::styled(progress, Style::new().fg(Color::DarkGray)),
+        Line::styled(format!("{}{mark}", step.title), Style::new().bold()),
+        Line::raw(step.help.clone()),
+    ];
+    if let Some(error) = &wizard.error {
+        lines.push(Line::styled(error.clone(), Style::new().fg(Color::Red)));
+    }
+    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), header);
+
+    match &wizard.picker {
+        Some(picker) => render_picker_list(frame, picker, body),
+        None => {
+            let [input_area, _] = Layout::vertical([Constraint::Length(1), Constraint::Min(0)]).areas(body);
+            let width = input_area.width.saturating_sub(3) as usize;
+            let skip = wizard.input.cursor.saturating_sub(width);
+            let visible: String = wizard.input.text.chars().skip(skip).collect();
+            frame.render_widget(Paragraph::new(format!("› {visible}")), input_area);
+            frame.set_cursor_position(Position::new(
+                input_area.x + 2 + (wizard.input.cursor - skip) as u16,
+                input_area.y,
+            ));
+        }
+    }
 }
 
 /// Rectángulo centrado de `percent_x` de ancho y `height` filas.

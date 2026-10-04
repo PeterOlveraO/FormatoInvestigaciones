@@ -144,6 +144,60 @@ pub fn find_course(project: &Project, choice: &str) -> Result<Course> {
     )))
 }
 
+/// Texto TOML entre comillas, con lo necesario escapado.
+fn toml_string(value: &str) -> String {
+    let mut out = String::from("\"");
+    for c in value.chars() {
+        match c {
+            '\\' => out.push_str("\\\\"),
+            '"' => out.push_str("\\\""),
+            '\n' => out.push_str("\\n"),
+            '\t' => out.push_str("\\t"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04X}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+/// Guarda el perfil en `courses/<clave>.toml` (solo los datos no vacíos) y
+/// devuelve la ruta. Si ya existía, se reemplaza.
+pub fn save_profile(project: &Project, key: &str, profile: &CourseProfile) -> Result<PathBuf> {
+    let key = crate::document::slugify(key);
+    let mut text = String::new();
+    let entries = [
+        ("name", &profile.name),
+        ("university", &profile.university),
+        ("faculty", &profile.faculty),
+        ("student", &profile.student),
+        ("members", &profile.members),
+        ("teacher", &profile.teacher),
+        ("group", &profile.group),
+        ("semester", &profile.semester),
+        ("format", &profile.format),
+        ("design", &profile.design),
+        ("language", &profile.language),
+        ("folder", &profile.folder),
+    ];
+    for (name, value) in entries {
+        if !value.trim().is_empty() {
+            text.push_str(&format!("{name} = {}\n", toml_string(value.trim())));
+        }
+    }
+    let fields: Vec<_> = profile.fields.iter().filter(|(_, v)| !v.trim().is_empty()).collect();
+    if !fields.is_empty() {
+        text.push_str("\n[fields]\n");
+        for (name, value) in fields {
+            text.push_str(&format!("{name} = {}\n", toml_string(value.trim())));
+        }
+    }
+    std::fs::create_dir_all(project.courses_dir())?;
+    let path = project.courses_dir().join(format!("{key}.toml"));
+    std::fs::write(&path, text)?;
+    Ok(path)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -183,6 +237,24 @@ mod tests {
             project_with(&[("a.toml", "name = \"X\"\nprofe = \"Y\"\n"), ("b.toml", "teacher = \"Y\"\n")]);
         assert!(find_course(&project, "a").is_err());
         assert!(find_course(&project, "b").is_err());
+    }
+
+    #[test]
+    fn a_saved_profile_reads_back_the_same() {
+        let (_dir, project) = project_with(&[]);
+        let mut profile = CourseProfile {
+            name: "Inteligencia \"artificial\"".into(),
+            university: "Universidad \\ Norte".into(),
+            semester: "7".into(),
+            format: "apa7".into(),
+            design: "report".into(),
+            folder: "IA".into(),
+            ..Default::default()
+        };
+        profile.fields.insert("SALON".into(), "B-204".into());
+        let path = save_profile(&project, "IA Uno", &profile).unwrap();
+        assert!(path.ends_with("ia-uno.toml"));
+        assert_eq!(find_course(&project, "ia-uno").unwrap().profile, profile);
     }
 
     #[test]

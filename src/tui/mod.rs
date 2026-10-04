@@ -5,6 +5,7 @@
 mod app;
 mod picker;
 mod ui;
+mod wizard;
 
 pub use app::{App, FIELDS, FieldKey};
 
@@ -24,9 +25,8 @@ pub fn run() -> i32 {
     let saved = i18n::configured(&settings);
     i18n::set(saved.unwrap_or_else(i18n::detect));
     let mut app = App::new(project);
-    if saved.is_none() {
-        app.ask_language(i18n::current());
-    }
+    // Idioma la primera vez y, si no hay perfiles, el asistente para el primero.
+    app.start(saved.is_none().then(i18n::current));
     let mut terminal = ratatui::init();
     let result = event_loop(&mut terminal, &mut app);
     ratatui::restore();

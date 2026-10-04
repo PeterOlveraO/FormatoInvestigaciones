@@ -8,10 +8,14 @@ use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose};
 use crate::cli::{Args, Reporter, execute};
-use crate::courses::{Course, list_courses};
+use std::collections::BTreeMap;
+
+use super::wizard::{Outcome as WizardOutcome, Wizard};
+use crate::courses::{Course, list_courses, save_profile};
 use crate::i18n::{self, LANG_SETTINGS, Lang, Text};
 use crate::project::Project;
 use crate::settings::Settings;
+use crate::template::Design;
 
 /// Campos del formulario, en el orden en que se muestran.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -24,6 +28,7 @@ pub enum FieldKey {
     Teacher,
     Members,
     Group,
+    Format,
     Template,
     Output,
     Copies,
@@ -53,7 +58,7 @@ const NOTHING: Text = Text::new("", "");
 /// El formulario. Ya no incluye el archivo .env, «permitir LaTeX», la
 /// plantilla por ruta ni la carpeta de logos (las opciones 9 a 12 del menú
 /// anterior): siguen disponibles en el CLI para quien las necesite.
-pub const FIELDS: [Field; 11] = [
+pub const FIELDS: [Field; 12] = [
     Field {
         key: FieldKey::Profile,
         label: Text::new("Perfil de materia", "Course profile"),
@@ -106,7 +111,8 @@ pub const FIELDS: [Field; 11] = [
         key: FieldKey::Course,
         label: Text::new("Materia", "Course"),
         kind: FieldKind::Text,
-        required: true,
+        // Obligatoria solo si el diseño la usa: ver `App::is_required`.
+        required: false,
         help: Text::new(
             "Nombre de la materia, tal como sale en la portada.",
             "Name of the course, as shown on the cover.",
@@ -148,6 +154,18 @@ pub const FIELDS: [Field; 11] = [
         empty: Text::new("GRUPO del .env; si no está, no sale", "GRUPO from .env; if missing, omitted"),
     },
     Field {
+        key: FieldKey::Format,
+        label: Text::new("Formato", "Format"),
+        kind: FieldKind::Pick(PickerPurpose::Format),
+        required: false,
+        help: Text::new(
+            "La norma: APA 7, Harvard, MLA… Decide letra, interlineado, encabezados y referencias.",
+            "The norm: APA 7, Harvard, MLA… It sets font, spacing, headings and references.",
+        ),
+        example: Text::new("harvard", "harvard"),
+        empty: Text::new("el primero que acepta el diseño", "the first one the design accepts"),
+    },
+    Field {
         key: FieldKey::Template,
         label: Text::new("Diseño", "Design"),
         kind: FieldKind::Pick(PickerPurpose::Template),
@@ -185,6 +203,16 @@ pub const FIELDS: [Field; 11] = [
     },
 ];
 
+/// Campo propio del diseño elegido (`%%SALON%%`), que se suma al formulario.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ExtraField {
+    pub name: String,
+    pub label: String,
+    pub help: String,
+    pub required: bool,
+    pub value: String,
+}
+
 /// Línea del panel de resultados.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum LogLine {
@@ -207,19 +235,19 @@ impl TextInput {
     fn byte_at(&self, cursor: usize) -> usize {
         self.text.char_indices().nth(cursor).map_or(self.text.len(), |(i, _)| i)
     }
-    fn insert(&mut self, c: char) {
+    pub(crate) fn insert(&mut self, c: char) {
         let at = self.byte_at(self.cursor);
         self.text.insert(at, c);
         self.cursor += 1;
     }
-    fn backspace(&mut self) {
+    pub(crate) fn backspace(&mut self) {
         if self.cursor > 0 {
             self.cursor -= 1;
             let at = self.byte_at(self.cursor);
             self.text.remove(at);
         }
     }
-    fn delete(&mut self) {
+    pub(crate) fn delete(&mut self) {
         if self.cursor < self.text.chars().count() {
             let at = self.byte_at(self.cursor);
             self.text.remove(at);
@@ -230,6 +258,8 @@ impl TextInput {
 pub enum Mode {
     /// Pantalla de la primera vez: elegir el idioma (con el del sistema marcado).
     ChooseLanguage(Lang),
+    /// El asistente de perfiles (crear o editar).
+    Wizard(Box<Wizard>),
     Form,
     Editing(TextInput),
     Picking(Picker),
@@ -265,6 +295,12 @@ pub struct App {
     /// El nombre del PDF se propone a partir del Markdown mientras la persona
     /// no lo haya escrito a mano.
     file_name_is_auto: bool,
+    /// Campos propios del diseño elegido, después de los fijos.
+    pub extras: Vec<ExtraField>,
+    /// El diseño elegido (o el de omisión), para saber qué datos pide.
+    pub design: Option<Design>,
+    /// Abrir el asistente en cuanto se elija el idioma (primera vez sin perfiles).
+    pending_wizard: bool,
 }
 
 pub fn index_of(key: FieldKey) -> usize {
@@ -275,7 +311,7 @@ impl App {
     pub fn new(project: Project) -> Self {
         let (courses, errors) = list_courses(&project);
         let log = errors.into_iter().map(|e| LogLine::Warning(e.0)).collect();
-        Self {
+        let mut app = Self {
             project,
             values: Default::default(),
             selected: index_of(FieldKey::Markdown),
@@ -285,6 +321,113 @@ impl App {
             courses,
             should_quit: false,
             file_name_is_auto: true,
+            extras: Vec::new(),
+            design: None,
+            pending_wizard: false,
+        };
+        app.refresh_design();
+        app
+    }
+
+    /// Primer arranque: el idioma si no estaba guardado y, si no hay perfiles,
+    /// el asistente para crear el primero.
+    pub fn start(&mut self, ask_language: Option<Lang>) {
+        let no_profiles = self.courses.is_empty();
+        match ask_language {
+            Some(lang) => {
+                self.ask_language(lang);
+                self.pending_wizard = no_profiles;
+            }
+            None if no_profiles => self.open_wizard(None),
+            None => {}
+        }
+    }
+
+    /// Abre el asistente: vacío, o con los datos de un perfil para editarlo.
+    pub fn open_wizard(&mut self, existing: Option<&str>) {
+        let course = existing.and_then(|key| self.courses.iter().find(|c| c.key == key)).cloned();
+        self.mode = Mode::Wizard(Box::new(Wizard::new(&self.project, course.as_ref())));
+    }
+
+    fn wizard_key(&mut self, key: KeyEvent, mut wizard: Box<Wizard>) {
+        match wizard.handle_key(key, &self.project) {
+            WizardOutcome::Continue => self.mode = Mode::Wizard(wizard),
+            WizardOutcome::Cancel => {}
+            WizardOutcome::Done => match save_profile(&self.project, &wizard.key, &wizard.finished_profile())
+            {
+                Ok(path) => {
+                    let (courses, _) = list_courses(&self.project);
+                    self.courses = courses;
+                    let key = crate::document::slugify(&wizard.key);
+                    self.apply_profile(&key);
+                    let shown = self.display_path(&path.display().to_string());
+                    self.log.push(LogLine::Info(
+                        tr!(es: "Perfil guardado: {shown}", en: "Profile saved: {shown}"),
+                    ));
+                }
+                Err(error) => self.log.push(LogLine::Error(error.0)),
+            },
+        }
+    }
+
+    /// Relee el diseño elegido y ajusta los campos propios, conservando lo
+    /// que ya se había escrito en los que siguen existiendo.
+    fn refresh_design(&mut self) {
+        let chosen = Some(self.value(FieldKey::Template).to_owned()).filter(|v| !v.is_empty());
+        self.design = crate::template::load_design(&self.project, chosen.as_deref()).ok();
+        let previous: BTreeMap<String, String> = self.extras.drain(..).map(|e| (e.name, e.value)).collect();
+        if let Some(design) = &self.design {
+            self.extras = design
+                .custom_fields()
+                .into_iter()
+                .map(|name| {
+                    let spec = design.field_spec(name);
+                    ExtraField {
+                        name: name.to_owned(),
+                        label: spec
+                            .label
+                            .as_ref()
+                            .map(|l| l.get().to_owned())
+                            .unwrap_or_else(|| name.to_owned()),
+                        help: spec.help.as_ref().map(|h| h.get().to_owned()).unwrap_or_default(),
+                        required: spec.required,
+                        value: previous.get(name).cloned().unwrap_or_default(),
+                    }
+                })
+                .collect();
+        }
+        self.selected = self.selected.min(self.total_fields() - 1);
+    }
+
+    /// Campos del formulario: los fijos y luego los propios del diseño.
+    pub fn total_fields(&self) -> usize {
+        FIELDS.len() + self.extras.len()
+    }
+
+    pub fn field_label(&self, index: usize) -> String {
+        match FIELDS.get(index) {
+            Some(field) => field.label.get().to_owned(),
+            None => self.extras[index - FIELDS.len()].label.clone(),
+        }
+    }
+
+    pub fn field_value(&self, index: usize) -> &str {
+        match FIELDS.get(index) {
+            Some(_) => self.values[index].trim(),
+            None => self.extras[index - FIELDS.len()].value.trim(),
+        }
+    }
+
+    /// Obligatorio: el Markdown y el título siempre; la materia si el diseño
+    /// la usa; los campos propios si su ficha lo dice.
+    pub fn is_required(&self, index: usize) -> bool {
+        match FIELDS.get(index) {
+            Some(field) if field.key == FieldKey::Course => self
+                .design
+                .as_ref()
+                .is_some_and(|d| d.uses("MATERIA") && !d.manifest.optional.iter().any(|o| o == "MATERIA")),
+            Some(field) => field.required,
+            None => self.extras[index - FIELDS.len()].required,
         }
     }
 
@@ -296,8 +439,11 @@ impl App {
         self.values[index_of(key)] = value.into();
     }
 
-    pub fn missing_fields(&self) -> Vec<&'static str> {
-        FIELDS.iter().filter(|f| f.required && self.value(f.key).is_empty()).map(|f| f.label.get()).collect()
+    pub fn missing_fields(&self) -> Vec<String> {
+        (0..self.total_fields())
+            .filter(|&i| self.is_required(i) && self.field_value(i).is_empty())
+            .map(|i| self.field_label(i))
+            .collect()
     }
 
     /// Abre la pantalla de idioma con `preselected` marcado.
@@ -350,8 +496,13 @@ impl App {
             env_file: None,
             allow_latex: false,
             design: optional(FieldKey::Template),
-            format: None,
-            fields: Vec::new(),
+            format: optional(FieldKey::Format),
+            fields: self
+                .extras
+                .iter()
+                .filter(|e| !e.value.trim().is_empty())
+                .map(|e| (e.name.clone(), e.value.trim().to_owned()))
+                .collect(),
             doc_lang: None,
             logos: None,
             lang: Some(i18n::current()),
@@ -366,6 +517,7 @@ impl App {
         }
         match std::mem::replace(&mut self.mode, Mode::Form) {
             Mode::ChooseLanguage(selected) => self.language_key(key, selected),
+            Mode::Wizard(wizard) => self.wizard_key(key, wizard),
             Mode::Form => self.form_key(key),
             Mode::Editing(input) => self.editing_key(key, input),
             Mode::Picking(picker) => self.picking_key(key, picker),
@@ -382,29 +534,45 @@ impl App {
             KeyCode::Enter => self.set_language(selected),
             // Esc usa el idioma marcado sin guardarlo: se volverá a preguntar.
             KeyCode::Esc => i18n::set(selected),
-            _ => self.mode = Mode::ChooseLanguage(selected),
+            _ => {
+                self.mode = Mode::ChooseLanguage(selected);
+                return;
+            }
+        }
+        if std::mem::take(&mut self.pending_wizard) {
+            self.open_wizard(None);
         }
     }
 
     fn form_key(&mut self, key: KeyEvent) {
         match key.code {
             KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => {
-                self.selected = self.selected.checked_sub(1).unwrap_or(FIELDS.len() - 1)
+                self.selected = self.selected.checked_sub(1).unwrap_or(self.total_fields() - 1)
             }
             KeyCode::Down | KeyCode::Char('j') | KeyCode::Tab => {
-                self.selected = (self.selected + 1) % FIELDS.len()
+                self.selected = (self.selected + 1) % self.total_fields()
             }
             KeyCode::Enter | KeyCode::Right => self.activate_field(),
             KeyCode::Char(c @ '1'..='9') => {
                 self.selected = (c as usize - '1' as usize).min(FIELDS.len() - 1);
                 self.activate_field();
             }
-            KeyCode::Delete | KeyCode::Backspace => {
-                let field = FIELDS[self.selected];
-                self.values[self.selected].clear();
-                if field.key == FieldKey::FileName {
-                    self.file_name_is_auto = true;
+            KeyCode::Delete | KeyCode::Backspace => match FIELDS.get(self.selected) {
+                Some(field) => {
+                    self.values[self.selected].clear();
+                    if field.key == FieldKey::FileName {
+                        self.file_name_is_auto = true;
+                    }
+                    if field.key == FieldKey::Template {
+                        self.refresh_design();
+                    }
                 }
+                None => self.extras[self.selected - FIELDS.len()].value.clear(),
+            },
+            // p: perfil/profile en los dos idiomas. Edita el elegido o crea uno.
+            KeyCode::Char('p') => {
+                let current = Some(self.value(FieldKey::Profile).to_owned()).filter(|v| !v.is_empty());
+                self.open_wizard(current.as_deref());
             }
             KeyCode::Char('g') | KeyCode::F(5) => self.start_generation(),
             // Las letras de cada acción en los dos idiomas: c/f carpetas, s/q salir.
@@ -421,7 +589,11 @@ impl App {
     }
 
     fn activate_field(&mut self) {
-        let field = FIELDS[self.selected];
+        let Some(field) = FIELDS.get(self.selected) else {
+            let value = self.extras[self.selected - FIELDS.len()].value.clone();
+            self.mode = Mode::Editing(TextInput::new(&value));
+            return;
+        };
         self.mode = match field.kind {
             FieldKind::Text => Mode::Editing(TextInput::new(&self.values[self.selected])),
             FieldKind::Pick(purpose) => Mode::Picking(self.picker_for(purpose)),
@@ -461,13 +633,33 @@ impl App {
                     items,
                 )
             }
+            PickerPurpose::Format => {
+                let items = crate::template::list_formats(&self.project)
+                    .into_iter()
+                    .map(|key| {
+                        let detail = crate::template::load_format(&self.project, &key)
+                            .map(|f| f.manifest.name.get().to_owned())
+                            .unwrap_or_default();
+                        Item { label: key.clone(), detail, value: PickValue::Choice(key) }
+                    })
+                    .collect();
+                Picker::choices(purpose, Text::new("Elige un formato", "Choose a format").get(), items)
+            }
             PickerPurpose::Template => {
+                // Solo los diseños que combinan con el formato elegido.
+                let format = self.value(FieldKey::Format).to_owned();
                 let items = crate::template::list_designs(&self.project)
                     .into_iter()
-                    .map(|name| Item {
-                        label: name.clone(),
-                        detail: String::new(),
-                        value: PickValue::Choice(name),
+                    .filter_map(|name| {
+                        let design = crate::template::load_design(&self.project, Some(&name)).ok()?;
+                        let fits = format.is_empty() || design.is_self_contained() || design.accepts(&format);
+                        let detail = design
+                            .manifest
+                            .description
+                            .as_ref()
+                            .map(|d| d.get().to_owned())
+                            .unwrap_or_default();
+                        fits.then(|| Item { label: name.clone(), detail, value: PickValue::Choice(name) })
                     })
                     .collect();
                 Picker::choices(purpose, Text::new("Elige un diseño", "Choose a design").get(), items)
@@ -521,7 +713,10 @@ impl App {
     fn editing_key(&mut self, key: KeyEvent, mut input: TextInput) {
         match key.code {
             KeyCode::Enter => {
-                let field = FIELDS[self.selected];
+                let Some(field) = FIELDS.get(self.selected) else {
+                    self.extras[self.selected - FIELDS.len()].value = input.text.trim().to_owned();
+                    return;
+                };
                 if field.key == FieldKey::FileName {
                     self.file_name_is_auto = input.text.trim().is_empty();
                 }
@@ -599,7 +794,20 @@ impl App {
                 self.set(FieldKey::Markdown, path.display().to_string());
             }
             (PickerPurpose::Profile, PickValue::Choice(key)) => self.apply_profile(&key),
-            (PickerPurpose::Template, PickValue::Choice(name)) => self.set(FieldKey::Template, name),
+            (PickerPurpose::Format, PickValue::Choice(name)) => {
+                // Un diseño que no combina con el formato nuevo se quita.
+                if self.design.as_ref().is_some_and(|d| !d.is_self_contained() && !d.accepts(&name))
+                    && !self.value(FieldKey::Template).is_empty()
+                {
+                    self.set(FieldKey::Template, "");
+                    self.refresh_design();
+                }
+                self.set(FieldKey::Format, name);
+            }
+            (PickerPurpose::Template, PickValue::Choice(name)) => {
+                self.set(FieldKey::Template, name);
+                self.refresh_design();
+            }
             (PickerPurpose::Folder, PickValue::Dir(path)) => self.open_path(&path),
             _ => {}
         }
@@ -616,10 +824,18 @@ impl App {
             (FieldKey::Teacher, &profile.teacher),
             (FieldKey::Members, &profile.members),
             (FieldKey::Group, &profile.group),
+            (FieldKey::Format, &profile.format),
             (FieldKey::Template, &profile.design),
         ] {
             if !value.trim().is_empty() {
                 self.set(field, value.trim());
+            }
+        }
+        // Los campos propios del diseño del perfil, con sus valores.
+        self.refresh_design();
+        for extra in &mut self.extras {
+            if let Some(value) = profile.fields.get(&extra.name) {
+                extra.value = value.clone();
             }
         }
         if !profile.folder.trim().is_empty() {

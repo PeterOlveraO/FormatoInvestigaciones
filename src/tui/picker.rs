@@ -30,6 +30,7 @@ pub struct Item {
 pub enum PickerPurpose {
     Markdown,
     Profile,
+    Format,
     Template,
     Folder,
 }

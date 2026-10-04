@@ -30,10 +30,27 @@ fn select(app: &mut App, key: FieldKey) {
 fn sample_project() -> (tempfile::TempDir, Project) {
     let directory = tempfile::tempdir().unwrap();
     let root = directory.path();
-    for design in ["geometric-cover", "classic-cover"] {
-        std::fs::create_dir_all(root.join("templates/designs").join(design)).unwrap();
-        std::fs::write(root.join("templates/designs").join(design).join("template.ltx"), "x").unwrap();
+    let write = |path: &str, text: &str| {
+        let path = root.join(path);
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        std::fs::write(path, text).unwrap();
+    };
+    // Dos formatos y dos diseños: uno solo para APA, con un campo propio
+    // obligatorio, y otro que combina con los dos y pide pocos datos.
+    for format in ["apa7", "harvard"] {
+        write(&format!("templates/formats/{format}/format.sty"), "x");
+        write(&format!("templates/formats/{format}/format.toml"), &format!("name = \"{format}\"\n"));
     }
+    write(
+        "templates/designs/geometric-cover/template.ltx",
+        "%%FORMAT%%\n%%TITULO%% %%UNIVERSIDAD%% %%MATERIA%% %%DOCENTE%% %%SALON%%\n%%CONTENIDO_MARKDOWN%%\n",
+    );
+    write(
+        "templates/designs/geometric-cover/template.toml",
+        "formats = [\"apa7\"]\n[fields.SALON]\nlabel = { es = \"Salón\", en = \"Room\" }\nrequired = true\n",
+    );
+    write("templates/designs/classic-cover/template.ltx", "%%FORMAT%%\n%%TITULO%%\n%%CONTENIDO_MARKDOWN%%\n");
+    write("templates/designs/classic-cover/template.toml", "formats = [\"apa7\", \"harvard\"]\n");
     std::fs::create_dir_all(root.join("input/IA")).unwrap();
     std::fs::write(root.join("input/IA/Tarea 1.md"), "# Introducción\n").unwrap();
     std::fs::write(root.join("input/suelto.md"), "# Introducción\n").unwrap();
@@ -245,4 +262,108 @@ fn quitting() {
     let mut app = App::new(project);
     press(&mut app, KeyCode::Char('q'));
     assert!(app.should_quit);
+}
+
+#[test]
+fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    std::fs::remove_file(project.courses_dir().join("ia.toml")).unwrap();
+    let mut app = App::new(project.clone());
+    app.start(None);
+    assert!(matches!(app.mode, Mode::Wizard(_)), "sin perfiles se abre el asistente");
+
+    type_text(&mut app, "Bases de Datos");
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "apa7");
+    press(&mut app, KeyCode::Enter);
+    // Con apa7 se ofrecen los dos diseños; se elige el que tiene campo propio.
+    type_text(&mut app, "geometric");
+    press(&mut app, KeyCode::Enter);
+    // Pasos: universidad*, materia*, docente, salón* y carpeta.
+    press(&mut app, KeyCode::Enter);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert!(wizard.error.is_some(), "la universidad es obligatoria");
+    for answer in ["Universidad Norte", "Bases de datos", "", "B-204", "BD"] {
+        type_text(&mut app, answer);
+        press(&mut app, KeyCode::Enter);
+    }
+    assert!(matches!(app.mode, Mode::Form));
+    let saved = std::fs::read_to_string(project.courses_dir().join("bases-de-datos.toml")).unwrap();
+    for expected in [
+        "name = \"Bases de datos\"",
+        "university = \"Universidad Norte\"",
+        "format = \"apa7\"",
+        "design = \"geometric-cover\"",
+        "folder = \"BD\"",
+        "SALON = \"B-204\"",
+    ] {
+        assert!(saved.contains(expected), "{expected} en:\n{saved}");
+    }
+    assert!(!saved.contains("teacher"), "lo vacío no se guarda");
+    // Se aplica al formulario, con el campo propio lleno.
+    assert_eq!(app.value(FieldKey::Profile), "bases-de-datos");
+    assert_eq!(app.extras[0].value, "B-204");
+}
+
+#[test]
+fn the_first_run_asks_the_language_and_then_opens_the_wizard() {
+    let (_dir, project) = sample_project();
+    std::fs::remove_file(project.courses_dir().join("ia.toml")).unwrap();
+    let mut app = App::new(project);
+    app.start(Some(Lang::Es));
+    assert!(matches!(app.mode, Mode::ChooseLanguage(_)));
+    press(&mut app, KeyCode::Enter);
+    assert!(matches!(app.mode, Mode::Wizard(_)));
+    press(&mut app, KeyCode::Esc);
+    assert!(matches!(app.mode, Mode::Form));
+}
+
+#[test]
+fn designs_are_filtered_by_format_and_custom_fields_appear() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    // Con harvard solo se ofrece el diseño que lo acepta.
+    select(&mut app, FieldKey::Format);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "harvard");
+    press(&mut app, KeyCode::Enter);
+    select(&mut app, FieldKey::Template);
+    press(&mut app, KeyCode::Enter);
+    let Mode::Picking(picker) = &app.mode else { panic!() };
+    let labels: Vec<&str> = picker.visible().iter().map(|i| i.label.as_str()).collect();
+    assert_eq!(labels, ["classic-cover"]);
+    press(&mut app, KeyCode::Esc);
+    // El diseño con %%SALON%% suma un campo obligatorio al formulario.
+    app.values[index_of(FieldKey::Format)].clear();
+    select(&mut app, FieldKey::Template);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "geometric");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.extras.len(), 1);
+    assert_eq!(app.field_label(FIELDS.len()), "Salón");
+    assert!(app.missing_fields().iter().any(|m| m == "Salón"));
+    assert!(render(&app).contains("Salón"));
+    app.selected = FIELDS.len();
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "B-204");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.build_args().fields, [("SALON".to_owned(), "B-204".to_owned())]);
+}
+
+#[test]
+fn p_edits_the_chosen_profile_with_its_data() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    select(&mut app, FieldKey::Profile);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ia");
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Char('p'));
+    let Mode::Wizard(wizard) = &app.mode else { panic!("p no abrió el asistente") };
+    assert!(wizard.editing);
+    assert_eq!(wizard.input.text, "ia");
+    assert!(render(&app).contains("Editar perfil"));
 }
