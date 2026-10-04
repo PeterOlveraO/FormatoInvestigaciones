@@ -79,15 +79,34 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   **never draws**; `ui.rs` only draws.
 - **Tests** go in `src/tui/tests.rs`, with `press()`/`type_text()` and
   `render()` (`TestBackend`, 120×32).
-- **Modes:** `ChooseLanguage` → `Wizard` → `Form` ↔ `Editing` / `Picking` →
-  `Generating`.
-- **First run** (`App::start`):
+- **Modes:** `ChooseLanguage` → `Wizard` → `Home` ↔ `Form` ↔ `Editing` /
+  `Picking` / `Options` → `Generating`.
+  - `Home(i)` and `Form` are full screens (`Screen`); the others are windows
+    drawn over one. `App::base` remembers which one opened the window and
+    `back()` returns to it (Esc in options, wizard cancel or done, picker).
+  - `ui::draw` draws `app.screen()` first, then the window for the mode.
+- **Start** (`App::start`):
   - `ChooseLanguage` when no `IDIOMA` is saved, with the system language
     preselected. Enter saves it with `Settings::save_value()`; Esc uses it
-    without saving.
+    without saving. Arrows only move the mark.
   - Then the profile wizard if `courses/` has no profiles
     (`pending_wizard`).
-- **Profile wizard** (`wizard.rs`, `p` in the form):
+  - Then `Home(0)`. With a saved language and profiles, straight to home.
+  - Tests that call `App::new()` without `start()` begin in `Form`.
+- **Home view:** `HOME_ITEMS` (Generate a PDF → form, New profile → empty
+  wizard, Options, Quit) plus a status panel: profiles, the session's last
+  PDF, external tools and the log.
+- **Tool check** (`tools.rs`): `App::detect_tools()` (called in `tui::run()`,
+  never in `App::new`) runs `pandoc --version`, `pdflatex --version` and
+  `dot -V` in a background thread; `poll_tools()` collects the result.
+  Not found = `RunError::NotFound`; a timeout counts as installed.
+- **Options view:** one const table, `OPTIONS` (`keys: [es, en]`, `Text`
+  label, `OptionAction`), drives both `app.rs` and `ui.rs`. To add a row:
+  append an entry and handle its action in `App::run_option()`. The letters
+  also work, hidden, in the form (`p`, `n`, `c`/`f`, `l`, `i`/`h`); the
+  form's own keys win on a clash.
+- **Profile wizard** (`wizard.rs`; New profile on home, `p`/`n` in the
+  options):
   - steps: key → format → design (filtered by `accepts`) → one step per marker
     the design uses (`STANDARD_STEPS` order) plus its custom fields → folder;
   - required data follows the same rules as `missing_data`;
@@ -102,10 +121,15 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   - use `total_fields()`, `field_label()`, `field_value()` and
     `is_required()` instead of indexing `FIELDS`. The course is required only
     if the design uses `MATERIA`.
-- **Keys work in both languages:** `g`/F5 generate, `v` view PDF, `p` profile
-  wizard, `c`/`f` folders, `l` toggle language (and save), `s`/`q`/Esc quit,
-  digits jump to a field. Each language's footer shows its own letters, and the `l` entry shows
-  the *other* language's name.
+- **Keys work in both languages.**
+  - Home: ↑↓, Enter, `s`/`q` quit (`v` view PDF, hidden).
+  - Form: `g`/F5 generate, `v` view PDF, `o` options, Esc home, `s`/`q`
+    quit, digits jump to a field.
+  - Options: ↑↓ (wrap around), Enter or the row's letter, Esc back.
+  - The form footer only shows move, edit/choose, clear, generate, view
+    PDF, options and quit; each language shows its own letters (`s`/`q`,
+    `c`/`f`, `i`/`h`). The language row starts with the *other* language's
+    name.
 - **One picker for everything.** `picker.rs` serves the Markdown (folder
   browsing, `.md` only), profiles, templates and project folders. The filter
   ranks an exact name, then a prefix, then a substring, then the description;

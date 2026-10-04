@@ -4,6 +4,7 @@
 
 mod app;
 mod picker;
+mod tools;
 mod ui;
 mod wizard;
 
@@ -25,7 +26,8 @@ pub fn run() -> i32 {
     let saved = i18n::configured(&settings);
     i18n::set(saved.unwrap_or_else(i18n::detect));
     let mut app = App::new(project);
-    // Idioma la primera vez y, si no hay perfiles, el asistente para el primero.
+    app.detect_tools();
+    // Idioma la primera vez, el asistente si no hay perfiles y luego el inicio.
     app.start(saved.is_none().then(i18n::current));
     let mut terminal = ratatui::init();
     let result = event_loop(&mut terminal, &mut app);
@@ -42,6 +44,7 @@ pub fn run() -> i32 {
 fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> std::io::Result<()> {
     while !app.should_quit {
         app.poll_worker();
+        app.poll_tools();
         terminal.draw(|frame| ui::draw(frame, app))?;
         // Espera corta para refrescar el panel mientras se genera el PDF.
         if event::poll(Duration::from_millis(100))? {

@@ -53,7 +53,8 @@ design and all the cover data. Each profile has its own data, so two courses
 can use different formats, teachers or even universities.
 
 The **wizard** creates or edits a profile. It opens by itself the first time
-(when there are no profiles), and with `p` in the menu.
+(when there are no profiles). In the menu, use **New profile** on the home
+view, or the options (`o`): `p` edits the chosen profile, `n` creates one.
 
 1. **Profile name:** a short name such as `ia`.
 2. **Format.**
@@ -91,7 +92,19 @@ SALON = "B-204"
 
 ## The menu
 
-Run `investigacion` with no arguments.
+Run `investigacion` with no arguments. It opens on the **home view**:
+
+- a short description of the program;
+- a menu: **Generate a PDF** (the form), **New profile** (the wizard),
+  **Options** and **Quit**;
+- a status panel: your profiles, the last PDF generated in this session and
+  whether Pandoc and pdflatex (required) and Graphviz (optional, for diagrams)
+  are installed. A missing required tool shows in red with a pointer to
+  [INSTALL.md](INSTALL.md).
+
+Home keys: ↑ ↓ to move, Enter to choose, `s` / `q` to quit.
+
+**The form** (Generate a PDF):
 
 | Key | Action |
 |---|---|
@@ -99,11 +112,24 @@ Run `investigacion` with no arguments.
 | Enter | Edit the field, or open its list if it is marked ▸ |
 | Del / Backspace | Clear the field |
 | `g` (or F5) | Generate the PDF; warnings and errors appear in the result panel |
-| `p` | Create a profile, or edit the chosen one (wizard) |
 | `v` | Open the last PDF |
+| `o` | Open the options |
+| Esc | Back to the home view |
+| `s` / `q` | Quit |
+
+**Options** (`o` in the form, or from the home menu). Enter runs the
+highlighted row, or press its letter; Esc closes the list.
+
+| Key | Action |
+|---|---|
+| `p` | Edit the chosen profile, or create one if none is chosen (wizard) |
+| `n` | New profile (the wizard, empty) |
 | `c` / `f` | Open a project folder (`input`, `output`, `courses`, `templates`, `cache`) |
-| `l` | Switch between Spanish and English |
-| `s` / `q` / Esc | Quit |
+| `l` | Switch between Spanish and English (saved in `.env`) |
+| `i` / `h` | Back to the home view |
+
+The option letters also work straight from the form, so `p`, `c`/`f` and `l`
+still do what they used to. Both languages' letters work in either language.
 
 - **Fields chosen from a list:**
   - the **profile**, which fills in the rest;
@@ -307,7 +333,7 @@ saved next to the PDF.
 | A table shows as rows of bars | The dashes row under the header is missing |
 | A diagram is misaligned | ASCII art outside a code block |
 | `[?]` in the PDF | A symbol the template does not know; the warning says which |
-| "Missing data used by the design…" | Fill it in the profile (`p` in the menu), in `.env` or with `--set` |
+| "Missing data used by the design…" | Fill it in the profile (`p` in the menu's options), in `.env` or with `--set` |
 | "The design … does not work with the format …" | Choose a format the design lists, or another design |
 | Your own design fails | Run `investigacion --check-template <design>` |
 

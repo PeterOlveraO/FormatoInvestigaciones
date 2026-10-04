@@ -10,6 +10,7 @@ use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose};
 use crate::cli::{Args, Reporter, execute};
 use std::collections::BTreeMap;
 
+use super::tools::{self, Tool};
 use super::wizard::{Outcome as WizardOutcome, Wizard};
 use crate::courses::{Course, list_courses, save_profile};
 use crate::i18n::{self, LANG_SETTINGS, Lang, Text};
@@ -203,6 +204,106 @@ pub const FIELDS: [Field; 12] = [
     },
 ];
 
+/// Qué hace cada entrada del menú de inicio.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum HomeAction {
+    Generate,
+    NewProfile,
+    Options,
+    Quit,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct HomeItem {
+    pub label: Text,
+    pub detail: Text,
+    pub action: HomeAction,
+}
+
+/// El menú de la vista de inicio, en el orden en que se muestra.
+pub const HOME_ITEMS: [HomeItem; 4] = [
+    HomeItem {
+        label: Text::new("Generar un PDF", "Generate a PDF"),
+        detail: Text::new("elige el Markdown y el título", "choose the Markdown and the title"),
+        action: HomeAction::Generate,
+    },
+    HomeItem {
+        label: Text::new("Nuevo perfil", "New profile"),
+        detail: Text::new("guarda los datos de una materia", "save the data of a course"),
+        action: HomeAction::NewProfile,
+    },
+    HomeItem {
+        label: Text::new("Opciones", "Options"),
+        detail: Text::new("perfiles, carpetas e idioma", "profiles, folders and language"),
+        action: HomeAction::Options,
+    },
+    HomeItem { label: Text::new("Salir", "Quit"), detail: NOTHING, action: HomeAction::Quit },
+];
+
+/// Qué hace cada fila de la vista de opciones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OptionAction {
+    EditProfile,
+    NewProfile,
+    Folders,
+    Language,
+    Home,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OptionEntry {
+    /// Letra en español y en inglés; las dos funcionan en cualquier idioma.
+    pub keys: [char; 2],
+    pub label: Text,
+    pub action: OptionAction,
+}
+
+impl OptionEntry {
+    /// La letra que se muestra en el idioma actual.
+    pub fn key(&self) -> char {
+        match i18n::current() {
+            Lang::Es => self.keys[0],
+            Lang::En => self.keys[1],
+        }
+    }
+}
+
+/// La vista de opciones (`o`). Una fila nueva se agrega aquí y en `run_option`.
+/// Sus letras también funcionan, ocultas, en el formulario.
+pub const OPTIONS: &[OptionEntry] = &[
+    OptionEntry {
+        keys: ['p', 'p'],
+        label: Text::new("Editar el perfil elegido", "Edit the chosen profile"),
+        action: OptionAction::EditProfile,
+    },
+    OptionEntry {
+        keys: ['n', 'n'],
+        label: Text::new("Nuevo perfil", "New profile"),
+        action: OptionAction::NewProfile,
+    },
+    OptionEntry {
+        keys: ['c', 'f'],
+        label: Text::new("Abrir una carpeta del proyecto", "Open a project folder"),
+        action: OptionAction::Folders,
+    },
+    // Empieza por el nombre del otro idioma, para quien no lee el actual.
+    OptionEntry {
+        keys: ['l', 'l'],
+        label: Text::new("English (idioma del menú)", "Español (menu language)"),
+        action: OptionAction::Language,
+    },
+    OptionEntry {
+        keys: ['i', 'h'],
+        label: Text::new("Volver al inicio", "Back to the home view"),
+        action: OptionAction::Home,
+    },
+];
+
+/// La fila de opciones que corresponde a una letra, en cualquier idioma.
+fn option_index(c: char) -> Option<usize> {
+    OPTIONS.iter().position(|o| o.keys.contains(&c))
+}
+
 /// Campo propio del diseño elegido (`%%SALON%%`), que se suma al formulario.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ExtraField {
@@ -258,12 +359,24 @@ impl TextInput {
 pub enum Mode {
     /// Pantalla de la primera vez: elegir el idioma (con el del sistema marcado).
     ChooseLanguage(Lang),
+    /// Vista de inicio, con la entrada marcada de `HOME_ITEMS`.
+    Home(usize),
     /// El asistente de perfiles (crear o editar).
     Wizard(Box<Wizard>),
     Form,
+    /// Vista de opciones, con la fila marcada de `OPTIONS`.
+    Options(usize),
     Editing(TextInput),
     Picking(Picker),
     Generating(Receiver<WorkerMessage>),
+}
+
+/// Pantalla completa: el inicio o el formulario. Las ventanas (opciones,
+/// asistente, listas) se dibujan encima de una y vuelven a ella al cerrarse.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Screen {
+    Home(usize),
+    Form,
 }
 
 /// Mensajes del hilo que genera el PDF.
@@ -301,6 +414,11 @@ pub struct App {
     pub design: Option<Design>,
     /// Abrir el asistente en cuanto se elija el idioma (primera vez sin perfiles).
     pending_wizard: bool,
+    /// La pantalla desde la que se abrió la ventana actual.
+    base: Screen,
+    /// Pandoc, pdflatex y Graphviz; vacío hasta que termina la comprobación.
+    pub tools: Vec<Tool>,
+    tools_check: Option<Receiver<Vec<Tool>>>,
 }
 
 pub fn index_of(key: FieldKey) -> usize {
@@ -324,14 +442,19 @@ impl App {
             extras: Vec::new(),
             design: None,
             pending_wizard: false,
+            base: Screen::Form,
+            tools: Vec::new(),
+            tools_check: None,
         };
         app.refresh_design();
         app
     }
 
-    /// Primer arranque: el idioma si no estaba guardado y, si no hay perfiles,
-    /// el asistente para crear el primero.
+    /// Arranque: el idioma si no estaba guardado, el asistente si no hay
+    /// perfiles y luego la vista de inicio.
     pub fn start(&mut self, ask_language: Option<Lang>) {
+        self.base = Screen::Home(0);
+        self.mode = Mode::Home(0);
         let no_profiles = self.courses.is_empty();
         match ask_language {
             Some(lang) => {
@@ -343,6 +466,43 @@ impl App {
         }
     }
 
+    /// Empieza a buscar Pandoc, pdflatex y Graphviz sin frenar el menú.
+    pub fn detect_tools(&mut self) {
+        self.tools_check = Some(tools::detect_in_background());
+    }
+
+    /// Recoge el resultado de `detect_tools`; se llama en cada ciclo.
+    pub fn poll_tools(&mut self) {
+        let Some(receiver) = &self.tools_check else { return };
+        match receiver.try_recv() {
+            Ok(tools) => self.tools = tools,
+            Err(TryRecvError::Empty) => return,
+            Err(TryRecvError::Disconnected) => {}
+        }
+        self.tools_check = None;
+    }
+
+    pub fn checking_tools(&self) -> bool {
+        self.tools_check.is_some()
+    }
+
+    /// La pantalla que se ve debajo de la ventana actual.
+    pub fn screen(&self) -> Screen {
+        match self.mode {
+            Mode::Home(selected) => Screen::Home(selected),
+            Mode::Form | Mode::Editing(_) | Mode::Generating(_) => Screen::Form,
+            _ => self.base,
+        }
+    }
+
+    /// Cierra la ventana actual y vuelve a la pantalla desde la que se abrió.
+    fn back(&mut self) {
+        self.mode = match self.base {
+            Screen::Home(selected) => Mode::Home(selected),
+            Screen::Form => Mode::Form,
+        };
+    }
+
     /// Abre el asistente: vacío, o con los datos de un perfil para editarlo.
     pub fn open_wizard(&mut self, existing: Option<&str>) {
         let course = existing.and_then(|key| self.courses.iter().find(|c| c.key == key)).cloned();
@@ -352,21 +512,24 @@ impl App {
     fn wizard_key(&mut self, key: KeyEvent, mut wizard: Box<Wizard>) {
         match wizard.handle_key(key, &self.project) {
             WizardOutcome::Continue => self.mode = Mode::Wizard(wizard),
-            WizardOutcome::Cancel => {}
-            WizardOutcome::Done => match save_profile(&self.project, &wizard.key, &wizard.finished_profile())
-            {
-                Ok(path) => {
-                    let (courses, _) = list_courses(&self.project);
-                    self.courses = courses;
-                    let key = crate::document::slugify(&wizard.key);
-                    self.apply_profile(&key);
-                    let shown = self.display_path(&path.display().to_string());
-                    self.log.push(LogLine::Info(
-                        tr!(es: "Perfil guardado: {shown}", en: "Profile saved: {shown}"),
-                    ));
+            WizardOutcome::Cancel => self.back(),
+            WizardOutcome::Done => {
+                self.back();
+                match save_profile(&self.project, &wizard.key, &wizard.finished_profile()) {
+                    Ok(path) => {
+                        let (courses, _) = list_courses(&self.project);
+                        self.courses = courses;
+                        // El perfil nuevo queda elegido en el formulario.
+                        let key = crate::document::slugify(&wizard.key);
+                        self.apply_profile(&key);
+                        let shown = self.display_path(&path.display().to_string());
+                        self.log.push(LogLine::Info(
+                            tr!(es: "Perfil guardado: {shown}", en: "Profile saved: {shown}"),
+                        ));
+                    }
+                    Err(error) => self.log.push(LogLine::Error(error.0)),
                 }
-                Err(error) => self.log.push(LogLine::Error(error.0)),
-            },
+            }
         }
     }
 
@@ -517,8 +680,10 @@ impl App {
         }
         match std::mem::replace(&mut self.mode, Mode::Form) {
             Mode::ChooseLanguage(selected) => self.language_key(key, selected),
+            Mode::Home(selected) => self.home_key(key, selected),
             Mode::Wizard(wizard) => self.wizard_key(key, wizard),
             Mode::Form => self.form_key(key),
+            Mode::Options(selected) => self.options_key(key, selected),
             Mode::Editing(input) => self.editing_key(key, input),
             Mode::Picking(picker) => self.picking_key(key, picker),
             // Mientras se genera no se acepta nada; el hilo no se puede cortar.
@@ -527,9 +692,11 @@ impl App {
     }
 
     fn language_key(&mut self, key: KeyEvent, selected: Lang) {
+        // Solo Enter y Esc cierran la pantalla; las flechas cambian la marca.
         match key.code {
             KeyCode::Up | KeyCode::Down | KeyCode::Left | KeyCode::Right | KeyCode::Tab => {
-                self.mode = Mode::ChooseLanguage(selected.other())
+                self.mode = Mode::ChooseLanguage(selected.other());
+                return;
             }
             KeyCode::Enter => self.set_language(selected),
             // Esc usa el idioma marcado sin guardarlo: se volverá a preguntar.
@@ -539,12 +706,72 @@ impl App {
                 return;
             }
         }
+        self.back();
         if std::mem::take(&mut self.pending_wizard) {
             self.open_wizard(None);
         }
     }
 
+    fn home_key(&mut self, key: KeyEvent, selected: usize) {
+        self.base = Screen::Home(selected);
+        let count = HOME_ITEMS.len();
+        self.mode = Mode::Home(selected);
+        match key.code {
+            KeyCode::Up | KeyCode::BackTab => self.mode = Mode::Home((selected + count - 1) % count),
+            KeyCode::Down | KeyCode::Tab => self.mode = Mode::Home((selected + 1) % count),
+            KeyCode::Enter => match HOME_ITEMS[selected].action {
+                HomeAction::Generate => self.mode = Mode::Form,
+                HomeAction::NewProfile => self.open_wizard(None),
+                HomeAction::Options => self.mode = Mode::Options(0),
+                HomeAction::Quit => self.should_quit = true,
+            },
+            KeyCode::Char('s' | 'q') => self.should_quit = true,
+            // Oculta: el aviso «Listo. Pulsa v…» también se ve en el inicio.
+            KeyCode::Char('v') => self.open_last_pdf(),
+            _ => {}
+        }
+    }
+
+    fn options_key(&mut self, key: KeyEvent, selected: usize) {
+        let count = OPTIONS.len();
+        self.mode = Mode::Options(selected);
+        match key.code {
+            KeyCode::Up | KeyCode::BackTab => self.mode = Mode::Options((selected + count - 1) % count),
+            KeyCode::Down | KeyCode::Tab => self.mode = Mode::Options((selected + 1) % count),
+            KeyCode::Enter => self.run_option(OPTIONS[selected].action),
+            KeyCode::Esc => self.back(),
+            KeyCode::Char(c) => {
+                if let Some(index) = option_index(c) {
+                    self.mode = Mode::Options(index);
+                    self.run_option(OPTIONS[index].action);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    /// Ejecuta una opción. Las que no abren otra ventana (el idioma) dejan
+    /// el modo como estaba.
+    fn run_option(&mut self, action: OptionAction) {
+        match action {
+            // Edita el perfil elegido en el formulario o, si no hay, crea uno.
+            OptionAction::EditProfile => {
+                let current = Some(self.value(FieldKey::Profile).to_owned()).filter(|v| !v.is_empty());
+                self.open_wizard(current.as_deref());
+            }
+            OptionAction::NewProfile => self.open_wizard(None),
+            OptionAction::Folders => self.open_folders(),
+            OptionAction::Language => {
+                let lang = i18n::current().other();
+                self.set_language(lang);
+                self.log.push(LogLine::Info(tr!(es: "Idioma: español.", en: "Language: English.")));
+            }
+            OptionAction::Home => self.mode = Mode::Home(0),
+        }
+    }
+
     fn form_key(&mut self, key: KeyEvent) {
+        self.base = Screen::Form;
         match key.code {
             KeyCode::Up | KeyCode::Char('k') | KeyCode::BackTab => {
                 self.selected = self.selected.checked_sub(1).unwrap_or(self.total_fields() - 1)
@@ -569,21 +796,18 @@ impl App {
                 }
                 None => self.extras[self.selected - FIELDS.len()].value.clear(),
             },
-            // p: perfil/profile en los dos idiomas. Edita el elegido o crea uno.
-            KeyCode::Char('p') => {
-                let current = Some(self.value(FieldKey::Profile).to_owned()).filter(|v| !v.is_empty());
-                self.open_wizard(current.as_deref());
-            }
             KeyCode::Char('g') | KeyCode::F(5) => self.start_generation(),
-            // Las letras de cada acción en los dos idiomas: c/f carpetas, s/q salir.
-            KeyCode::Char('c' | 'f') => self.open_folders(),
             KeyCode::Char('v') => self.open_last_pdf(),
-            KeyCode::Char('l') => {
-                let lang = i18n::current().other();
-                self.set_language(lang);
-                self.log.push(LogLine::Info(tr!(es: "Idioma: español.", en: "Language: English.")));
+            KeyCode::Char('o') => self.mode = Mode::Options(0),
+            // Las letras de salir en los dos idiomas: s y q.
+            KeyCode::Char('s' | 'q') => self.should_quit = true,
+            KeyCode::Esc => self.mode = Mode::Home(0),
+            // Atajos ocultos: las letras de las opciones (p perfil, c/f carpetas, l idioma…).
+            KeyCode::Char(c) => {
+                if let Some(index) = option_index(c) {
+                    self.run_option(OPTIONS[index].action);
+                }
             }
-            KeyCode::Char('s' | 'q') | KeyCode::Esc => self.should_quit = true,
             _ => {}
         }
     }
@@ -779,8 +1003,11 @@ impl App {
         };
         match outcome {
             PickOutcome::Stay => self.mode = Mode::Picking(picker),
-            PickOutcome::Cancel => {}
-            PickOutcome::Chosen(value) => self.apply_choice(picker.purpose, value),
+            PickOutcome::Cancel => self.back(),
+            PickOutcome::Chosen(value) => {
+                self.back();
+                self.apply_choice(picker.purpose, value);
+            }
         }
     }
 
@@ -891,8 +1118,8 @@ impl App {
         match finished {
             Ok(pdf) => {
                 self.log.push(LogLine::Info(tr!(
-                    es: "Listo. Pulsa v para ver el PDF o c para abrir una carpeta.",
-                    en: "Done. Press v to view the PDF or f to open a folder."
+                    es: "Listo. Pulsa v para ver el PDF; las carpetas están en Opciones (o).",
+                    en: "Done. Press v to view the PDF; the folders are in Options (o)."
                 )));
                 self.last_pdf = Some(pdf);
             }

@@ -67,7 +67,9 @@ Run `investigacion`. The first time it:
 2. opens the **profile wizard**: profile name → format → design (only the ones
    that work with that format) → the data that design shows (university,
    faculty, student or team, course, teacher, group, semester, its own fields)
-   → the folder for that course's papers.
+   → the folder for that course's papers;
+3. shows the **home view**: what the program does, a menu and whether Pandoc,
+   pdflatex and Graphviz are installed.
 
 The profile is saved in `courses/<name>.toml`. Optionally, put your logos in
 `templates/logos/` (`logo-universidad.png`, `logo-facultad.png`).
@@ -76,17 +78,17 @@ The profile is saved in `courses/<name>.toml`. Optionally, put your logos in
 
 Put your papers in `input/`, one subfolder per course if you like (`input/IA/`…).
 
-**Menu** (`investigacion` with no arguments): choose the profile, the Markdown
-from a list and write the title.
+**Menu** (`investigacion` with no arguments): on the home view choose
+**Generate a PDF**, then pick the profile and the Markdown from a list and
+write the title.
 
 | Key | Action |
 |---|---|
 | ↑ ↓, Enter | Move and edit; fields marked ▸ open a list (profile, Markdown, format, design) |
 | `g` | Generate the PDF |
-| `p` | Create a profile, or edit the chosen one |
 | `v` | View the last PDF |
-| `c` / `f` | Open a project folder |
-| `l` | Switch language (Español / English) |
+| `o` | Options: edit or create a profile, open a project folder, switch language (Español / English) |
+| Esc | Back to the home view |
 | `s` / `q` | Quit |
 
 **Command line:**

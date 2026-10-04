@@ -6,12 +6,20 @@ use ratatui::style::{Color, Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap};
 
-use super::app::{App, FIELDS, FieldKey, FieldKind, LogLine, Mode};
+use super::app::{
+    App, FIELDS, FieldKey, FieldKind, HOME_ITEMS, LogLine, Mode, OPTIONS, OptionAction, Screen, TextInput,
+};
 use super::picker::Picker;
 use super::wizard::Wizard;
 use crate::i18n::{Lang, Text};
 
 const ACCENT: Color = Color::Cyan;
+
+/// Qué hace el programa, en la vista de inicio.
+const WELCOME: Text = Text::new(
+    "Convierte un trabajo escrito en Markdown en un PDF listo para entregar, con formato APA 7, Harvard o MLA y el diseño de portada que elijas. Los datos de cada materia se guardan en un perfil.",
+    "Turns a paper written in Markdown into a PDF ready to hand in, with APA 7, Harvard or MLA format and the cover design you choose. Each course's data is saved in a profile.",
+);
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
@@ -19,7 +27,25 @@ pub fn draw(frame: &mut Frame, app: &App) {
         Layout::vertical([Constraint::Length(3), Constraint::Min(8), Constraint::Length(2)]).areas(area);
 
     draw_header(frame, header);
+    match app.screen() {
+        Screen::Home(selected) => draw_home(frame, app, selected, body),
+        Screen::Form => draw_form_screen(frame, app, body),
+    }
+    draw_footer(frame, app, footer);
 
+    // Las ventanas van encima de la pantalla de fondo.
+    match &app.mode {
+        Mode::Picking(picker) => draw_picker(frame, app, picker),
+        Mode::Wizard(wizard) => draw_wizard(frame, wizard),
+        Mode::Editing(input) => draw_editing(frame, app, input),
+        Mode::Options(selected) => draw_options(frame, app, *selected),
+        Mode::ChooseLanguage(selected) => draw_language(frame, *selected),
+        Mode::Home(_) | Mode::Form | Mode::Generating(_) => {}
+    }
+}
+
+/// El formulario con su ayuda y el panel de resultados.
+fn draw_form_screen(frame: &mut Frame, app: &App, body: Rect) {
     // En una terminal angosta los paneles van uno debajo de otro, con el
     // formulario y la ayuda a su altura justa y el resto para el resultado.
     let (form, help, log) = if body.width >= 100 {
@@ -28,7 +54,7 @@ pub fn draw(frame: &mut Frame, app: &App) {
         let [help, log] = Layout::vertical([Constraint::Length(9), Constraint::Min(4)]).areas(side);
         (form, help, log)
     } else {
-        let form_height = FIELDS.len() as u16 + 2;
+        let form_height = app.total_fields() as u16 + 2;
         let [form, help, log] =
             Layout::vertical([Constraint::Length(form_height), Constraint::Length(6), Constraint::Min(3)])
                 .areas(body);
@@ -37,41 +63,194 @@ pub fn draw(frame: &mut Frame, app: &App) {
     draw_form(frame, app, form);
     draw_help(frame, app, help);
     draw_log(frame, app, log);
-    draw_footer(frame, app, footer);
+}
 
-    match &app.mode {
-        Mode::Picking(picker) => draw_picker(frame, app, picker),
-        Mode::Wizard(wizard) => draw_wizard(frame, wizard),
-        Mode::Editing(input) => {
-            let field = FIELDS[app.selected];
-            let popup = centered(area, 70, 5);
-            frame.render_widget(Clear, popup);
-            let block = titled_block(format!(" {} ", field.label)).border_style(Style::new().fg(ACCENT));
-            let inner = block.inner(popup);
-            frame.render_widget(block, popup);
-            let [text_area, hint] =
-                Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(inner);
-            // Si el texto no cabe se muestra el final, que es donde se escribe.
-            let width = text_area.width.saturating_sub(1) as usize;
-            let skip = input.cursor.saturating_sub(width);
-            let visible: String = input.text.chars().skip(skip).collect();
-            frame.render_widget(Paragraph::new(visible), text_area);
-            frame.render_widget(
-                Paragraph::new(
-                    Text::new(
-                        "Enter guarda · Esc cancela · Ctrl+U borra",
-                        "Enter save · Esc cancel · Ctrl+U clear",
-                    )
-                    .get(),
+/// Ventana para escribir un campo; también los propios del diseño.
+fn draw_editing(frame: &mut Frame, app: &App, input: &TextInput) {
+    let popup = centered(frame.area(), 70, 5);
+    frame.render_widget(Clear, popup);
+    let block =
+        titled_block(format!(" {} ", app.field_label(app.selected))).border_style(Style::new().fg(ACCENT));
+    let inner = block.inner(popup);
+    frame.render_widget(block, popup);
+    let [text_area, hint] = Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(inner);
+    // Si el texto no cabe se muestra el final, que es donde se escribe.
+    let width = text_area.width.saturating_sub(1) as usize;
+    let skip = input.cursor.saturating_sub(width);
+    let visible: String = input.text.chars().skip(skip).collect();
+    frame.render_widget(Paragraph::new(visible), text_area);
+    frame.render_widget(
+        Paragraph::new(
+            Text::new("Enter guarda · Esc cancela · Ctrl+U borra", "Enter save · Esc cancel · Ctrl+U clear")
+                .get(),
+        )
+        .style(Style::new().fg(Color::DarkGray)),
+        hint,
+    );
+    frame.set_cursor_position(Position::new(text_area.x + (input.cursor - skip) as u16, text_area.y));
+}
+
+/// Vista de inicio: qué hace el programa, el menú y el estado.
+fn draw_home(frame: &mut Frame, app: &App, selected: usize, area: Rect) {
+    let welcome = Paragraph::new(WELCOME.get())
+        .wrap(Wrap { trim: true })
+        .block(titled_block(Text::new(" Inicio ", " Home ").get()));
+    // Alto justo para el texto, sin pasar de la mitad de la pantalla.
+    let welcome_height = (welcome.line_count(area.width.saturating_sub(2)) as u16).min(area.height / 2);
+    let [welcome_area, rest] =
+        Layout::vertical([Constraint::Length(welcome_height), Constraint::Min(0)]).areas(area);
+    frame.render_widget(welcome, welcome_area);
+
+    let (menu, status) = if area.width >= 100 {
+        let [menu, status] =
+            Layout::horizontal([Constraint::Percentage(45), Constraint::Percentage(55)]).areas(rest);
+        (menu, status)
+    } else {
+        let [menu, status] =
+            Layout::vertical([Constraint::Length(HOME_ITEMS.len() as u16 + 2), Constraint::Min(0)])
+                .areas(rest);
+        (menu, status)
+    };
+    let items: Vec<ListItem> = HOME_ITEMS
+        .iter()
+        .map(|item| {
+            let mut spans = vec![Span::styled(item.label.get(), Style::new().bold())];
+            if !item.detail.get().is_empty() {
+                spans.push(Span::styled(format!("  {}", item.detail), Style::new().fg(Color::DarkGray)));
+            }
+            ListItem::new(Line::from(spans))
+        })
+        .collect();
+    let list = List::new(items)
+        .block(titled_block(Text::new(" Menú ", " Menu ").get()))
+        .highlight_style(Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_symbol("› ");
+    let mut state = ListState::default().with_selected(Some(selected));
+    frame.render_stateful_widget(list, menu, &mut state);
+    draw_status(frame, app, status);
+}
+
+/// Perfiles, último PDF y herramientas; debajo, los mensajes si hay.
+fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
+    let dim = Style::new().fg(Color::DarkGray);
+    let mut lines = Vec::new();
+    let keys: Vec<&str> = app.courses.iter().map(|c| c.key.as_str()).collect();
+    lines.push(if keys.is_empty() {
+        Line::from(vec![
+            Span::styled(Text::new("Perfiles: ", "Profiles: ").get(), dim),
+            Span::styled(
+                Text::new(
+                    "ninguno; crea uno con «Nuevo perfil».",
+                    "none yet; create one with \"New profile\".",
                 )
-                .style(Style::new().fg(Color::DarkGray)),
-                hint,
-            );
-            frame.set_cursor_position(Position::new(text_area.x + (input.cursor - skip) as u16, text_area.y));
-        }
-        Mode::ChooseLanguage(selected) => draw_language(frame, *selected),
-        _ => {}
+                .get(),
+                Style::new().fg(Color::Yellow),
+            ),
+        ])
+    } else {
+        Line::from(vec![
+            Span::styled(tr!(es: "Perfiles ({}): ", en: "Profiles ({}): ", keys.len()), dim),
+            Span::raw(keys.join(", ")),
+        ])
+    });
+    lines.push(Line::from(vec![
+        Span::styled(Text::new("Último PDF: ", "Last PDF: ").get(), dim),
+        match &app.last_pdf {
+            Some(pdf) => Span::raw(app.display_path(&pdf.display().to_string())),
+            None => Span::styled(Text::new("ninguno en esta sesión", "none in this session").get(), dim),
+        },
+    ]));
+    lines.push(Line::raw(""));
+    if app.checking_tools() {
+        lines.push(Line::styled(
+            Text::new("Buscando Pandoc, pdflatex y Graphviz…", "Looking for Pandoc, pdflatex and Graphviz…")
+                .get(),
+            dim,
+        ));
     }
+    for tool in &app.tools {
+        lines.push(match (tool.found, tool.required) {
+            (true, required) => {
+                let mut spans = vec![Span::styled("✓ ", Style::new().fg(Color::Green)), Span::raw(tool.name)];
+                if !required {
+                    spans.push(Span::styled(Text::new(" (opcional)", " (optional)").get(), dim));
+                }
+                Line::from(spans)
+            }
+            (false, true) => Line::styled(
+                tr!(es: "✗ {}: no está instalado (obligatorio)", en: "✗ {}: not installed (required)", tool.name),
+                Style::new().fg(Color::Red),
+            ),
+            (false, false) => Line::styled(
+                tr!(
+                    es: "! {}: no está; los diagramas saldrán como código",
+                    en: "! {}: not installed; diagrams will show as code",
+                    tool.name
+                ),
+                Style::new().fg(Color::Yellow),
+            ),
+        });
+    }
+    if app.tools.iter().any(|t| t.required && !t.found) {
+        lines.push(Line::styled(
+            Text::new(
+                "Sin las herramientas obligatorias no se puede generar el PDF: mira INSTALL.md.",
+                "The PDF cannot be generated without the required tools: see INSTALL.md.",
+            )
+            .get(),
+            Style::new().fg(Color::Red).bold(),
+        ));
+    }
+    let status = Paragraph::new(lines)
+        .wrap(Wrap { trim: true })
+        .block(titled_block(Text::new(" Estado ", " Status ").get()));
+    if app.log.is_empty() {
+        frame.render_widget(status, area);
+        return;
+    }
+    // Los mensajes (perfil guardado, avisos de los perfiles…) debajo del estado.
+    let status_height = (status.line_count(area.width.saturating_sub(2)) as u16).min(area.height / 2);
+    let [status_area, log_area] =
+        Layout::vertical([Constraint::Length(status_height), Constraint::Min(0)]).areas(area);
+    frame.render_widget(status, status_area);
+    let lines = app.log.iter().map(log_line).collect();
+    render_log(frame, lines, Text::new(" Mensajes ", " Messages ").get(), log_area);
+}
+
+/// La vista de opciones: una fila por entrada de `OPTIONS`, con su letra.
+fn draw_options(frame: &mut Frame, app: &App, selected: usize) {
+    let rows: Vec<Line> = OPTIONS
+        .iter()
+        .map(|option| {
+            let mut spans = vec![
+                Span::styled(format!(" {} ", option.key()), Style::new().fg(Color::Black).bg(ACCENT)),
+                Span::raw(format!(" {}", option.label)),
+            ];
+            // El perfil que se editaría, o que se creará uno.
+            if option.action == OptionAction::EditProfile {
+                let detail = match app.value(FieldKey::Profile) {
+                    "" => Text::new("ninguno elegido: crea uno", "none chosen: creates one").get().to_owned(),
+                    key => key.to_owned(),
+                };
+                spans.push(Span::styled(format!("  {detail}"), Style::new().fg(Color::DarkGray)));
+            }
+            Line::from(spans)
+        })
+        .collect();
+    // Ancho justo para la fila más larga, más la marca y los bordes.
+    let widest = rows.iter().map(Line::width).max().unwrap_or(0) as u16;
+    let area = frame.area();
+    let popup =
+        centered_size(area, widest.saturating_add(4).max(percent(area.width, 60)), OPTIONS.len() as u16 + 2);
+    frame.render_widget(Clear, popup);
+    let block =
+        titled_block(Text::new(" Opciones ", " Options ").get()).border_style(Style::new().fg(ACCENT));
+    let list = List::new(rows.into_iter().map(ListItem::new).collect::<Vec<_>>())
+        .block(block)
+        .highlight_style(Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_symbol("› ");
+    let mut state = ListState::default().with_selected(Some(selected));
+    frame.render_stateful_widget(list, popup, &mut state);
 }
 
 /// Pantalla de la primera vez. Va en los dos idiomas a la vez porque todavía
@@ -191,7 +370,8 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect) {
             Span::raw(field.example.get()),
         ]),
     ];
-    if !field.required {
+    // La materia es obligatoria según el diseño, no según `FIELDS`.
+    if !app.is_required(app.selected) && !field.empty.get().is_empty() {
         lines.push(Line::from(vec![
             Span::styled(
                 Text::new("Si se deja vacío: ", "If empty: ").get(),
@@ -229,21 +409,28 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
             )
         });
     }
-    for entry in &app.log {
-        lines.push(match entry {
-            LogLine::Info(text) => Line::raw(text.clone()),
-            LogLine::Warning(text) => Line::styled(format!("! {text}"), Style::new().fg(Color::Yellow)),
-            LogLine::Error(text) => Line::styled(format!("✗ {text}"), Style::new().fg(Color::Red)),
-        });
-    }
+    lines.extend(app.log.iter().map(log_line));
     let title = if matches!(app.mode, Mode::Generating(_)) {
         Text::new(" Resultado (trabajando…) ", " Result (working…) ")
     } else {
         Text::new(" Resultado ", " Result ")
     }
     .get();
-    // Se ve el final del registro, que es lo más reciente. `line_count` ya
-    // suma los bordes del bloque, por eso se compara con la altura completa.
+    render_log(frame, lines, title, area);
+}
+
+fn log_line(entry: &LogLine) -> Line<'static> {
+    match entry {
+        LogLine::Info(text) => Line::raw(text.clone()),
+        LogLine::Warning(text) => Line::styled(format!("! {text}"), Style::new().fg(Color::Yellow)),
+        LogLine::Error(text) => Line::styled(format!("✗ {text}"), Style::new().fg(Color::Red)),
+    }
+}
+
+/// Un panel de mensajes que muestra el final, que es lo más reciente.
+fn render_log(frame: &mut Frame, lines: Vec<Line>, title: &str, area: Rect) {
+    // `line_count` ya suma los bordes del bloque, por eso se compara con la
+    // altura completa.
     let paragraph = Paragraph::new(lines).wrap(Wrap { trim: false }).block(titled_block(title));
     let total = paragraph.line_count(area.width.saturating_sub(2));
     let scroll = total.saturating_sub(area.height as usize) as u16;
@@ -251,8 +438,11 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
 }
 
 fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
-    // Cada idioma muestra sus propias iniciales; la tecla del idioma dice el
-    // nombre del otro, para que lo encuentre quien no lee el actual.
+    // Cada idioma muestra sus propias iniciales (s salir, q quit).
+    let quit = match crate::i18n::current() {
+        Lang::Es => "s",
+        Lang::En => "q",
+    };
     let keys: Vec<(&str, Text)> = match app.mode {
         Mode::Wizard(_) => vec![
             ("Enter", Text::new("siguiente", "next")),
@@ -262,23 +452,26 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         Mode::ChooseLanguage(_) => {
             vec![("↑↓", Text::new("elegir", "choose")), ("Enter", Text::new("aceptar", "accept"))]
         }
-        Mode::Form => {
-            let (folders, quit) = match crate::i18n::current() {
-                Lang::Es => ("c", "s"),
-                Lang::En => ("f", "q"),
-            };
-            vec![
-                ("↑↓", Text::new("mover", "move")),
-                ("Enter", Text::new("editar/elegir", "edit/choose")),
-                (Text::new("Supr", "Del").get(), Text::new("vaciar", "clear")),
-                ("g", Text::new("generar", "generate")),
-                ("v", Text::new("ver PDF", "view PDF")),
-                ("p", Text::new("perfil", "profile")),
-                (folders, Text::new("carpetas", "folders")),
-                ("l", Text::new("English", "Español")),
-                (quit, Text::new("salir", "quit")),
-            ]
-        }
+        Mode::Home(_) => vec![
+            ("↑↓", Text::new("mover", "move")),
+            ("Enter", Text::new("elegir", "choose")),
+            (quit, Text::new("salir", "quit")),
+        ],
+        // Las demás acciones (perfil, carpetas, idioma) están en las opciones.
+        Mode::Form => vec![
+            ("↑↓", Text::new("mover", "move")),
+            ("Enter", Text::new("editar/elegir", "edit/choose")),
+            (Text::new("Supr", "Del").get(), Text::new("vaciar", "clear")),
+            ("g", Text::new("generar", "generate")),
+            ("v", Text::new("ver PDF", "view PDF")),
+            ("o", Text::new("opciones", "options")),
+            (quit, Text::new("salir", "quit")),
+        ],
+        Mode::Options(_) => vec![
+            ("↑↓", Text::new("mover", "move")),
+            (Text::new("Enter o letra", "Enter or letter").get(), Text::new("elegir", "choose")),
+            ("Esc", Text::new("volver", "back")),
+        ],
         Mode::Editing(_) => {
             vec![("Enter", Text::new("guardar", "save")), ("Esc", Text::new("cancelar", "cancel"))]
         }
@@ -413,7 +606,17 @@ fn draw_wizard(frame: &mut Frame, wizard: &Wizard) {
 
 /// Rectángulo centrado de `percent_x` de ancho y `height` filas.
 fn centered(area: Rect, percent_x: u16, height: u16) -> Rect {
-    let width = (area.width * percent_x / 100).max(30).min(area.width);
+    centered_size(area, percent(area.width, percent_x), height)
+}
+
+/// Rectángulo centrado de al menos 30 columnas, recortado a `area`.
+fn centered_size(area: Rect, width: u16, height: u16) -> Rect {
+    let width = width.max(30).min(area.width);
     let height = height.min(area.height);
     Rect::new(area.x + (area.width - width) / 2, area.y + (area.height - height) / 2, width, height)
+}
+
+// En u32 para no desbordar en terminales muy anchas.
+fn percent(value: u16, percent: u16) -> u16 {
+    (u32::from(value) * u32::from(percent) / 100) as u16
 }
