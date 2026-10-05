@@ -31,12 +31,14 @@ jobs:
         run: choco install -y --no-progress pandoc graphviz
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
-      # Las fallas también van al resumen de la ejecución, que se ve sin iniciar sesión.
+      # Las fallas también salen como anotación, que se ve sin iniciar sesión.
       - name: cargo test
         shell: bash
         run: |
           set -o pipefail
           cargo test --no-fail-fast 2>&1 | tee test.log || {
-            { echo '```'; grep -E -A25 "^---- |panicked|^test result: FAILED" test.log | head -300; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+            grep -E -A25 "^---- |panicked" test.log | head -200 \
+              | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' \
+              | sed -e 's/^/::error title=cargo test::/'; echo
             exit 1
           }
