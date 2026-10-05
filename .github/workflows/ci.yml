@@ -1,0 +1,34 @@
+# Compila y prueba en Linux y en Windows en cada push y PR.
+# En Linux se instala TeX, así que también se generan PDFs de verdad;
+# en Windows las pruebas de PDF se saltan solas (no hay pdflatex).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends pandoc graphviz \
+            texlive-latex-recommended texlive-latex-extra texlive-fonts-extra \
+            texlive-lang-spanish texlive-pictures texlive-plain-generic
+      - name: Tools (Windows)
+        if: runner.os == 'Windows'
+        run: choco install -y --no-progress pandoc graphviz
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      - run: cargo test

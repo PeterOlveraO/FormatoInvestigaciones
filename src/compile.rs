@@ -52,8 +52,8 @@ pub fn copy_template_assets(
 /// TEXINPUTS que busca primero en `directories`, en orden. El separador final
 /// (entrada vacía) significa «y además las rutas por omisión»; sin él pdflatex
 /// no encontraría ni sus propios paquetes.
-pub fn latex_search_path(directories: &[&Path]) -> Result<OsString> {
-    let mut paths: Vec<PathBuf> = directories.iter().map(|d| d.to_path_buf()).collect();
+pub fn latex_search_path(directories: &[PathBuf]) -> Result<OsString> {
+    let mut paths = directories.to_vec();
     if let Some(previous) = std::env::var_os("TEXINPUTS") {
         paths.extend(std::env::split_paths(&previous).filter(|p| !p.as_os_str().is_empty()));
     }
@@ -94,10 +94,27 @@ fn copy_failure_artifacts(tex_path: &Path, destination: &Path) -> Option<PathBuf
     saved
 }
 
+/// Si el pdflatex del PATH es el de MiKTeX. MiKTeX recién instalado pregunta en
+/// una ventana antes de bajar cada paquete que falta, y pdflatex se queda
+/// esperando; con `--enable-installer` los instala solo. TeX Live no conoce esa
+/// opción, por eso se pregunta una vez por proceso.
+fn is_miktex() -> bool {
+    static MIKTEX: std::sync::OnceLock<bool> = std::sync::OnceLock::new();
+    *MIKTEX.get_or_init(|| {
+        let mut command = Command::new("pdflatex");
+        command.arg("--version");
+        let miktex = run_with_timeout(command, None, std::time::Duration::from_secs(30))
+            .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).contains("MiKTeX"));
+        logging::info(format_args!("pdflatex distribution: {}", if miktex { "MiKTeX" } else { "other" }));
+        miktex
+    })
+}
+
 /// Archivos que pdflatex escribe y relee en la siguiente pasada.
 const STATE_EXTENSIONS: [&str; 2] = ["aux", "toc"];
 
 /// Compila las veces necesarias para estabilizar índice y referencias.
+/// `search_dirs` son las carpetas donde pdflatex busca imágenes y diagramas.
 ///
 /// `state_dir` guarda el `.aux` y el `.toc` de la generación anterior del
 /// mismo trabajo: si el documento no cambió de estructura, la primera pasada
@@ -106,7 +123,7 @@ const STATE_EXTENSIONS: [&str; 2] = ["aux", "toc"];
 pub fn compile_pdf(
     tex_path: &Path,
     output_pdf: &Path,
-    working_directory: &Path,
+    search_dirs: &[PathBuf],
     state_dir: Option<&Path>,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<()> {
@@ -118,8 +135,7 @@ pub fn compile_pdf(
     }
     // El intento con estado previo no deja `last-error.*`: si falla se repite
     // desde cero, y solo un fallo de ese segundo intento es un error real.
-    let log = match run_passes(tex_path, output_pdf, working_directory, restored.clone(), restored.is_none())
-    {
+    let log = match run_passes(tex_path, output_pdf, search_dirs, restored.clone(), restored.is_none()) {
         Err(error) if restored.is_some() => {
             logging::warn(format_args!(
                 "build with the cached latex state failed; retrying from scratch:\n{error}"
@@ -127,7 +143,7 @@ pub fn compile_pdf(
             for extension in STATE_EXTENSIONS {
                 let _ = std::fs::remove_file(tex_path.with_extension(extension));
             }
-            run_passes(tex_path, output_pdf, working_directory, None, true)?
+            run_passes(tex_path, output_pdf, search_dirs, None, true)?
         }
         other => other?,
     };
@@ -185,7 +201,7 @@ fn save_state(state_dir: &Path, tex_path: &Path) -> std::io::Result<()> {
 fn run_passes(
     tex_path: &Path,
     output_pdf: &Path,
-    working_directory: &Path,
+    search_dirs: &[PathBuf],
     restored_toc: Option<String>,
     keep_artifacts: bool,
 ) -> Result<String> {
@@ -193,9 +209,11 @@ fn run_passes(
     // pdflatex corre dentro del temporal y recibe solo el nombre del .tex: una
     // ruta completa en la línea de órdenes se rompe con espacios o con el `~`
     // de las rutas cortas de Windows (`C:\Users\USUARI~1\...`), que TeX lee
-    // como carácter activo. Lo relativo del Markdown se busca por TEXINPUTS.
+    // como carácter activo. Las imágenes y diagramas se buscan por TEXINPUTS.
     let tex_name = tex_path.file_name().unwrap_or(tex_path.as_os_str());
-    let texinputs = latex_search_path(&[Path::new("."), &crate::project::absolute(working_directory)])?;
+    let mut directories = vec![PathBuf::from(".")];
+    directories.extend(search_dirs.iter().map(|d| crate::project::absolute(d)));
+    let texinputs = latex_search_path(&directories)?;
     let log_path = tex_path.with_extension("log");
     let toc_path = tex_path.with_extension("toc");
     let output_dir = output_pdf.parent().unwrap_or(Path::new("."));
@@ -213,6 +231,9 @@ fn run_passes(
     for run in 1..=MAX_LATEX_RUNS {
         let mut command = Command::new("pdflatex");
         command.args(["-interaction=nonstopmode", "-halt-on-error", "-file-line-error"]);
+        if is_miktex() {
+            command.arg("--enable-installer");
+        }
         let draft = run == 1 && !has_state;
         if draft {
             command.arg("-draftmode");
@@ -228,13 +249,11 @@ fn run_passes(
             )),
             RunError::Timeout => GenerationError::new(tr!(
                 es: "pdflatex siguió trabajando más de {} segundos y se detuvo; busca en el documento \
-                     algo que LaTeX no pueda componer. Con MiKTeX también pasa si está esperando permiso \
-                     para instalar un paquete: activa «Always install missing packages on-the-fly» en \
-                     MiKTeX Console.{}",
+                     algo que LaTeX no pueda componer. Con MiKTeX, la primera generación puede tardar \
+                     mientras descarga paquetes: vuelve a intentarlo.{}",
                 en: "pdflatex kept working for more than {} seconds and was stopped; look in the document \
-                     for something LaTeX cannot typeset. With MiKTeX it also happens when it is waiting for \
-                     permission to install a package: turn on \"Always install missing packages on-the-fly\" \
-                     in MiKTeX Console.{}",
+                     for something LaTeX cannot typeset. With MiKTeX, the first build can take long while it \
+                     downloads packages: try again.{}",
                 TOOL_TIMEOUT.as_secs(),
                 failure_note()
             )),

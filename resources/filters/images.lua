@@ -158,7 +158,8 @@ function Image(imagen)
     if not CACHE then return nil end
     local ruta = descargar(imagen)
     if not ruta then return reemplazo(imagen) end
-    imagen.src = ruta
+    -- Solo el nombre: pdflatex lo busca en la caché por TEXINPUTS (ver diagrams.lua).
+    imagen.src = ruta:match("[^/]+$")
     return imagen
   end
 

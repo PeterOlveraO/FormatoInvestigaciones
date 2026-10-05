@@ -11,7 +11,7 @@ use crate::i18n::Lang;
 use crate::latex::render_template;
 use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
-use crate::pandoc::pandoc_to_latex;
+use crate::pandoc::{pandoc_to_latex, resource_dirs};
 use crate::project::{Project, absolute};
 use crate::template::{Layout, resolve_layout};
 
@@ -117,14 +117,14 @@ pub fn generate_pdf(
         temporary.path(),
         logos.as_deref(),
     )?;
-    let working_directory = markdown_path.parent().unwrap_or(Path::new("."));
+    let search_dirs = resource_dirs(project, &markdown_path)?;
     let state = latex_state_dir(project, &output_pdf, &layout.cache_key());
     logging::debug(format_args!(
         "generate: build folder {}, output {}",
         temporary.path().display(),
         output_pdf.display()
     ));
-    compile_pdf(&tex_path, &output_pdf, working_directory, Some(&state), on_warning)?;
+    compile_pdf(&tex_path, &output_pdf, &search_dirs, Some(&state), on_warning)?;
     // Que no se borre (Windows lo puede tener bloqueado) no es un error.
     if let Err(error) = temporary.close() {
         logging::debug(format_args!("build folder not removed: {error}"));

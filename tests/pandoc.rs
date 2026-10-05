@@ -91,7 +91,8 @@ fn dot_blocks_become_diagrams_or_stay_as_code() {
     let markdown = "```{.dot caption=\"Un arbol\"}\ndigraph { a -> b; }\n```\n";
     let Some((latex, warnings)) = convert_with_warnings(markdown) else { return };
     if has_tool("dot") {
-        assert!(latex.contains(r"\includegraphics") && latex.contains("diagrams/"));
+        // Solo el nombre del PDF de la caché: pdflatex lo encuentra por TEXINPUTS.
+        assert!(latex.contains(r"\includegraphics") && !latex.contains("diagrams/"));
         assert!(!latex.contains("digraph"));
     } else {
         assert!(latex.contains("digraph"));

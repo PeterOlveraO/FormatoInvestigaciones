@@ -50,6 +50,14 @@ fn join_search_path(paths: &[PathBuf]) -> Result<OsString> {
     })
 }
 
+/// Dónde se buscan las imágenes: junto al Markdown y en la caché del proyecto.
+/// Pandoc las comprueba ahí y pdflatex las busca ahí por TEXINPUTS.
+pub fn resource_dirs(project: &Project, markdown_path: &Path) -> Result<Vec<PathBuf>> {
+    let (remote, diagrams) = project.media_directories()?;
+    let base_dir = markdown_path.parent().unwrap_or(Path::new(".")).to_path_buf();
+    Ok(vec![base_dir, project.cache_dir(), remote, diagrams])
+}
+
 /// Convierte el Markdown a un fragmento LaTeX (sin preámbulo).
 ///
 /// Sin `allow_raw_latex` se desactiva `raw_tex`: una contrabarra suelta del
@@ -64,8 +72,7 @@ pub fn pandoc_to_latex(
 ) -> Result<String> {
     let (remote, diagrams) = project.media_directories()?;
     let base_dir = markdown_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-    // Las imágenes se buscan junto al Markdown y en la caché del proyecto.
-    let resources = vec![base_dir.clone(), project.cache_dir(), remote.clone(), diagrams.clone()];
+    let resources = resource_dirs(project, markdown_path)?;
 
     let filters_dir = tempfile::Builder::new().prefix("investigacion-filters-").tempdir()?;
     let mut format = String::from(if allow_raw_latex { "markdown" } else { "markdown-raw_tex" });
