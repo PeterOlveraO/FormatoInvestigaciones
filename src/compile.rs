@@ -16,8 +16,7 @@ pub const MAX_LATEX_RUNS: usize = 4;
 
 /// Copia al temporal lo que la plantilla carga por nombre: el preámbulo común
 /// (`*.sty` de `common/`), los `.sty` que traiga la propia plantilla y los
-/// logos. pdflatex corre con el cwd del Markdown, así que una ruta relativa no
-/// serviría; el temporal va al principio de TEXINPUTS.
+/// logos. pdflatex corre dentro de ese temporal y los encuentra por nombre.
 pub fn copy_template_assets(
     template: &Path,
     common_dir: &Path,
@@ -50,11 +49,11 @@ pub fn copy_template_assets(
     Ok(())
 }
 
-/// TEXINPUTS que busca primero en `directory`. El separador final (entrada
-/// vacía) significa «y además las rutas por omisión»; sin él pdflatex no
-/// encontraría ni sus propios paquetes.
-pub fn latex_search_path(directory: &Path) -> Result<OsString> {
-    let mut paths = vec![directory.to_path_buf()];
+/// TEXINPUTS que busca primero en `directories`, en orden. El separador final
+/// (entrada vacía) significa «y además las rutas por omisión»; sin él pdflatex
+/// no encontraría ni sus propios paquetes.
+pub fn latex_search_path(directories: &[&Path]) -> Result<OsString> {
+    let mut paths: Vec<PathBuf> = directories.iter().map(|d| d.to_path_buf()).collect();
     if let Some(previous) = std::env::var_os("TEXINPUTS") {
         paths.extend(std::env::split_paths(&previous).filter(|p| !p.as_os_str().is_empty()));
     }
@@ -79,7 +78,11 @@ fn copy_failure_artifacts(tex_path: &Path, destination: &Path) -> Option<PathBuf
     std::fs::create_dir_all(destination).ok()?;
     let mut saved = None;
     for extension in ["tex", "log"] {
-        let source = tex_path.with_extension(extension);
+        let mut source = tex_path.with_extension(extension);
+        // Si pdflatex no pudo abrir el .tex, su registro se llama `texput.log`.
+        if !source.is_file() && extension == "log" {
+            source = tex_path.with_file_name("texput.log");
+        }
         if source.is_file() {
             let copy = destination.join(format!("last-error.{extension}"));
             std::fs::copy(&source, &copy).ok()?;
@@ -187,7 +190,12 @@ fn run_passes(
     keep_artifacts: bool,
 ) -> Result<String> {
     let temp_dir = tex_path.parent().unwrap_or(Path::new("."));
-    let texinputs = latex_search_path(temp_dir)?;
+    // pdflatex corre dentro del temporal y recibe solo el nombre del .tex: una
+    // ruta completa en la línea de órdenes se rompe con espacios o con el `~`
+    // de las rutas cortas de Windows (`C:\Users\USUARI~1\...`), que TeX lee
+    // como carácter activo. Lo relativo del Markdown se busca por TEXINPUTS.
+    let tex_name = tex_path.file_name().unwrap_or(tex_path.as_os_str());
+    let texinputs = latex_search_path(&[Path::new("."), &crate::project::absolute(working_directory)])?;
     let log_path = tex_path.with_extension("log");
     let toc_path = tex_path.with_extension("toc");
     let output_dir = output_pdf.parent().unwrap_or(Path::new("."));
@@ -210,9 +218,7 @@ fn run_passes(
             command.arg("-draftmode");
         }
         logging::info(format_args!("pdflatex pass {run}{}", if draft { " (draft mode)" } else { "" }));
-        let mut output_arg = OsString::from("-output-directory=");
-        output_arg.push(temp_dir);
-        command.arg(output_arg).arg(tex_path).current_dir(working_directory).env("TEXINPUTS", &texinputs);
+        command.arg(tex_name).current_dir(temp_dir).env("TEXINPUTS", &texinputs);
 
         let started = std::time::Instant::now();
         let result = run_with_timeout(command, None, TOOL_TIMEOUT).map_err(|e| match e {
@@ -222,9 +228,13 @@ fn run_passes(
             )),
             RunError::Timeout => GenerationError::new(tr!(
                 es: "pdflatex siguió trabajando más de {} segundos y se detuvo; busca en el documento \
-                     algo que LaTeX no pueda componer.{}",
+                     algo que LaTeX no pueda componer. Con MiKTeX también pasa si está esperando permiso \
+                     para instalar un paquete: activa «Always install missing packages on-the-fly» en \
+                     MiKTeX Console.{}",
                 en: "pdflatex kept working for more than {} seconds and was stopped; look in the document \
-                     for something LaTeX cannot typeset.{}",
+                     for something LaTeX cannot typeset. With MiKTeX it also happens when it is waiting for \
+                     permission to install a package: turn on \"Always install missing packages on-the-fly\" \
+                     in MiKTeX Console.{}",
                 TOOL_TIMEOUT.as_secs(),
                 failure_note()
             )),

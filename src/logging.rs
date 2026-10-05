@@ -460,7 +460,8 @@ mod tests {
         let location = Location::caller();
         let owned: Box<dyn Any + Send> = Box::new(String::from("índice fuera de rango"));
         let text = describe_panic(owned.as_ref(), Some(location), "generacion", &"frame 0: main");
-        assert!(text.starts_with("panic in thread 'generacion' at src/logging.rs:"), "{text}");
+        // `file!()` usa el separador del sistema (`src\logging.rs` en Windows).
+        assert!(text.starts_with(&format!("panic in thread 'generacion' at {}:", file!())), "{text}");
         assert!(text.contains(": índice fuera de rango\nbacktrace:\nframe 0: main"), "{text}");
         let fixed: Box<dyn Any + Send> = Box::new("boom");
         assert!(describe_panic(fixed.as_ref(), None, "main", &"").contains("an unknown location: boom"));

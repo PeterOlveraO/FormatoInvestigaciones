@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Windows:** the PDF build no longer fails with "I can't find file
+  `C:/Users/...'" when the temp folder is a short path with `~` or the user
+  folder has spaces. pdflatex now runs inside the temp folder and gets only
+  the file name.
+- When pdflatex cannot open the `.tex`, its `texput.log` is kept as
+  `last-error.log`.
+- The pdflatex time-limit error mentions MiKTeX waiting for permission to
+  install a package.
+
 ## 2.0.0 (2026-10-04)
 
 The program was rewritten in Rust. It gained a full-screen menu, course

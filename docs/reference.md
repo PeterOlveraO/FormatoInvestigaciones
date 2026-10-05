@@ -359,7 +359,7 @@ Keys the program reads:
 | `INVESTIGACION_LOG` | `logging` | `debug`, `off`/`0`; anything else or unset is `info` ([section 18](#18-logging)) |
 | `INVESTIGACION_TIMING` | `process::report_timing` | `1` prints `[timing] <step>: <s>` to stderr |
 | `IDIOMA`, `INTERFACE_LANGUAGE`, `LOGOS` | `Settings::get` | Override `settings.toml` |
-| `TEXINPUTS` | `compile::latex_search_path` | Existing value is preserved after the temp folder |
+| `TEXINPUTS` | `compile::latex_search_path` | `.` (the temp folder) and the Markdown folder first; existing value preserved after them |
 | `HOME` / `USERPROFILE` | `expand_home` | `~` expansion |
 | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_LANG`, `INVESTIGACION_DOC_LANG` | Lua filters | **Set by the program** for Pandoc; do not set by hand |
 
@@ -1361,10 +1361,12 @@ Behavior details:
 `compile_pdf` (`src/compile.rs`):
 
 - **Command:** `pdflatex -interaction=nonstopmode -halt-on-error
-  -file-line-error [-draftmode] -output-directory=<temp> trabajo.tex`, with the
-  Markdown's folder as working directory and `TEXINPUTS` set to the temp folder,
-  then any existing `TEXINPUTS`, then an empty entry (meaning "plus the default
-  paths"). Built with `std::env::join_paths`.
+  -file-line-error [-draftmode] trabajo.tex`, run inside the temp folder (only the
+  file name goes on the command line: a full path breaks on spaces and on the `~`
+  of Windows short paths such as `C:\Users\USUARI~1\...`). `TEXINPUTS` is `.`,
+  then the Markdown's folder (relative image paths), then any existing
+  `TEXINPUTS`, then an empty entry (meaning "plus the default paths"). Built
+  with `std::env::join_paths`.
 - **Passes:** up to `MAX_LATEX_RUNS = 4`. The first pass uses `-draftmode`
   (writes `.aux` and `.toc` but not the PDF) when there is no previous state. A
   new pass is needed when the log says "Rerun to get" or "Rerun LaTeX" or the
