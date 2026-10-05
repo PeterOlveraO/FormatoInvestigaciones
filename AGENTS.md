@@ -52,8 +52,8 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
     `--template`…;
   - the serde aliases `subject` and `template` in profiles;
   - the legacy design names `apa`/`apa-simple`.
-- **Nothing OS-specific.** 2.0.0 ships for Linux only, but Windows and macOS
-  come next, so the code must stay portable:
+- **Nothing OS-specific.** It runs on Linux and Windows, and macOS comes next,
+  so the code must stay portable:
   - no `cfg!(windows)`, fixed paths or hand-written path separators;
   - use `std::env::join_paths`/`split_paths`;
   - use `project::absolute()`, never `canonicalize()`;

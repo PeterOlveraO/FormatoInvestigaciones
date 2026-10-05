@@ -2,16 +2,26 @@
 
 ## Unreleased
 
+**Windows is supported** (tested on Windows 11 with MiKTeX). Installation steps
+are in `INSTALL.md`.
+
 ### Fixed
 
-- **Windows:** the PDF build no longer fails with "I can't find file
-  `C:/Users/...'" when the temp folder is a short path with `~` or the user
-  folder has spaces. pdflatex now runs inside the temp folder and gets only
-  the file name.
+- The PDF build no longer fails with "I can't find file `C:/Users/...'" when
+  the temp folder is a short path with `~` or the user folder has spaces.
+  pdflatex now runs inside the temp folder and gets only the file name.
+- Diagrams and downloaded images work when the project is in a folder with
+  accents or spaces (`C:\Users\José Pérez\...`): LaTeX gets only their file
+  name and finds them through `TEXINPUTS`.
+- With MiKTeX, missing LaTeX packages are installed without a dialog
+  (`--enable-installer`); before, pdflatex waited on it until the time limit.
 - When pdflatex cannot open the `.tex`, its `texput.log` is kept as
   `last-error.log`.
-- The pdflatex time-limit error mentions MiKTeX waiting for permission to
-  install a package.
+
+### Added
+
+- CI on GitHub Actions: format, lint and tests on Linux (with real PDFs) and
+  Windows.
 
 ## 2.0.0 (2026-10-04)
 

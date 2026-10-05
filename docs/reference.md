@@ -4,9 +4,9 @@ Complete reference of `investigacion` (version 2.0.0): a Rust CLI and
 full-screen menu that turns a paper written in Markdown into a PDF through
 Pandoc, a LaTeX template (format + design) and `pdflatex`.
 
-**Supported platform:** version 2.0.0 is released for Linux. Windows and
-macOS are planned for a later update; the code already follows the
-cross-platform rules of section 21 so that port stays small.
+**Supported platforms:** Linux and Windows. macOS is planned for a later
+update; the code follows the cross-platform rules of section 21 so that port
+stays small.
 
 This page is written for developers and AI assistants that need to use,
 analyze or extend the program. It is checked against the code under `src/`,
@@ -359,7 +359,7 @@ Keys the program reads:
 | `INVESTIGACION_LOG` | `logging` | `debug`, `off`/`0`; anything else or unset is `info` ([section 18](#18-logging)) |
 | `INVESTIGACION_TIMING` | `process::report_timing` | `1` prints `[timing] <step>: <s>` to stderr |
 | `IDIOMA`, `INTERFACE_LANGUAGE`, `LOGOS` | `Settings::get` | Override `settings.toml` |
-| `TEXINPUTS` | `compile::latex_search_path` | `.` (the temp folder) and the Markdown folder first; existing value preserved after them |
+| `TEXINPUTS` | `compile::latex_search_path` | `.` (the temp folder), the Markdown folder and the image caches first; existing value preserved after them |
 | `HOME` / `USERPROFILE` | `expand_home` | `~` expansion |
 | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_LANG`, `INVESTIGACION_DOC_LANG` | Lua filters | **Set by the program** for Pandoc; do not set by hand |
 
@@ -1363,10 +1363,12 @@ Behavior details:
 - **Command:** `pdflatex -interaction=nonstopmode -halt-on-error
   -file-line-error [-draftmode] trabajo.tex`, run inside the temp folder (only the
   file name goes on the command line: a full path breaks on spaces and on the `~`
-  of Windows short paths such as `C:\Users\USUARI~1\...`). `TEXINPUTS` is `.`,
-  then the Markdown's folder (relative image paths), then any existing
-  `TEXINPUTS`, then an empty entry (meaning "plus the default paths"). Built
-  with `std::env::join_paths`.
+  of Windows short paths such as `C:\Users\USUARI~1\...`). On MiKTeX it also
+  gets `--enable-installer`. `TEXINPUTS` is `.`, then
+  `pandoc::resource_dirs()` (the Markdown's folder, `cache/`, `cache/remote/`,
+  `cache/diagrams/`, where images and diagrams are found by name), then any
+  existing `TEXINPUTS`, then an empty entry (meaning "plus the default paths").
+  Built with `std::env::join_paths`.
 - **Passes:** up to `MAX_LATEX_RUNS = 4`. The first pass uses `-draftmode`
   (writes `.aux` and `.toc` but not the PDF) when there is no previous state. A
   new pass is needed when the log says "Rerun to get" or "Rerun LaTeX" or the
@@ -1483,8 +1485,8 @@ the command line. It is a diagnostic aid and must never break the program.
 
 ## 21. Cross-platform rules
 
-Version 2.0.0 supports Linux only, but the code must stay portable so the
-Windows and macOS update needs no redesign:
+The program runs on Linux and Windows, and the code must stay portable so the
+macOS update needs no redesign:
 
 - No `cfg!(windows)`, no fixed paths, no hand-written path separators.
 - Build search paths with `std::env::join_paths` / `split_paths` (the
@@ -1499,7 +1501,14 @@ Windows and macOS update needs no redesign:
 - Windows sends key-release events: keep the `KeyEventKind::Press` filter.
 - A PDF open in a viewer can lock the output file on Windows: write errors say
   to close it. A temp folder that cannot be removed immediately is ignored.
-- MiKTeX may download packages on first use (enable on-the-fly installation).
+- No full path goes inside LaTeX. The `.tex` is passed by name with the temp
+  folder as working directory, and diagrams and downloaded images by file name,
+  found through `TEXINPUTS`. A full path breaks on spaces, on the `~` of Windows
+  short paths (`C:\Users\USUARI~1\...`) and on accents (on Windows, `os.getenv`
+  in the Lua filters does not return UTF-8).
+- MiKTeX is detected once per run (`pdflatex --version`) and gets
+  `--enable-installer`, so a fresh install downloads missing packages instead
+  of waiting on a dialog. The first build can be slow for that reason.
 
 ## 22. Source map and how to extend
 

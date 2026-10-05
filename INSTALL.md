@@ -1,7 +1,6 @@
 # Installation
 
-Version 2.0.0 supports **Linux**. Windows and macOS are planned for a later
-update.
+Supported systems: **Linux and Windows**. macOS is planned for a later update.
 
 ## What you need
 
@@ -9,7 +8,7 @@ update.
 |---|---|---|
 | **Rust 1.88+** (installed with [rustup](https://rustup.rs)) | Yes | Building the program once |
 | **Pandoc** | Yes | Converting the Markdown |
-| **TeX** with `pdflatex` (TeX Live) | Yes | Typesetting the PDF |
+| **TeX** with `pdflatex` (TeX Live, or MiKTeX on Windows) | Yes | Typesetting the PDF |
 | **Graphviz** | No | Drawing ` ```dot ` diagrams. Without it, diagrams stay as code and you get a warning |
 
 ## 1. Install the tools
@@ -50,6 +49,26 @@ sudo zypper install pandoc graphviz texlive-latex texlive-latexextra \
   texlive-fontsextra texlive-babel-spanish
 curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
+
+### Windows 10 and 11
+
+In PowerShell:
+
+```powershell
+winget install Rustlang.Rustup JohnMacFarlane.Pandoc MiKTeX.MiKTeX Graphviz.Graphviz Git.Git
+```
+
+- **Rust** needs the C++ build tools from Visual Studio. If `rustup` or the
+  first `cargo install` asks for them, install "Desktop development with C++"
+  from the [Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/).
+- **MiKTeX** downloads the LaTeX packages the first time they are needed, so
+  the first PDF takes longer and needs internet. The program tells MiKTeX to
+  install them without asking.
+- **Graphviz:** if `dot -V` is not found after reopening the terminal, add
+  `C:\Program Files\Graphviz\bin` to the `PATH` (Settings → System → About →
+  Advanced system settings → Environment Variables).
+
+Paths with spaces or accents (`C:\Users\José Pérez\...`) are fine.
 
 ## 2. Install the program
 
@@ -118,3 +137,5 @@ Then delete the project folder.
 | `cargo install` says the Rust version is too old | `rustup update` |
 | LaTeX reports a missing `.sty` | Install the package with your TeX distribution (`tlmgr install <name>` or your distribution's package manager) |
 | Diagrams come out as code | Install Graphviz and check `dot -V` |
+| Windows: "pdflatex kept working for more than 180 seconds" on the first PDF | MiKTeX was still downloading packages. Run it again |
+| Windows: `cargo` fails with "os error 4551" (an Application Control policy blocked the file) | Smart App Control blocks some new unsigned programs that `cargo` builds. `cargo install` usually still works. It can be turned off in Windows Security → App & browser control, but Windows does not let you turn it back on without reinstalling |
