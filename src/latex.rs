@@ -82,13 +82,13 @@ pub fn summarize_latex_errors(log: &str) -> String {
     let lines: Vec<&str> = log.lines().collect();
     let mut blocks = Vec::new();
     for (index, line) in lines.iter().enumerate() {
-        if !(FILE_LINE_ERROR.is_match(line) || line.starts_with("! ")) {
+        if !(FILE_LINE_ERROR.is_match(line) || line.starts_with('!')) {
             continue;
         }
         let mut block = vec![line.trim().to_owned()];
         for extra in lines.iter().skip(index + 1).take(5) {
             let stripped = extra.trim();
-            if stripped.is_empty() || FILE_LINE_ERROR.is_match(extra) || extra.starts_with("! ") {
+            if stripped.is_empty() || FILE_LINE_ERROR.is_match(extra) || extra.starts_with('!') {
                 break;
             }
             block.push(stripped.to_owned());
@@ -219,6 +219,10 @@ mod tests {
         let summary = summarize_latex_errors(log);
         assert!(summary.contains("No counter 'none' defined"));
         assert!(!summary.contains("hyperref.sty"));
+        // Los errores de pdfTeX empiezan con `!` sin espacio.
+        let log =
+            "0pt) * modes:\n!pdfTeX error: pdflatex: reading image file failed\n ==> Fatal error occurred\n";
+        assert!(summarize_latex_errors(log).starts_with("!pdfTeX error"));
     }
 
     #[test]
