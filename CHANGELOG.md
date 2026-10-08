@@ -17,6 +17,8 @@ are in `INSTALL.md`.
   (`--enable-installer`); before, pdflatex waited on it until the time limit.
 - When pdflatex cannot open the `.tex`, its `texput.log` is kept as
   `last-error.log`.
+- A local SVG, WEBP or GIF image no longer stops the build: like a remote one,
+  it becomes its caption with a warning (pdflatex cannot typeset them).
 
 ### Added
 

@@ -83,6 +83,18 @@ local function reemplazo(imagen)
   return pandoc.Emph({ pandoc.Str("[imagen no disponible]") })
 end
 
+-- Avisa si la extensión es de un formato que pdflatex no compone (SVG, WEBP,
+-- GIF…); sin extensión no se puede saber y se deja pasar.
+local function formato_admitido(ruta, extension)
+  if not extension or FORMATOS[extension] then return true end
+  avisar(texto(
+    "La imagen " .. ruta .. " está en formato " .. extension ..
+    ", que pdflatex no puede componer. Usa PNG, JPG o PDF.",
+    "The image " .. ruta .. " is in " .. extension ..
+    " format, which pdflatex cannot typeset. Use PNG, JPG or PDF."))
+  return false
+end
+
 local function descargar(imagen)
   local extension = extension_de(imagen.src)
   local nombre = utils.sha1(imagen.src)
@@ -93,14 +105,7 @@ local function descargar(imagen)
     if existe(ruta) then return ruta end
   end
 
-  if extension and not FORMATOS[extension] then
-    avisar(texto(
-      "La imagen " .. imagen.src .. " está en formato " .. extension ..
-      ", que pdflatex no puede componer. Usa PNG, JPG o PDF.",
-      "The image " .. imagen.src .. " is in " .. extension ..
-      " format, which pdflatex cannot typeset. Use PNG, JPG or PDF."))
-    return nil
-  end
+  if not formato_admitido(imagen.src, extension) then return nil end
 
   local ok, tipo, contenido = pcall(pandoc.mediabag.fetch, imagen.src)
   if not ok or not contenido then
@@ -184,6 +189,7 @@ function Image(imagen)
       "Image not found: " .. imagen.src .. "; the path is resolved from the Markdown folder."))
     return reemplazo(imagen)
   end
+  if not formato_admitido(imagen.src, extension_de(imagen.src)) then return reemplazo(imagen) end
   if imagen.src:match("^%.") then
     local nombre = copia_a_cache(encontrada)
     if not nombre then

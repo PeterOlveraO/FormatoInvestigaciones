@@ -87,6 +87,23 @@ fn images_that_cannot_be_loaded_do_not_break_the_document() {
 }
 
 #[test]
+fn local_images_in_formats_pdflatex_cannot_typeset_are_replaced() {
+    if !has_tool("pandoc") {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    write(directory.path(), "fig.svg", "<svg/>");
+    let markdown = "![Una figura](fig.svg)\n";
+    let source = write(directory.path(), "trabajo.md", markdown);
+    let mut warnings = Vec::new();
+    let latex =
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+    assert!(!latex.contains("includesvg"), "{latex}");
+    assert!(latex.contains(r"\emph{Una figura}"));
+    assert!(warnings.iter().any(|w| w.contains("fig.svg") && w.contains("svg")), "{warnings:?}");
+}
+
+#[test]
 fn dot_blocks_become_diagrams_or_stay_as_code() {
     let markdown = "```{.dot caption=\"Un arbol\"}\ndigraph { a -> b; }\n```\n";
     let Some((latex, warnings)) = convert_with_warnings(markdown) else { return };
