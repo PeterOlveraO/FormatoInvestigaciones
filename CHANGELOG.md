@@ -23,6 +23,9 @@ are in `INSTALL.md`.
   Wikipedia `File:` page) is no longer saved as a `.png` in `cache/remote/`,
   where it broke every later build. The format is read from the downloaded
   bytes, and a bad file left by an older version is downloaded again.
+- In the menu, choosing another profile clears the cover data the new profile
+  leaves empty (teacher, group, custom fields) and resets the output folder.
+  Before, the previous profile's values stayed and ended up on the cover.
 
 ### Added
 

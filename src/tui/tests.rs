@@ -225,6 +225,25 @@ fn choosing_a_profile_fills_the_form_and_the_markdown_picker_starts_in_its_folde
 }
 
 #[test]
+fn switching_profiles_does_not_keep_the_data_of_the_previous_one() {
+    let (_dir, project) = sample_project();
+    std::fs::write(project.root.join("courses/fisica.toml"), "name = \"Física\"\n").unwrap();
+    let mut app = App::new(project);
+
+    for key in ["ia", "fisica"] {
+        select(&mut app, FieldKey::Profile);
+        press(&mut app, KeyCode::Enter);
+        type_text(&mut app, key);
+        press(&mut app, KeyCode::Enter);
+    }
+    assert_eq!(app.value(FieldKey::Course), "Física");
+    assert_eq!(app.value(FieldKey::Teacher), "");
+    assert_eq!(app.value(FieldKey::Group), "");
+    assert_eq!(app.value(FieldKey::Template), "");
+    assert_eq!(Path::new(app.value(FieldKey::Output)), Path::new("output"));
+}
+
+#[test]
 fn the_picker_browses_folders_without_typing_paths() {
     let (_dir, project) = sample_project();
     let root = project.root.clone();
