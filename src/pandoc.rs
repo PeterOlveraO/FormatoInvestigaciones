@@ -140,6 +140,14 @@ pub fn pandoc_to_latex(
             "" => decode_process_output(&output.stdout).trim().to_owned(),
             text => text.to_owned(),
         };
+        // Los filtros usan `pandoc.Figure`, que llegó en Pandoc 3: con una
+        // versión vieja el error de Lua no dice qué hacer, así que se explica.
+        if let Some(version) = old_pandoc_version() {
+            return Err(GenerationError::new(tr!(
+                es: "Hace falta Pandoc 3.0 o más nuevo y está instalado {version}. Las instrucciones están en INSTALL.md.",
+                en: "Pandoc 3.0 or newer is needed and {version} is installed. INSTALL.md has the steps."
+            )));
+        }
         let suffix = if detail.is_empty() { ".".to_owned() } else { format!(": {detail}") };
         return Err(GenerationError::new(tr!(
             es: "Pandoc no pudo convertir el Markdown{suffix}",
@@ -163,9 +171,30 @@ pub fn pandoc_to_latex(
     Ok(latex)
 }
 
+/// La versión de Pandoc instalada si es anterior a la 3 (`pandoc 2.9.2.1`).
+/// Solo se consulta cuando Pandoc ya falló.
+fn old_pandoc_version() -> Option<String> {
+    let mut command = Command::new("pandoc");
+    command.arg("--version");
+    let output = run_with_timeout(command, None, TOOL_TIMEOUT).ok()?;
+    let text = decode_process_output(&output.stdout);
+    let version = text.lines().next()?.split_whitespace().nth(1)?.to_owned();
+    is_before_3(&version).then_some(version)
+}
+
+fn is_before_3(version: &str) -> bool {
+    version.split('.').next().and_then(|major| major.parse::<u32>().ok()).is_some_and(|major| major < 3)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pandoc_versions_before_3_are_detected() {
+        assert!(is_before_3("2.9.2.1") && is_before_3("2.17.1.1"));
+        assert!(!is_before_3("3.1.3") && !is_before_3("10.0") && !is_before_3("x"));
+    }
 
     #[test]
     fn only_the_marked_lines_are_warnings() {

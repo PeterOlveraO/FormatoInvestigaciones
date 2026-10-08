@@ -87,7 +87,7 @@ paper.md  ->  investigacion  ->  output/paper.pdf
 
 | Tool | Required | Used for | If missing |
 |---|---|---|---|
-| Pandoc (tested with 3.10.2) | yes | Markdown to LaTeX fragment | Error: "Pandoc was not found. Install it and make sure it is on the PATH." |
+| Pandoc 3.0+ (tested with 3.10.2) | yes | Markdown to LaTeX fragment | Error: "Pandoc was not found. Install it and make sure it is on the PATH." If Pandoc fails and is older than 3.0 (the filters use `pandoc.Figure`): "Pandoc 3.0 or newer is needed and 2.9.2.1 is installed. INSTALL.md has the steps." |
 | `pdflatex` (TeX Live or MiKTeX) | yes | Typesetting | Error: "pdflatex was not found. Install TeX Live (or MiKTeX) and make sure it is on the PATH." |
 | Graphviz (`dot`) | no | ` ```dot ` diagrams | Warning; the diagram stays as a code block |
 | Rust 1.88+ | build time only | `cargo install --path .` | n/a |

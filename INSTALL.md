@@ -7,7 +7,7 @@ Supported systems: **Linux and Windows**. macOS is planned for a later update.
 | Tool | Required | What for |
 |---|---|---|
 | **Rust 1.88+** (installed with [rustup](https://rustup.rs)) | Yes | Building the program once |
-| **Pandoc** | Yes | Converting the Markdown |
+| **Pandoc 3.0 or newer** | Yes | Converting the Markdown |
 | **TeX** with `pdflatex` (TeX Live, or MiKTeX on Windows) | Yes | Typesetting the PDF |
 | **Graphviz** | No | Drawing ` ```dot ` diagrams. Without it, diagrams stay as code and you get a warning |
 
@@ -33,6 +33,10 @@ curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
 ```
 
 Do not use the `cargo` package from `apt`: it is too old for this program.
+
+Pandoc must be 3.0 or newer (`pandoc --version`). Ubuntu 22.04 and Debian 12
+install an older one with `apt`; there, install the `.deb` from
+[Pandoc's releases](https://github.com/jgm/pandoc/releases) instead.
 
 ### Fedora
 
@@ -137,5 +141,6 @@ Then delete the project folder.
 | `cargo install` says the Rust version is too old | `rustup update` |
 | LaTeX reports a missing `.sty` | Install the package with your TeX distribution (`tlmgr install <name>` or your distribution's package manager) |
 | Diagrams come out as code | Install Graphviz and check `dot -V` |
+| "Pandoc 3.0 or newer is needed" | Your system installed an old Pandoc. Install the latest one from [Pandoc's releases](https://github.com/jgm/pandoc/releases) |
 | Windows: "pdflatex kept working for more than 180 seconds" on the first PDF | MiKTeX was still downloading packages. Run it again |
 | Windows: `cargo` fails with "os error 4551" (an Application Control policy blocked the file) | Smart App Control blocks some new unsigned programs that `cargo` builds. `cargo install` usually still works. It can be turned off in Windows Security → App & browser control, but Windows does not let you turn it back on without reinstalling |
