@@ -24,12 +24,15 @@ local RECURSOS = os.getenv("INVESTIGACION_RESOURCES") or ""
 -- pdflatex solo compone estos formatos. El resto (SVG, WEBP) necesitaría una
 -- conversión previa, que este proyecto no hace.
 local FORMATOS = { png = true, jpg = true, jpeg = true, pdf = true }
-local EXTENSION_POR_TIPO = {
-  ["image/png"] = "png",
-  ["image/jpeg"] = "jpg",
-  ["image/jpg"] = "jpg",
-  ["application/pdf"] = "pdf",
-}
+
+-- El formato se lee de los primeros bytes: ni la extensión de la URL ni el tipo
+-- que manda el servidor garantizan que lo descargado sea una imagen.
+local function formato_del_contenido(contenido)
+  if contenido:sub(1, 8) == "\137PNG\r\n\26\n" then return "png" end
+  if contenido:sub(1, 3) == "\255\216\255" then return "jpg" end
+  if contenido:sub(1, 4) == "%PDF" then return "pdf" end
+  return nil
+end
 
 local avisados = {}
 
@@ -100,14 +103,20 @@ local function descargar(imagen)
   local nombre = utils.sha1(imagen.src)
 
   -- Si ya está descargada no se vuelve a bajar: así el trabajo se genera sin red.
+  -- Una descarga vieja que no es imagen (versiones anteriores la guardaban) se ignora.
   for posible in pairs(FORMATOS) do
     local ruta = CACHE .. "/" .. nombre .. "." .. posible
-    if existe(ruta) then return ruta end
+    local archivo = io.open(ruta, "rb")
+    if archivo then
+      local inicio = archivo:read(8) or ""
+      archivo:close()
+      if formato_del_contenido(inicio) then return ruta end
+    end
   end
 
   if not formato_admitido(imagen.src, extension) then return nil end
 
-  local ok, tipo, contenido = pcall(pandoc.mediabag.fetch, imagen.src)
+  local ok, _, contenido = pcall(pandoc.mediabag.fetch, imagen.src)
   if not ok or not contenido then
     avisar(texto(
       "No se pudo descargar la imagen " .. imagen.src .. "; revisa la dirección o tu conexión.",
@@ -115,8 +124,8 @@ local function descargar(imagen)
     return nil
   end
 
-  local final = extension or EXTENSION_POR_TIPO[(tipo or ""):gsub(";.*$", "")]
-  if not final or not FORMATOS[final] then
+  local final = formato_del_contenido(contenido)
+  if not final then
     avisar(texto(
       "La imagen " .. imagen.src .. " no es PNG, JPG ni PDF.",
       "The image " .. imagen.src .. " is not PNG, JPG or PDF."))

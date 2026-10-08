@@ -19,6 +19,10 @@ are in `INSTALL.md`.
   `last-error.log`.
 - A local SVG, WEBP or GIF image no longer stops the build: like a remote one,
   it becomes its caption with a warning (pdflatex cannot typeset them).
+- A web address that returns a page instead of an image (for example a
+  Wikipedia `File:` page) is no longer saved as a `.png` in `cache/remote/`,
+  where it broke every later build. The format is read from the downloaded
+  bytes, and a bad file left by an older version is downloaded again.
 
 ### Added
 

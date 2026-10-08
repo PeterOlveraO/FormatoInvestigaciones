@@ -104,6 +104,30 @@ fn local_images_in_formats_pdflatex_cannot_typeset_are_replaced() {
 }
 
 #[test]
+fn a_web_page_behind_an_image_address_is_not_cached_as_an_image() {
+    // Un servidor que contesta HTML a una dirección que termina en `.png`.
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let port = listener.local_addr().unwrap().port();
+    std::thread::spawn(move || {
+        for stream in listener.incoming().flatten() {
+            use std::io::{Read, Write};
+            let mut stream = stream;
+            let _ = stream.read(&mut [0; 4096]);
+            let body = "<html><body>no soy una imagen</body></html>";
+            let _ = write!(
+                stream,
+                "HTTP/1.1 200 OK\r\nContent-Type: text/html\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+                body.len()
+            );
+        }
+    });
+    let markdown = format!("![Ejemplo](http://127.0.0.1:{port}/wiki/File:Ejemplo.png)\n");
+    let Some((latex, warnings)) = convert_with_warnings(&markdown) else { return };
+    assert!(latex.contains(r"\emph{Ejemplo}"), "{latex}");
+    assert!(warnings.iter().any(|w| w.contains("File:Ejemplo.png")), "{warnings:?}");
+}
+
+#[test]
 fn dot_blocks_become_diagrams_or_stay_as_code() {
     let markdown = "```{.dot caption=\"Un arbol\"}\ndigraph { a -> b; }\n```\n";
     let Some((latex, warnings)) = convert_with_warnings(markdown) else { return };
