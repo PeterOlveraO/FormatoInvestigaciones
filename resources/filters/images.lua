@@ -127,16 +127,29 @@ local function descargar(imagen)
   return ruta
 end
 
--- Una ruta local se busca en las carpetas que pasa el generador; solo se avisa
--- cuando no aparece en ninguna.
+-- Una ruta local se busca en las carpetas que pasa el generador; devuelve
+-- dónde está, o nil si no aparece en ninguna.
 local function encuentra_local(ruta)
   -- Tal cual: cubre tanto una ruta absoluta como una relativa al directorio de
   -- trabajo, en cualquier sistema.
-  if existe(ruta) then return true end
+  if existe(ruta) then return ruta end
   for carpeta in RECURSOS:gmatch("[^\n]+") do
-    if existe(carpeta .. "/" .. ruta) then return true end
+    if existe(carpeta .. "/" .. ruta) then return carpeta .. "/" .. ruta end
   end
-  return false
+  return nil
+end
+
+-- pdflatex corre en el temporal y no busca en TEXINPUTS una ruta que empieza
+-- con `./` o `../`: se copia a la caché y LaTeX recibe solo el nombre.
+local function copia_a_cache(ruta)
+  if not CACHE then return nil end
+  local archivo = io.open(ruta, "rb")
+  if not archivo then return nil end
+  local contenido = archivo:read("a")
+  archivo:close()
+  local nombre = utils.sha1(ruta) .. "." .. (extension_de(ruta) or "png")
+  if not escribir(CACHE .. "/" .. nombre, contenido) then return nil end
+  return nombre
 end
 
 -- Cuando la imagen era el único contenido de una figura, la figura se queda sin
@@ -163,11 +176,23 @@ function Image(imagen)
     return imagen
   end
 
-  if RECURSOS ~= "" and not encuentra_local(imagen.src) then
+  if RECURSOS == "" then return nil end
+  local encontrada = encuentra_local(imagen.src)
+  if not encontrada then
     avisar(texto(
       "No se encontró la imagen " .. imagen.src .. "; la ruta se busca desde la carpeta del Markdown.",
       "Image not found: " .. imagen.src .. "; the path is resolved from the Markdown folder."))
     return reemplazo(imagen)
+  end
+  if imagen.src:match("^%.") then
+    local nombre = copia_a_cache(encontrada)
+    if not nombre then
+      avisar(texto("No se pudo copiar la imagen " .. imagen.src .. " a la caché.",
+        "Could not copy the image " .. imagen.src .. " to the cache."))
+      return reemplazo(imagen)
+    end
+    imagen.src = nombre
+    return imagen
   end
   return nil
 end
