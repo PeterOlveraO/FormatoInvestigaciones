@@ -87,16 +87,6 @@ impl Project {
     pub fn templates_dir(&self) -> PathBuf {
         self.root.join("templates")
     }
-    pub fn designs_dir(&self) -> PathBuf {
-        self.templates_dir().join("designs")
-    }
-    pub fn formats_dir(&self) -> PathBuf {
-        self.templates_dir().join("formats")
-    }
-    /// El `format.sty` de un formato (`apa7`, `harvard`...).
-    pub fn format_sty(&self, format: &str) -> PathBuf {
-        self.formats_dir().join(format).join(FORMAT_FILE)
-    }
     pub fn common_dir(&self) -> PathBuf {
         self.templates_dir().join("common")
     }
