@@ -128,6 +128,24 @@ fn a_web_page_behind_an_image_address_is_not_cached_as_an_image() {
 }
 
 #[test]
+fn lists_deeper_than_latex_allows_are_moved_up() {
+    let markdown = "- 1\n  - 2\n    - 3\n      - 4\n        - 5\n          - 6\n";
+    let Some((latex, warnings)) = convert_with_warnings(markdown) else { return };
+    let (mut depth, mut deepest) = (0, 0);
+    for line in latex.lines() {
+        if line.contains(r"\begin{itemize}") {
+            depth += 1;
+            deepest = deepest.max(depth);
+        } else if line.contains(r"\end{itemize}") {
+            depth -= 1;
+        }
+    }
+    assert_eq!(deepest, 4, "{latex}");
+    assert!(latex.contains("6"));
+    assert!(warnings.iter().any(|w| w.contains("niveles")), "{warnings:?}");
+}
+
+#[test]
 fn dot_blocks_become_diagrams_or_stay_as_code() {
     let markdown = "```{.dot caption=\"Un arbol\"}\ndigraph { a -> b; }\n```\n";
     let Some((latex, warnings)) = convert_with_warnings(markdown) else { return };

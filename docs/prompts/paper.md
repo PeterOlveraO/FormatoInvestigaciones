@@ -217,6 +217,9 @@ Another term
 > It can have several paragraphs.
 ``````
 
+Do not nest lists more than 4 levels deep: LaTeX does not allow it, so deeper
+levels are moved up to the fourth with a warning.
+
 Highlighted boxes (a thin black frame with a bold title; they do not float).
 The valid classes are `nota`, `aviso`, `importante`, `ejemplo` and
 `definicion`; the English names `note`, `warning`, `important`, `example` and

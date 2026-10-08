@@ -873,7 +873,7 @@ format ([section 8](#built-in-formats)).
 | Strikethrough, highlight | `~~text~~`, `==text==` |
 | Sub/superscript | `H~2~O`, `X^2^` |
 | Inline code | `` `code` `` |
-| Lists | `- item`, `1. item`, nested with two spaces; tasks `- [x] done`, `- [ ] pending` |
+| Lists | `- item`, `1. item`, nested with two spaces (up to 4 levels; deeper ones are moved up with a warning); tasks `- [x] done`, `- [ ] pending` |
 | Definition list | the term, then `: definition` on the next line |
 | Quote | `> text` |
 | Link | `[text](https://...)` or a bare URL |
@@ -1067,7 +1067,7 @@ filters whose job is code blocks).
 | 2 | `images.lua` | `Image`, `Figure`: web download, local check | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_LANG` |
 | 3 | `diagrams.lua` | `CodeBlock` with class `dot`/`graphviz` | `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_LANG` |
 | 4 | `charts.lua` | `CodeBlock` with class `pgfplot`/`pgfplots`/`grafica`/`tikz` | none |
-| 5 | `blocks.lua` | `Div` note boxes; references section (`Pandoc`) | `INVESTIGACION_DOC_LANG` |
+| 5 | `blocks.lua` | `Div` note boxes; lists deeper than LaTeX allows and the references section (`Pandoc`) | `INVESTIGACION_DOC_LANG`, `INVESTIGACION_LANG` |
 
 Conventions:
 

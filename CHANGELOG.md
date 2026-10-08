@@ -29,6 +29,8 @@ are in `INSTALL.md`.
 - The profile wizard no longer overwrites an existing profile when a new one
   gets the same name (`IA` and `ia` are both `courses/ia.toml`); it asks for
   another name.
+- A list nested more than 4 levels deep no longer stops the build with "Too
+  deeply nested": the deeper levels are moved up to the fourth, with a warning.
 
 ### Added
 
