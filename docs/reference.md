@@ -318,8 +318,9 @@ command-line option  >  course profile
   in the PDF metadata.
 - Custom field maps: profile keys are uppercased; `--set` entries are applied
   on top, so the CLI wins.
-- Date format: `<Month> <day>, <year>`; Spanish months are capitalized
-  (`Octubre 3, 2026`), English are `October 3, 2026`.
+- Date format: Spanish is `<day> de <month> de <year>` with the month in
+  lowercase (`3 de octubre de 2026`), as the RAE and APA in Spanish write it;
+  English is `<Month> <day>, <year>` (`October 3, 2026`).
 
 ## 6. Settings and environment variables
 

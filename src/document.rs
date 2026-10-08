@@ -10,18 +10,18 @@ use crate::i18n::Lang;
 use crate::markdown::strip_accents;
 
 const MONTHS_ES: [&str; 12] = [
-    "Enero",
-    "Febrero",
-    "Marzo",
-    "Abril",
-    "Mayo",
-    "Junio",
-    "Julio",
-    "Agosto",
-    "Septiembre",
-    "Octubre",
-    "Noviembre",
-    "Diciembre",
+    "enero",
+    "febrero",
+    "marzo",
+    "abril",
+    "mayo",
+    "junio",
+    "julio",
+    "agosto",
+    "septiembre",
+    "octubre",
+    "noviembre",
+    "diciembre",
 ];
 
 /// Valores que se insertan en la portada. `student`, `members`, `teacher` y
@@ -65,11 +65,12 @@ const MONTHS_EN: [&str; 12] = [
 
 /// Fecha de entrega en formato largo, en el idioma del documento.
 pub fn format_delivery_date(date: NaiveDate, lang: Lang) -> String {
-    let months = match lang {
-        Lang::Es => MONTHS_ES,
-        Lang::En => MONTHS_EN,
-    };
-    format!("{} {}, {}", months[date.month0() as usize], date.day(), date.year())
+    let month = date.month0() as usize;
+    match lang {
+        // Como lo escriben la RAE y APA en español: «23 de agosto de 2026».
+        Lang::Es => format!("{} de {} de {}", date.day(), MONTHS_ES[month], date.year()),
+        Lang::En => format!("{} {}, {}", MONTHS_EN[month], date.day(), date.year()),
+    }
 }
 
 /// Fecha local de hoy, ya formateada.
@@ -92,7 +93,7 @@ mod tests {
     #[test]
     fn delivery_date_is_in_spanish() {
         let date = NaiveDate::from_ymd_opt(2026, 8, 23).unwrap();
-        assert_eq!(format_delivery_date(date, Lang::Es), "Agosto 23, 2026");
+        assert_eq!(format_delivery_date(date, Lang::Es), "23 de agosto de 2026");
         assert_eq!(format_delivery_date(date, Lang::En), "August 23, 2026");
     }
 

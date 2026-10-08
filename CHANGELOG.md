@@ -35,6 +35,12 @@ are in `INSTALL.md`.
   Debian 12), a failed conversion now says that Pandoc 3.0 is needed instead
   of showing a Lua error. `INSTALL.md` says so too.
 
+### Changed
+
+- The Spanish cover date is written as Spanish does it, "8 de octubre de
+  2026", instead of "Octubre 8, 2026". This changes the cover of every
+  Spanish paper.
+
 ### Added
 
 - CI on GitHub Actions: format, lint and tests on Linux (with real PDFs) and

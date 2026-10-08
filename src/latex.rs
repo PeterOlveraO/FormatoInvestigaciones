@@ -138,7 +138,7 @@ mod tests {
             title: "T".into(),
             course: "M".into(),
             teacher: "D".into(),
-            date: "Agosto 23, 2026".into(),
+            date: "23 de agosto de 2026".into(),
             ..Default::default()
         }
     }
@@ -153,7 +153,7 @@ mod tests {
         let template = "%%UNIVERSIDAD%% %%CONTENIDO_MARKDOWN%% %%FECHA_ENTREGA%%";
         assert_eq!(
             render_template(template, r"\section{Texto}", &data()).unwrap(),
-            r"U \section{Texto} Agosto 23, 2026"
+            r"U \section{Texto} 23 de agosto de 2026"
         );
     }
 
