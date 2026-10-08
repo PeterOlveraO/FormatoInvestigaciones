@@ -126,7 +126,7 @@ fn backslashes_in_the_text_do_not_break_the_build() {
 }
 
 #[test]
-fn images_with_dot_relative_paths_are_found() {
+fn images_with_dot_relative_or_percent_encoded_paths_are_found() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
     }
@@ -138,7 +138,9 @@ fn images_with_dot_relative_paths_are_found() {
     std::fs::create_dir_all(directory.path().join("Mis trabajos/compartidas")).unwrap();
     std::fs::copy(&image, paper.join("img/a.png")).unwrap();
     std::fs::copy(&image, directory.path().join("Mis trabajos/compartidas/b.png")).unwrap();
-    let markdown = "# Introducción\n\n![Uno](./img/a.png)\n\n![Dos](../compartidas/b.png)\n";
+    // Y un espacio escrito como %20, como lo guardan muchos editores.
+    std::fs::copy(&image, paper.join("img/mi foto.png")).unwrap();
+    let markdown = "# Introducción\n\n![Uno](./img/a.png)\n\n![Dos](../compartidas/b.png)\n\n![Tres](img/mi%20foto.png)\n";
     let source = write(&paper, "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let pdf = generate_pdf(

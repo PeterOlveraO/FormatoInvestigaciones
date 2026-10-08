@@ -192,6 +192,12 @@ function Image(imagen)
 
   if RECURSOS == "" then return nil end
   local encontrada = encuentra_local(imagen.src)
+  -- Muchos editores escriben los espacios como %20 (`mi%20foto.png`).
+  local decodificada = imagen.src:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end)
+  if not encontrada and decodificada ~= imagen.src then
+    encontrada = encuentra_local(decodificada)
+    if encontrada then imagen.src = decodificada end
+  end
   if not encontrada then
     avisar(texto(
       "No se encontró la imagen " .. imagen.src .. "; la ruta se busca desde la carpeta del Markdown.",

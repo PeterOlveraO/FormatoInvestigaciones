@@ -34,6 +34,8 @@ are in `INSTALL.md`.
 - With a Pandoc older than 3.0 (what `apt` installs on Ubuntu 22.04 and
   Debian 12), a failed conversion now says that Pandoc 3.0 is needed instead
   of showing a Lua error. `INSTALL.md` says so too.
+- An image path with spaces written as `%20` (`img/mi%20foto.png`, as many
+  editors save it) is found instead of being reported as missing.
 
 ### Changed
 
