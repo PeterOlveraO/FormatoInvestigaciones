@@ -79,8 +79,9 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
   thread run inside `tui::guard::run`: a panic is logged with its backtrace
   and shown as an error line, and the menu keeps running.
 - **Always produce a PDF.** A missing image, symbol or Graphviz becomes a
-  warning, not an error. The only intended hard failure is a broken
-  ` ```pgfplot `/` ```tikz ` block, because that is real LaTeX.
+  warning, not an error. The only intended hard failures are a broken
+  ` ```pgfplot `/` ```tikz ` block and broken `$…$` math, because both are
+  real LaTeX.
 - **Required data follows the design.** A standard field is required only if
   the design uses its marker and does not list it in `optional`. A custom
   field is required only if its spec says so (`missing_data()`).

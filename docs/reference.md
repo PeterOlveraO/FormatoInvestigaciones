@@ -76,8 +76,9 @@ paper.md  ->  investigacion  ->  output/paper.pdf
   default) or a network connection (except to download web images the first
   time).
 - **Always produce a PDF.** A missing image, an unknown symbol or a missing
-  Graphviz becomes a warning. The only intended hard failure is a broken
-  `pgfplot`/`tikz` block, which is real LaTeX ([section 12](#charts-pgfplot-tikz)).
+  Graphviz becomes a warning. The intended hard failures are a broken
+  `pgfplot`/`tikz` block ([section 12](#charts-pgfplot-tikz)) and broken math
+  (`$\frac{1}{$`, see [Math](#math)), because both are real LaTeX.
 - **License:** GPL-3.0-or-later. Minimum Rust 1.88 (edition 2024, let-chains).
 
 ## 2. System requirements and dependencies
@@ -919,6 +920,11 @@ version of every element see [`../examples/syntax.md`](../examples/syntax.md) an
 operators written as Unicode characters work as-is (see the Unicode block of the
 base).
 
+Math goes to LaTeX unchanged, so, like a `pgfplot` block, a formula with a
+LaTeX error (`$\frac{1}{$`, an unknown command) **stops** the build, and the
+message shows the LaTeX error with its line. Checking LaTeX before compiling
+is not worth its cost; pdflatex already does it.
+
 ### Footnotes
 
 Standard Pandoc footnotes, numbered at the bottom of the page. They also work in
@@ -983,7 +989,7 @@ digraph { 50 -> 30; 50 -> 70; 30 -> 20; 30 -> 40; }
   grouped and stacked bars, lines, scatter with regression, histograms, box
   plots, error bars, functions, log scales and pie charts (`\pie`). APA renders
   them in grayscale; do not set colors.
-- **The one intended hard failure:** this is real LaTeX, so a syntax error
+- **An intended hard failure (with broken math):** this is real LaTeX, so a syntax error
   **stops** the build, and the message shows the LaTeX error with its line.
   `last-error.tex/.log` are saved next to the PDF.
 
@@ -1450,7 +1456,7 @@ the command line. It is a diagnostic aid and must never break the program.
 - **Always produce a PDF** ([section 1](#1-overview)): warnings, not errors, for
   images, symbols, Graphviz and heading structure.
 - **Hard failures:** missing Pandoc or pdflatex, timeouts, broken `pgfplot`/`tikz`
-  LaTeX, missing required data, a missing or non-`.md` or empty Markdown, unknown
+  or math LaTeX, missing required data, a missing or non-`.md` or empty Markdown, unknown
   design/format/profile, an incompatible design/format pair, an invalid
   profile or manifest, an unwritable output folder, a bad `--logos` folder.
 - **TUI:** panics are caught (see [section 15](#robustness)).
