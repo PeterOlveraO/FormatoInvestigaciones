@@ -26,6 +26,9 @@ are in `INSTALL.md`.
 - In the menu, choosing another profile clears the cover data the new profile
   leaves empty (teacher, group, custom fields) and resets the output folder.
   Before, the previous profile's values stayed and ended up on the cover.
+- The profile wizard no longer overwrites an existing profile when a new one
+  gets the same name (`IA` and `ia` are both `courses/ia.toml`); it asks for
+  another name.
 
 ### Added
 

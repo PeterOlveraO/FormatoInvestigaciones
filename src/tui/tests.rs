@@ -335,6 +335,28 @@ fn quitting() {
 }
 
 #[test]
+fn the_wizard_does_not_overwrite_an_existing_profile() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let before = std::fs::read_to_string(project.courses_dir().join("ia.toml")).unwrap();
+    let mut app = App::new(project.clone());
+    app.open_wizard(None);
+    type_text(&mut app, "IA");
+    press(&mut app, KeyCode::Enter);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert_eq!(wizard.index, 0, "no pasa al siguiente paso");
+    assert!(wizard.error.as_deref().is_some_and(|e| e.contains("«ia»")), "{:?}", wizard.error);
+    assert_eq!(std::fs::read_to_string(project.courses_dir().join("ia.toml")).unwrap(), before);
+
+    // Al editar, conservar la misma clave sí se permite.
+    let mut app = App::new(project);
+    app.open_wizard(Some("ia"));
+    press(&mut app, KeyCode::Enter);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert!(wizard.error.is_none() && wizard.index == 1, "{:?}", wizard.error);
+}
+
+#[test]
 fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     i18n::set(Lang::Es);
     let (_dir, project) = sample_project();
