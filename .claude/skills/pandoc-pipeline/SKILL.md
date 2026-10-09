@@ -62,8 +62,11 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
   the diagram as code) and warn.
 - **Paths from Rust.** `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`
   and `INVESTIGACION_RESOURCES` (one folder per line) arrive through
-  `pandoc::posix()`, with `/` even on Windows, because they end up inside
-  `\includegraphics`.
+  `pandoc::posix()`, with `/` even on Windows. The filters use them only to
+  read and write files: `\includegraphics` gets just the cache file name, and
+  pdflatex finds it through `TEXINPUTS` (`pandoc::resource_dirs()`). A full
+  path there breaks on spaces, the `~` of Windows short paths and accents
+  (`os.getenv` is not UTF-8 on Windows).
 
 ## Image and diagram cache
 

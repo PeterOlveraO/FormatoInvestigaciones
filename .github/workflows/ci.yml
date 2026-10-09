@@ -1,0 +1,56 @@
+# Compila y prueba en Linux y en Windows en cada push y PR.
+# En los dos se instala TeX (TeX Live en Linux, MiKTeX en Windows), así que
+# también se generan PDFs de verdad.
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - name: Tools (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          # Los mismos paquetes que INSTALL.md, con sus recomendados (fuentes).
+          sudo apt-get install -y pandoc graphviz \
+            texlive-latex-recommended texlive-latex-extra texlive-fonts-extra \
+            texlive-lang-spanish texlive-pictures texlive-plain-generic
+      - name: Tools (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          choco install -y --no-progress pandoc graphviz miktex
+          $bin = "C:\Program Files\MiKTeX\miktex\bin\x64"
+          $bin | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # Los paquetes de LaTeX que falten se instalan solos, sin diálogo.
+          & "$bin\initexmf.exe" --admin --set-config-value="[MPM]AutoInstall=1"
+          & "$bin\miktex.exe" --admin packages update-package-database
+          & "$bin\miktex.exe" --admin packages update
+      - run: cargo fmt --check
+      - run: cargo clippy --all-targets -- -D warnings
+      # Las fallas también salen como anotación, que se ve sin iniciar sesión.
+      - name: cargo test
+        shell: bash
+        # MiKTeX instala los paquetes al primer uso; varias pruebas a la vez
+        # chocan al instalar el mismo paquete, así que en Windows van de una.
+        env:
+          RUST_TEST_THREADS: ${{ runner.os == 'Windows' && '1' || '4' }}
+        run: |
+          set -o pipefail
+          cargo test --no-fail-fast 2>&1 | tee test.log || {
+            grep -E -A25 "^---- |panicked" test.log | head -200 \
+              | sed -e 's/%/%25/g' | awk 'BEGIN{ORS="%0A"} {print}' \
+              | sed -e 's/^/::error title=cargo test::/'; echo
+            exit 1
+          }

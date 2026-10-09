@@ -217,6 +217,9 @@ Another term
 > It can have several paragraphs.
 ``````
 
+Do not nest lists more than 4 levels deep: LaTeX does not allow it, so deeper
+levels are moved up to the fourth with a warning.
+
 Highlighted boxes (a thin black frame with a bold title; they do not float).
 The valid classes are `nota`, `aviso`, `importante`, `ejemplo` and
 `definicion`; the English names `note`, `warning`, `important`, `example` and
@@ -317,7 +320,9 @@ Math is LaTeX between dollar signs: `$...$` inline and `$$...$$` on its own
 paragraph. Everything from `amsmath`/`amssymb` works (`\frac`, `\sum`, `\int`,
 `\sqrt`, `\mathbb{R}`, `\mathbf`, `\vec`, `\hat`, `\overline`, `\mathcal`,
 `\operatorname`, `\text{...}`, `bmatrix`, `cases`, `aligned`). Do not use
-`\label` or `\tag` and do not nest `$` inside `\text`.
+`\label` or `\tag` and do not nest `$` inside `\text`. A formula is real
+LaTeX: one with an error (an unclosed brace, an unknown command) stops the
+whole PDF, so check every formula before you deliver.
 
 ``````markdown
 Inline math such as $E = mc^2$ or $\alpha + \beta \leq \gamma$ is written in

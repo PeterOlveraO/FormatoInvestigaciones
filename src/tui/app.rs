@@ -1184,21 +1184,16 @@ impl App {
             (FieldKey::Format, &profile.format),
             (FieldKey::Template, &profile.design),
         ] {
-            if !value.trim().is_empty() {
-                self.set(field, value.trim());
-            }
+            // También los vacíos: si no, quedaría el dato del perfil anterior.
+            self.set(field, value.trim());
         }
         // Los campos propios del diseño del perfil, con sus valores.
         self.refresh_design();
         for extra in &mut self.extras {
-            if let Some(value) = profile.fields.get(&extra.name) {
-                extra.value = value.clone();
-            }
+            extra.value = profile.fields.get(&extra.name).cloned().unwrap_or_default();
         }
-        if !profile.folder.trim().is_empty() {
-            let output = course.output_dir(&self.project);
-            self.set(FieldKey::Output, self.display_path(&output.display().to_string()));
-        }
+        let output = course.output_dir(&self.project);
+        self.set(FieldKey::Output, self.display_path(&output.display().to_string()));
     }
 
     fn start_generation(&mut self) {

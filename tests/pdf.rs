@@ -126,6 +126,37 @@ fn backslashes_in_the_text_do_not_break_the_build() {
 }
 
 #[test]
+fn images_with_dot_relative_or_percent_encoded_paths_are_found() {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return;
+    }
+    // pdflatex corre en el temporal: `./` y `../` no se resuelven por TEXINPUTS.
+    let directory = tempfile::tempdir().unwrap();
+    let image = common::root().join("examples/sample-image.png");
+    let paper = directory.path().join("Mis trabajos/Física");
+    std::fs::create_dir_all(paper.join("img")).unwrap();
+    std::fs::create_dir_all(directory.path().join("Mis trabajos/compartidas")).unwrap();
+    std::fs::copy(&image, paper.join("img/a.png")).unwrap();
+    std::fs::copy(&image, directory.path().join("Mis trabajos/compartidas/b.png")).unwrap();
+    // Y un espacio escrito como %20, como lo guardan muchos editores.
+    std::fs::copy(&image, paper.join("img/mi foto.png")).unwrap();
+    let markdown = "# Introducción\n\n![Uno](./img/a.png)\n\n![Dos](../compartidas/b.png)\n\n![Tres](img/mi%20foto.png)\n";
+    let source = write(&paper, "trabajo.md", markdown);
+    let mut warnings = Vec::new();
+    let pdf = generate_pdf(
+        &isolated_project(directory.path()),
+        &source,
+        &directory.path().join("salida"),
+        &data("Rutas"),
+        &GenerateOptions::default(),
+        &mut |w| warnings.push(w),
+    )
+    .unwrap();
+    assert!(pdf.is_file());
+    assert!(warnings.is_empty(), "{warnings:?}");
+}
+
+#[test]
 fn every_design_compiles_with_each_compatible_format_and_without_optional_fields() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
