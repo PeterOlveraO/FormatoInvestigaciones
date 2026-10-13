@@ -19,6 +19,25 @@ INVESTIGACION_TIMING=1 target/release/investigacion examples/catalog.md --title 
 INVESTIGACION_LOG=debug target/release/investigacion …   # full log in cache/logs/investigacion.log (off: INVESTIGACION_LOG=off)
 ```
 
+### PDF per course profile (`courses/<key>.toml`)
+
+```bash
+# Materia: Inteligencia artificial
+target/release/investigacion Tarea.md -p ia --title "Tema"
+# Materia: Ingeniería Económica
+target/release/investigacion Tarea.md -p ie --title "Tema"
+# Materia: Ingeniería de Software
+target/release/investigacion Tarea.md -p is --title "Tema"
+# Materia: Métodos de investigación
+target/release/investigacion Tarea.md -p mi --title "Tema"
+# Materia: Programación de Microprocesadores
+target/release/investigacion Tarea.md -p pm --title "Tema"
+# Materia: Programación de microprocesadores (report design)
+target/release/investigacion Tarea.md -p programacion-de-microprocesadores --title "Tema"
+# Materia: example (placeholders, for the catalog and screenshots)
+target/release/investigacion examples/catalog.md -p example --title "Tema"
+```
+
 System dependencies (not crates): Pandoc, pdflatex, Graphviz (optional).
 Minimum Rust: 1.88 (edition 2024, let-chains).
 

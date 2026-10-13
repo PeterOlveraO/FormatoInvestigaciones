@@ -63,7 +63,10 @@ investigacion Tarea1.md -p ia --title "Búsqueda heurística"
 ```
 
 Don't want to write the Markdown yourself? Give an AI the prompt in
-[docs/prompts/paper.md](docs/prompts/paper.md) along with your topic.
+[docs/prompts/paper.md](docs/prompts/paper.md) and, after it, the **topic**
+and the **format** your teacher asks for (APA 7, Harvard, MLA...). The format
+decides how the AI writes citations and references; choose the same one when
+you generate the PDF.
 
 ## Documentation
 

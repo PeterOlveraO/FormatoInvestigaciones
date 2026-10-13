@@ -35,3 +35,6 @@ last-error.log
 Thumbs.db
 .idea/
 .vscode/
+
+# Archivos de trabajo de la skill de investigación (agy)
+investigacion/
