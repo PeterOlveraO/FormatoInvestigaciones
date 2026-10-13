@@ -48,5 +48,12 @@ pub fn detect_in_background() -> Receiver<Vec<Tool>> {
 pub fn is_installed(program: &str, version_arg: &str) -> bool {
     let mut command = Command::new(program);
     command.arg(version_arg);
-    matches!(run_with_timeout(command, None, TIMEOUT), Ok(_) | Err(RunError::Timeout))
+    match run_with_timeout(command, None, TIMEOUT) {
+        Ok(_) => true,
+        Err(RunError::Timeout) => {
+            crate::logging::info(format_args!("{program}: slow to start, counted as installed"));
+            true
+        }
+        Err(_) => false,
+    }
 }

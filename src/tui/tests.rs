@@ -225,6 +225,25 @@ fn choosing_a_profile_fills_the_form_and_the_markdown_picker_starts_in_its_folde
 }
 
 #[test]
+fn switching_profiles_does_not_keep_the_data_of_the_previous_one() {
+    let (_dir, project) = sample_project();
+    std::fs::write(project.root.join("courses/fisica.toml"), "name = \"Física\"\n").unwrap();
+    let mut app = App::new(project);
+
+    for key in ["ia", "fisica"] {
+        select(&mut app, FieldKey::Profile);
+        press(&mut app, KeyCode::Enter);
+        type_text(&mut app, key);
+        press(&mut app, KeyCode::Enter);
+    }
+    assert_eq!(app.value(FieldKey::Course), "Física");
+    assert_eq!(app.value(FieldKey::Teacher), "");
+    assert_eq!(app.value(FieldKey::Group), "");
+    assert_eq!(app.value(FieldKey::Template), "");
+    assert_eq!(Path::new(app.value(FieldKey::Output)), Path::new("output"));
+}
+
+#[test]
 fn the_picker_browses_folders_without_typing_paths() {
     let (_dir, project) = sample_project();
     let root = project.root.clone();
@@ -313,6 +332,28 @@ fn quitting() {
     let mut app = App::new(project);
     press(&mut app, KeyCode::Char('q'));
     assert!(app.should_quit);
+}
+
+#[test]
+fn the_wizard_does_not_overwrite_an_existing_profile() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let before = std::fs::read_to_string(project.courses_dir().join("ia.toml")).unwrap();
+    let mut app = App::new(project.clone());
+    app.open_wizard(None);
+    type_text(&mut app, "IA");
+    press(&mut app, KeyCode::Enter);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert_eq!(wizard.index, 0, "no pasa al siguiente paso");
+    assert!(wizard.error.as_deref().is_some_and(|e| e.contains("«ia»")), "{:?}", wizard.error);
+    assert_eq!(std::fs::read_to_string(project.courses_dir().join("ia.toml")).unwrap(), before);
+
+    // Al editar, conservar la misma clave sí se permite.
+    let mut app = App::new(project);
+    app.open_wizard(Some("ia"));
+    press(&mut app, KeyCode::Enter);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert!(wizard.error.is_none() && wizard.index == 1, "{:?}", wizard.error);
 }
 
 #[test]

@@ -3,7 +3,7 @@
 [![Version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-green)](LICENSE)
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange)](https://rustup.rs)
-![Linux](https://img.shields.io/badge/platform-Linux-lightgrey)
+![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
 ![Español | English](https://img.shields.io/badge/interface-Espa%C3%B1ol%20%7C%20English-informational)
 
 Write your school paper in Markdown and get a finished PDF: cover page, table
@@ -37,8 +37,8 @@ and the formatting.
 
 You need [Rust](https://rustup.rs), [Pandoc](https://pandoc.org) and a TeX
 distribution with `pdflatex` ([Graphviz](https://graphviz.org) is optional, for
-diagrams). **Linux only for now**; Windows and macOS will come in a later
-update. Step by step: **[INSTALL.md](INSTALL.md)**.
+diagrams). Works on **Linux and Windows**; macOS will come in a later update.
+Step by step: **[INSTALL.md](INSTALL.md)**.
 
 ```bash
 git clone https://github.com/PeterOlveraO/FormatoInvestigaciones.git

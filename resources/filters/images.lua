@@ -24,12 +24,15 @@ local RECURSOS = os.getenv("INVESTIGACION_RESOURCES") or ""
 -- pdflatex solo compone estos formatos. El resto (SVG, WEBP) necesitaría una
 -- conversión previa, que este proyecto no hace.
 local FORMATOS = { png = true, jpg = true, jpeg = true, pdf = true }
-local EXTENSION_POR_TIPO = {
-  ["image/png"] = "png",
-  ["image/jpeg"] = "jpg",
-  ["image/jpg"] = "jpg",
-  ["application/pdf"] = "pdf",
-}
+
+-- El formato se lee de los primeros bytes: ni la extensión de la URL ni el tipo
+-- que manda el servidor garantizan que lo descargado sea una imagen.
+local function formato_del_contenido(contenido)
+  if contenido:sub(1, 8) == "\137PNG\r\n\26\n" then return "png" end
+  if contenido:sub(1, 3) == "\255\216\255" then return "jpg" end
+  if contenido:sub(1, 4) == "%PDF" then return "pdf" end
+  return nil
+end
 
 local avisados = {}
 
@@ -83,26 +86,37 @@ local function reemplazo(imagen)
   return pandoc.Emph({ pandoc.Str("[imagen no disponible]") })
 end
 
+-- Avisa si la extensión es de un formato que pdflatex no compone (SVG, WEBP,
+-- GIF…); sin extensión no se puede saber y se deja pasar.
+local function formato_admitido(ruta, extension)
+  if not extension or FORMATOS[extension] then return true end
+  avisar(texto(
+    "La imagen " .. ruta .. " está en formato " .. extension ..
+    ", que pdflatex no puede componer. Usa PNG, JPG o PDF.",
+    "The image " .. ruta .. " is in " .. extension ..
+    " format, which pdflatex cannot typeset. Use PNG, JPG or PDF."))
+  return false
+end
+
 local function descargar(imagen)
   local extension = extension_de(imagen.src)
   local nombre = utils.sha1(imagen.src)
 
   -- Si ya está descargada no se vuelve a bajar: así el trabajo se genera sin red.
+  -- Una descarga vieja que no es imagen (versiones anteriores la guardaban) se ignora.
   for posible in pairs(FORMATOS) do
     local ruta = CACHE .. "/" .. nombre .. "." .. posible
-    if existe(ruta) then return ruta end
+    local archivo = io.open(ruta, "rb")
+    if archivo then
+      local inicio = archivo:read(8) or ""
+      archivo:close()
+      if formato_del_contenido(inicio) then return ruta end
+    end
   end
 
-  if extension and not FORMATOS[extension] then
-    avisar(texto(
-      "La imagen " .. imagen.src .. " está en formato " .. extension ..
-      ", que pdflatex no puede componer. Usa PNG, JPG o PDF.",
-      "The image " .. imagen.src .. " is in " .. extension ..
-      " format, which pdflatex cannot typeset. Use PNG, JPG or PDF."))
-    return nil
-  end
+  if not formato_admitido(imagen.src, extension) then return nil end
 
-  local ok, tipo, contenido = pcall(pandoc.mediabag.fetch, imagen.src)
+  local ok, _, contenido = pcall(pandoc.mediabag.fetch, imagen.src)
   if not ok or not contenido then
     avisar(texto(
       "No se pudo descargar la imagen " .. imagen.src .. "; revisa la dirección o tu conexión.",
@@ -110,8 +124,8 @@ local function descargar(imagen)
     return nil
   end
 
-  local final = extension or EXTENSION_POR_TIPO[(tipo or ""):gsub(";.*$", "")]
-  if not final or not FORMATOS[final] then
+  local final = formato_del_contenido(contenido)
+  if not final then
     avisar(texto(
       "La imagen " .. imagen.src .. " no es PNG, JPG ni PDF.",
       "The image " .. imagen.src .. " is not PNG, JPG or PDF."))
@@ -127,16 +141,29 @@ local function descargar(imagen)
   return ruta
 end
 
--- Una ruta local se busca en las carpetas que pasa el generador; solo se avisa
--- cuando no aparece en ninguna.
+-- Una ruta local se busca en las carpetas que pasa el generador; devuelve
+-- dónde está, o nil si no aparece en ninguna.
 local function encuentra_local(ruta)
   -- Tal cual: cubre tanto una ruta absoluta como una relativa al directorio de
   -- trabajo, en cualquier sistema.
-  if existe(ruta) then return true end
+  if existe(ruta) then return ruta end
   for carpeta in RECURSOS:gmatch("[^\n]+") do
-    if existe(carpeta .. "/" .. ruta) then return true end
+    if existe(carpeta .. "/" .. ruta) then return carpeta .. "/" .. ruta end
   end
-  return false
+  return nil
+end
+
+-- pdflatex corre en el temporal y no busca en TEXINPUTS una ruta que empieza
+-- con `./` o `../`: se copia a la caché y LaTeX recibe solo el nombre.
+local function copia_a_cache(ruta)
+  if not CACHE then return nil end
+  local archivo = io.open(ruta, "rb")
+  if not archivo then return nil end
+  local contenido = archivo:read("a")
+  archivo:close()
+  local nombre = utils.sha1(ruta) .. "." .. (extension_de(ruta) or "png")
+  if not escribir(CACHE .. "/" .. nombre, contenido) then return nil end
+  return nombre
 end
 
 -- Cuando la imagen era el único contenido de una figura, la figura se queda sin
@@ -158,15 +185,35 @@ function Image(imagen)
     if not CACHE then return nil end
     local ruta = descargar(imagen)
     if not ruta then return reemplazo(imagen) end
-    imagen.src = ruta
+    -- Solo el nombre: pdflatex lo busca en la caché por TEXINPUTS (ver diagrams.lua).
+    imagen.src = ruta:match("[^/]+$")
     return imagen
   end
 
-  if RECURSOS ~= "" and not encuentra_local(imagen.src) then
+  if RECURSOS == "" then return nil end
+  local encontrada = encuentra_local(imagen.src)
+  -- Muchos editores escriben los espacios como %20 (`mi%20foto.png`).
+  local decodificada = imagen.src:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end)
+  if not encontrada and decodificada ~= imagen.src then
+    encontrada = encuentra_local(decodificada)
+    if encontrada then imagen.src = decodificada end
+  end
+  if not encontrada then
     avisar(texto(
       "No se encontró la imagen " .. imagen.src .. "; la ruta se busca desde la carpeta del Markdown.",
       "Image not found: " .. imagen.src .. "; the path is resolved from the Markdown folder."))
     return reemplazo(imagen)
+  end
+  if not formato_admitido(imagen.src, extension_de(imagen.src)) then return reemplazo(imagen) end
+  if imagen.src:match("^%.") then
+    local nombre = copia_a_cache(encontrada)
+    if not nombre then
+      avisar(texto("No se pudo copiar la imagen " .. imagen.src .. " a la caché.",
+        "Could not copy the image " .. imagen.src .. " to the cache."))
+      return reemplazo(imagen)
+    end
+    imagen.src = nombre
+    return imagen
   end
   return nil
 end

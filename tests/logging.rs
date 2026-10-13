@@ -41,8 +41,9 @@ fn the_global_log_records_the_session_io_errors_and_panics() {
     assert_eq!(text.matches("==== investigacion").count(), 1, "init is idempotent:\n{text}");
     assert!(text.contains(&format!("project: {}", project.root.display())), "{text}");
     assert!(text.contains("[INFO ] [") && text.contains("] hola\n") && text.contains("| segunda línea"));
-    assert!(text.contains("I/O error at tests/logging.rs:"), "{text}");
-    assert!(text.contains("[ERROR] [worker] panic in thread 'worker' at tests/logging.rs:"), "{text}");
+    // `file!()` usa el separador del sistema (`tests\logging.rs` en Windows).
+    assert!(text.contains(&format!("I/O error at {}:", file!())), "{text}");
+    assert!(text.contains(&format!("[ERROR] [worker] panic in thread 'worker' at {}:", file!())), "{text}");
     assert!(text.contains("boom 42") && text.contains("backtrace:"), "{text}");
 
     logging::shutdown();

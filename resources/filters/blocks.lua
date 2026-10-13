@@ -11,6 +11,10 @@ porque dependen de lo que el documento diga y no de cómo se compone.
    encabezado «Referencias», se deshace la lista de viñetas si se escribió así y
    se envuelve todo en el entorno ReferenceList, que cada formato define
    (sangría francesa en APA, Harvard y MLA).
+
+3. Listas muy anidadas. LaTeX admite 4 niveles de viñetas, 4 de números y 6
+   en total; más allá se detiene con «Too deeply nested». Lo que pase del
+   límite se sube al último nivel permitido, con un aviso.
 ]]
 
 local utils = require("pandoc.utils")
@@ -95,7 +99,61 @@ local function a_parrafos(bloque)
   return parrafos
 end
 
+-- Avisos en el idioma de la interfaz, con el prefijo que reenvía el generador.
+local function avisar(es, en)
+  local mensaje = os.getenv("INVESTIGACION_LANG") == "en" and en or es
+  io.stderr:write("[investigacion] " .. mensaje .. "\n")
+end
+
+local function es_lista(bloque)
+  return bloque.t == "BulletList" or bloque.t == "OrderedList"
+end
+
+local recortada = false
+
+-- `vinetas` y `numeros` cuentan las listas que ya envuelven a esta.
+local function recorta(lista, vinetas, numeros)
+  if lista.t == "BulletList" then vinetas = vinetas + 1 else numeros = numeros + 1 end
+  local elementos = {}
+  for _, elemento in ipairs(lista.content) do
+    local propio, subidos = {}, {}
+    for _, bloque in ipairs(elemento) do
+      local cabe = es_lista(bloque) and vinetas + numeros < 6
+        and (bloque.t == "BulletList" and vinetas or numeros) < 4
+      if cabe then
+        propio[#propio + 1] = recorta(bloque, vinetas, numeros)
+      elseif es_lista(bloque) then
+        -- Sus elementos pasan a ser hermanos de este, en esta misma lista.
+        recortada = true
+        local copia = lista:clone()
+        copia.content = bloque.content
+        for _, hermano in ipairs(recorta(copia, vinetas - (lista.t == "BulletList" and 1 or 0),
+            numeros - (lista.t == "OrderedList" and 1 or 0)).content) do
+          subidos[#subidos + 1] = hermano
+        end
+      else
+        propio[#propio + 1] = bloque
+      end
+    end
+    elementos[#elementos + 1] = propio
+    for _, hermano in ipairs(subidos) do elementos[#elementos + 1] = hermano end
+  end
+  lista.content = elementos
+  return lista
+end
+
+local function recorta_listas(documento)
+  local raiz = function(lista) return recorta(lista, 0, 0), false end
+  documento = documento:walk({ traverse = "topdown", BulletList = raiz, OrderedList = raiz })
+  if recortada then
+    avisar("Una lista tiene más niveles de los que LaTeX admite (4 de viñetas o de números); los más profundos se subieron al último nivel.",
+      "A list is nested deeper than LaTeX allows (4 levels of bullets or numbers); the deepest levels were moved up to the last one.")
+  end
+  return documento
+end
+
 function Pandoc(documento)
+  documento = recorta_listas(documento)
   local salida = {}
   local dentro = false
 

@@ -70,7 +70,8 @@ end
 function CodeBlock(bloque)
   if not es_diagrama(bloque) or not CACHE then return nil end
 
-  local ruta = CACHE .. "/" .. utils.sha1(bloque.text) .. ".pdf"
+  local nombre = utils.sha1(bloque.text) .. ".pdf"
+  local ruta = CACHE .. "/" .. nombre
   if not existe(ruta) then
     local ok, salida = pcall(pandoc.pipe, "dot", { "-Tpdf" }, bloque.text)
     if not ok then
@@ -94,7 +95,10 @@ function CodeBlock(bloque)
   end
 
   local pie = pie_de_figura(bloque.attributes["caption"])
-  local imagen = pandoc.Image(pie or {}, ruta, "", pandoc.Attr("", {}, atributos))
+  -- A LaTeX solo llega el nombre; pdflatex lo busca en la caché por TEXINPUTS.
+  -- Una ruta completa se rompe con acentos (en Windows os.getenv no da UTF-8),
+  -- espacios o el `~` de las rutas cortas.
+  local imagen = pandoc.Image(pie or {}, nombre, "", pandoc.Attr("", {}, atributos))
   if pie then
     return pandoc.Figure({ pandoc.Plain({ imagen }) }, { long = { pandoc.Plain(pie) } })
   end

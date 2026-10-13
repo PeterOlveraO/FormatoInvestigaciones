@@ -1,5 +1,53 @@
 # Changelog
 
+## Unreleased
+
+**Windows is supported** (tested on Windows 11 with MiKTeX). Installation steps
+are in `INSTALL.md`.
+
+### Fixed
+
+- The PDF build no longer fails with "I can't find file `C:/Users/...'" when
+  the temp folder is a short path with `~` or the user folder has spaces.
+  pdflatex now runs inside the temp folder and gets only the file name.
+- Diagrams and downloaded images work when the project is in a folder with
+  accents or spaces (`C:\Users\José Pérez\...`): LaTeX gets only their file
+  name and finds them through `TEXINPUTS`.
+- With MiKTeX, missing LaTeX packages are installed without a dialog
+  (`--enable-installer`); before, pdflatex waited on it until the time limit.
+- When pdflatex cannot open the `.tex`, its `texput.log` is kept as
+  `last-error.log`.
+- A local SVG, WEBP or GIF image no longer stops the build: like a remote one,
+  it becomes its caption with a warning (pdflatex cannot typeset them).
+- A web address that returns a page instead of an image (for example a
+  Wikipedia `File:` page) is no longer saved as a `.png` in `cache/remote/`,
+  where it broke every later build. The format is read from the downloaded
+  bytes, and a bad file left by an older version is downloaded again.
+- In the menu, choosing another profile clears the cover data the new profile
+  leaves empty (teacher, group, custom fields) and resets the output folder.
+  Before, the previous profile's values stayed and ended up on the cover.
+- The profile wizard no longer overwrites an existing profile when a new one
+  gets the same name (`IA` and `ia` are both `courses/ia.toml`); it asks for
+  another name.
+- A list nested more than 4 levels deep no longer stops the build with "Too
+  deeply nested": the deeper levels are moved up to the fourth, with a warning.
+- With a Pandoc older than 3.0 (what `apt` installs on Ubuntu 22.04 and
+  Debian 12), a failed conversion now says that Pandoc 3.0 is needed instead
+  of showing a Lua error. `INSTALL.md` says so too.
+- An image path with spaces written as `%20` (`img/mi%20foto.png`, as many
+  editors save it) is found instead of being reported as missing.
+
+### Changed
+
+- The Spanish cover date is written as Spanish does it, "8 de octubre de
+  2026", instead of "Octubre 8, 2026". This changes the cover of every
+  Spanish paper.
+
+### Added
+
+- CI on GitHub Actions: format, lint and tests on Linux (with real PDFs) and
+  Windows.
+
 ## 2.0.0 (2026-10-04)
 
 The program was rewritten in Rust. It gained a full-screen menu, course

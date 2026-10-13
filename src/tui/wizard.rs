@@ -268,7 +268,19 @@ impl Wizard {
             return Outcome::Continue;
         }
         match self.step().target.clone() {
-            Target::Key => self.key = crate::document::slugify(&value),
+            Target::Key => {
+                let key = crate::document::slugify(&value);
+                // Crear (o renombrar) sobre un perfil que ya existe lo borraría.
+                let taken = project.courses_dir().join(format!("{key}.toml")).exists();
+                if taken && (!self.editing || key != self.key) {
+                    self.error = Some(tr!(
+                        es: "Ya existe el perfil «{key}»; elige otro nombre.",
+                        en: "The profile \"{key}\" already exists; choose another name."
+                    ));
+                    return Outcome::Continue;
+                }
+                self.key = key;
+            }
             Target::Format => {
                 // Si el diseño elegido no combina con el formato nuevo, se vuelve a pedir.
                 let fits = load_design(project, Some(&self.profile.design))

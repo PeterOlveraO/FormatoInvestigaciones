@@ -86,7 +86,7 @@ Headings are plain text: no formatting, links, math or emoji.
 
 [^1]: Footnote text.
 
-Lists: `-` bullets (nest with two spaces), `1.` numbered, `- [x]` tasks, and
+Lists: `-` bullets (nest with two spaces, at most 4 levels), `1.` numbered, `- [x]` tasks, and
 definitions (`Term` on one line, `: Definition` on the next). Quotes longer
 than ~40 words go in `>` blocks.
 
@@ -132,7 +132,8 @@ Fenced code with a language (`python`, `java`, `sql`...) and lines under 80
 characters. ASCII drawings and program output go in a block without language.
 
 Math: `$E = mc^2$` inline, `$$...$$` as its own paragraph. `amsmath` works
-(`\frac`, `\sum`, `bmatrix`, `cases`, `aligned`); no `\label` or `\tag`.
+(`\frac`, `\sum`, `bmatrix`, `cases`, `aligned`); no `\label` or `\tag`. A formula with an
+error (unclosed brace, unknown command) stops the whole PDF: check each one.
 
 # FIGURES
 
