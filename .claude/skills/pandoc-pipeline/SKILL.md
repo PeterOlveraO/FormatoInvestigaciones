@@ -14,6 +14,9 @@ and extended). Check which of three places to change:
 1. **`MARKDOWN_EXTENSIONS`** (`src/pandoc.rs`): `mark` (`==x==`), `emoji`
    (`:joy:`), `autolink_bare_uris`.
 2. **Lua filters** (`resources/filters/`, applied in `LUA_FILTERS` order).
+   `common.lua` (`texto`, `avisar`, `existe`, `escribir`, `tiene_clase`,
+   `pie_de_figura`, `utils`) is pasted in front of each one when it is written
+   (`LUA_COMMON`): Pandoc does not let a filter `require` a sibling file.
    - **How they ship:** embedded with `include_str!` and written to a temp dir
      on each run.
    - **What they see:** the parsed tree, never the inside of code blocks.
@@ -40,8 +43,10 @@ and extended). Check which of three places to change:
 To see what Pandoc produces:
 
 ```bash
+# Each filter needs common.lua in front of it, as the program writes them.
+cat resources/filters/common.lua resources/filters/inline_html.lua > /tmp/filter.lua
 pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
-  --to=latex --wrap=none --lua-filter=resources/filters/inline_html.lua
+  --to=latex --wrap=none --lua-filter=/tmp/filter.lua
 ```
 
 ## Filter conventions

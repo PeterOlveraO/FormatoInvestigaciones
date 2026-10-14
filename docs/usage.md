@@ -25,7 +25,13 @@ investigacion
 1. **Language screen.** Pick Spanish or English with ↑↓ and press Enter. The
    language of your system is already marked. The choice is saved, so it is
    asked only once. You can change it later in Options (`l`).
-2. **Profile wizard.** If you have no course profiles yet, a wizard opens. A
+2. **Work folder.** Browse to the folder where you want your papers (for
+   example `Documents/Papers`), go into it and choose `./`. The program creates
+   `input/`, `output/`, `courses/`, `my-templates/` and `logos/` there, and copies
+   what you already had in the program folder. From then on you only open that
+   folder; change it in Options (`w`). Esc keeps everything in the program
+   folder, as before.
+3. **Profile wizard.** If you have no course profiles yet, a wizard opens. A
    profile saves the data of one course (university, teacher, group, format,
    design…) so you do not type it every time. The wizard asks, one step at a
    time:
@@ -67,8 +73,8 @@ Choose **Generate a PDF**. The fields are:
 | University, Faculty, Student, Course, Teacher, Team members, Group, Semester | Cover data. Empty means "use the profile's". Marked `*` when the design needs it. |
 | Format | `apa7`, `harvard`, `mla`… Empty: the first one the design accepts. |
 | Design | The cover and look. Empty: `geometric-cover`. |
-| Output folder | Empty: `output/` (or the profile's folder inside it). |
-| Extra copies | Folders for a copy of the PDF, separated by `;`. |
+| Output folder | Browse to the folder and choose `./`. Empty: `output/` (or the profile's). |
+| Extra copies | Browse and choose `./`; each folder is added to the list (Del clears it). |
 
 If the chosen design has its own fields (for example, a classroom), they
 appear at the end. Whether Course is required depends on the design. A field

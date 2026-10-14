@@ -207,13 +207,14 @@ fn session_header(project: &Project, level: Level) -> String {
     let args: Vec<String> = argv.iter().map(|a| a.to_string_lossy().into_owned()).collect();
     let cwd = std::env::current_dir().map(|d| d.display().to_string()).unwrap_or_default();
     format!(
-        "==== investigacion {} started ({}/{}) ====\ninterface language: {}\nproject: {}\n\
+        "==== investigacion {} started ({}/{}) ====\ninterface language: {}\nproject: {}\nwork folder: {}\n\
          working directory: {cwd}\narguments: {args:?}\nlog level: {level:?}",
         env!("CARGO_PKG_VERSION"),
         std::env::consts::OS,
         std::env::consts::ARCH,
         lang.code(),
         project.root.display(),
+        project.work.display(),
     )
 }
 

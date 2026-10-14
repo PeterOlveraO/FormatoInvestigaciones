@@ -79,28 +79,51 @@ Paths with spaces or accents (`C:\Users\José Pérez\...`) are fine.
 ```bash
 git clone https://github.com/PeterOlveraO/FormatoInvestigaciones.git
 cd FormatoInvestigaciones
-cargo install --path .
+./install.sh                                          # Linux
+powershell -ExecutionPolicy Bypass -File install.ps1  # Windows
 ```
 
-`cargo install` downloads the dependencies (internet is needed only this time),
-builds the program and leaves `investigacion` in `~/.cargo/bin`, which rustup
-adds to your `PATH`. There is no virtual environment to activate.
+The script checks that `cargo`, `pandoc` and `pdflatex` are there (and warns if
+Graphviz is not), then runs `cargo install --path . --locked` for you. That
+leaves `investigacion` in `~/.cargo/bin`, which rustup adds to your `PATH`. At
+the end it runs `cargo clean --release` to delete the intermediate build files
+(several hundred MB) that are no longer needed. There is no virtual
+environment to activate.
+
+**Which libraries get installed.** Only the ones in `Cargo.toml`, at the exact
+versions in `Cargo.lock` (`--locked`). Cargo downloads their source once into
+`~/.cargo/registry` (internet is needed only this time) and compiles them
+*into* the program: nothing is installed system-wide and nothing has to stay
+installed for it to run. Features that are not used (colored help, error
+suggestions) are turned off so fewer crates are compiled.
+
+Without the script: `cargo install --path . --locked`, then optionally
+`cargo clean --release`.
 
 The program remembers where the project folder is. If you move the folder, run
-`cargo install --path .` again, or set the `INVESTIGACION_HOME` variable to the
+the install script again, or set the `INVESTIGACION_HOME` variable to the
 new location.
 
 ## 3. Configure
 
-Run `investigacion`. The first time it asks for the language and opens the
-**profile wizard**. The wizard asks for the format (APA 7, Harvard, MLA), the
+Run `investigacion`. The first time it asks for:
+
+1. the **language**;
+2. your **work folder**: browse to where you want your papers (for example
+   `Documents/Papers`), go into it and choose `./`. The program creates
+   `input/`, `output/`, `courses/`, `my-templates/` (your designs and formats)
+   and `logos/` there, so you never have to open the program folder. Esc keeps
+   everything in the program folder. Change it later in Options → `w`;
+3. your first course profile, with the **profile wizard**.
+
+The wizard asks for the format (APA 7, Harvard, MLA), the
 design and all the cover data, and saves them in `courses/<name>.toml`. There
 is nothing else to configure.
 
 Optional:
 
-- **Logos:** add them to `templates/logos/` (`logo-universidad.png`,
-  `logo-facultad.png`).
+- **Logos:** put `logo-universidad.png` and `logo-facultad.png` in the
+  `logos/` folder of your work folder.
 - **`settings.toml`** is written by the menu: it remembers the language
   (`IDIOMA="es"`). You can add `LOGOS="<folder>"` for a logos folder outside
   the project. The cover data always goes in the profiles.
@@ -120,8 +143,10 @@ missing (a symbol, an image, Graphviz), and the PDF is still produced.
 
 ```bash
 git pull
-cargo install --path .
+./install.sh        # Windows: powershell -ExecutionPolicy Bypass -File install.ps1
 ```
+
+Your work folder is not touched by updates.
 
 ## Uninstall
 

@@ -1,4 +1,4 @@
-//! Ajustes que el programa recuerda (`settings.toml`: idioma, logos) y el entorno.
+//! Ajustes que el programa recuerda (`settings.toml`: idioma, tema, logos) y el entorno.
 //!
 //! El formato es `CLAVE="valor"` por línea. No se modifica el entorno del
 //! proceso: una variable de entorno gana sobre el archivo.

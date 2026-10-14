@@ -37,6 +37,9 @@ pub const STANDARD_MARKERS: [&str; 13] = [
     "CLASS_OPTIONS",
 ];
 
+/// Marcadores estándar que se exigen si el diseño los usa y no los marca opcionales.
+pub const REQUIRED_MARKERS: [&str; 5] = ["TITULO", "UNIVERSIDAD", "FACULTAD", "SEMESTRE", "MATERIA"];
+
 /// Texto de una ficha: uno solo (`"APA 7"`) o en los dos idiomas
 /// (`{ es = "…", en = "…" }`).
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -129,6 +132,14 @@ impl Design {
         self.markers.contains(marker)
     }
 
+    /// Si el diseño exige un dato estándar: lo usa, es de los exigibles y no
+    /// lo declara opcional. Lo comparten el CLI, el formulario y el asistente.
+    pub fn requires(&self, marker: &str) -> bool {
+        REQUIRED_MARKERS.contains(&marker)
+            && self.uses(marker)
+            && !self.manifest.optional.iter().any(|o| o == marker)
+    }
+
     /// Un diseño sin `%%FORMAT%%` trae sus propias reglas: no lleva formato.
     pub fn is_self_contained(&self) -> bool {
         !self.uses("FORMAT")
@@ -173,7 +184,7 @@ fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
 
 /// Carpetas donde buscar, en orden: las incluidas y luego las de cada quien.
 fn roots(project: &Project, kind: &str) -> [PathBuf; 2] {
-    [project.templates_dir().join(kind), project.root.join("my-templates").join(kind)]
+    [project.templates_dir().join(kind), project.user_templates_dir().join(kind)]
 }
 
 fn list_keys(project: &Project, kind: &str, file: &str) -> Vec<String> {

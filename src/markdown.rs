@@ -15,7 +15,7 @@ use crate::project::absolute;
 // ancho cero. Word, Notion y las IA los sueltan a menudo.
 const DISGUISED_SPACES: [char; 4] = ['\u{00A0}', '\u{2007}', '\u{202F}', '\u{200B}'];
 
-static FENCE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s{0,3}(`{3,}|~{3,})").unwrap());
+static FENCE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s{0,3}(`{3,}|~{3,})(.*)$").unwrap());
 // Marcador de Markdown (encabezado, viñeta, lista numerada o cita) separado del
 // texto por espacios invisibles en vez de por uno normal.
 static MARKER_SEPARATOR: LazyLock<Regex> = LazyLock::new(|| {
@@ -30,6 +30,29 @@ fn split_lines(text: &str) -> Vec<&str> {
         lines.pop();
     }
     lines
+}
+
+/// Cada línea con `true` si es parte de un bloque de código (``` o ~~~, con
+/// sus cercos). Como en CommonMark, cierra un cerco del mismo carácter, al
+/// menos igual de largo y sin texto detrás: un ```python dentro de un
+/// bloque de ```` sigue siendo código.
+fn fenced_lines(text: &str) -> Vec<(&str, bool)> {
+    let mut open: Option<(char, usize)> = None;
+    split_lines(text)
+        .into_iter()
+        .map(|line| {
+            let fence = FENCE
+                .captures(line)
+                .map(|f| (f[1].chars().next().unwrap(), f[1].len(), f[2].trim().is_empty()));
+            match (open, fence) {
+                (None, Some((marker, len, _))) => open = Some((marker, len)),
+                (Some((marker, len)), Some((m, l, true))) if m == marker && l >= len => open = None,
+                (None, None) => return (line, false),
+                _ => {}
+            }
+            (line, true)
+        })
+        .collect()
 }
 
 /// Indica si alguna línea termina en un espacio disfrazado (también la que
@@ -47,26 +70,13 @@ pub fn normalize_markdown(markdown: &str) -> String {
     let dirty = has_disguised_spaces(markdown);
     let trailing = |c: char| DISGUISED_SPACES.contains(&c) || c == '\t' || (dirty && c == ' ');
 
-    let mut lines = Vec::new();
-    let mut fence: Option<char> = None;
-    for line in split_lines(markdown) {
-        if let Some(found) = FENCE.captures(line) {
-            let marker = found[1].chars().next().unwrap();
-            match fence {
-                None => fence = Some(marker),
-                Some(open) if open == marker => fence = None,
-                Some(_) => {}
-            }
-            lines.push(line.to_owned());
-            continue;
-        }
-        if fence.is_some() {
-            lines.push(line.to_owned());
-            continue;
-        }
-        let trimmed = line.trim_end_matches(trailing);
-        lines.push(MARKER_SEPARATOR.replace(trimmed, "${1}${2} ").into_owned());
-    }
+    let lines: Vec<String> = fenced_lines(markdown)
+        .into_iter()
+        .map(|(line, code)| match code {
+            true => line.to_owned(),
+            false => MARKER_SEPARATOR.replace(line.trim_end_matches(trailing), "${1}${2} ").into_owned(),
+        })
+        .collect();
     let normalized = lines.join("\n");
     if markdown.ends_with('\n') { normalized + "\n" } else { normalized }
 }
@@ -98,26 +108,11 @@ pub fn normalize_heading(heading: &str) -> String {
 
 /// Encabezados ATX del documento, sin contar los que estén dentro de código.
 pub fn markdown_headings(markdown: &str) -> Vec<String> {
-    let mut headings = Vec::new();
-    let mut fence: Option<char> = None;
-    for line in split_lines(markdown) {
-        if let Some(found) = FENCE.captures(line) {
-            let marker = found[1].chars().next().unwrap();
-            match fence {
-                None => fence = Some(marker),
-                Some(open) if open == marker => fence = None,
-                Some(_) => {}
-            }
-            continue;
-        }
-        if fence.is_some() {
-            continue;
-        }
-        if let Some(found) = ATX_HEADING.captures(line) {
-            headings.push(normalize_heading(&found[1]));
-        }
-    }
-    headings
+    fenced_lines(markdown)
+        .into_iter()
+        .filter(|(_, code)| !code)
+        .filter_map(|(line, _)| ATX_HEADING.captures(line).map(|found| normalize_heading(&found[1])))
+        .collect()
 }
 
 /// Advertencias de estructura; nunca impiden generar el PDF. Los
@@ -267,6 +262,9 @@ mod tests {
     fn headings_inside_code_blocks_are_ignored() {
         let markdown = "# Introducción\n\n```python\n# Desarrollo\n```\n\n# Conclusión\n";
         assert_eq!(markdown_headings(markdown), ["introduccion", "conclusion"]);
+        // Un ```python dentro de un bloque de ```` no lo cierra.
+        let nested = "````markdown\n```python\n# Desarrollo\n```\n````\n# Conclusión\n";
+        assert_eq!(markdown_headings(nested), ["conclusion"]);
     }
 
     #[test]

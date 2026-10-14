@@ -175,7 +175,8 @@ The base only loads pgfplots. Styles live in the format (apa7: grayscale via
 - **Lookup** (`resolve_logos_directory`):
   1. `--logos`/`LOGOS`;
   2. `logos/` next to the design;
-  3. `templates/logos/`.
+  3. `logos/` in the work folder, if it holds a logo;
+  4. `templates/logos/`, if it holds a logo.
 - **`examples/` never depend on logos.**
 
 ## Compilation and speed

@@ -10,39 +10,25 @@ impl Reporter for Silent {
     fn info(&mut self, _: String) {}
 }
 
-#[test]
-fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
-    let directory = tempfile::tempdir().unwrap();
-    let args: Args = clap::Parser::try_parse_from([
-        "investigacion",
-        directory.path().join("no-existe.md").to_str().unwrap(),
-        "--title",
-        "T",
-        "--course",
-        "M",
-        "--set",
-        "UNIVERSIDAD=U",
-        "--set",
-        "FACULTAD=F",
-        "--set",
-        "SEMESTRE=7",
-    ])
-    .unwrap();
-    let error = execute(&args, &common::isolated_project(directory.path()), &mut Silent).unwrap_err();
-    assert!(!error.0.contains("Faltan datos") && !error.0.contains("Missing data"));
-    assert!(error.0.contains("no-existe.md"));
-}
-
 /// `data` son líneas `NOMBRE=valor` que se pasan con `--set`, como sin perfil.
 fn run(dir: &std::path::Path, data: &str, extra: &[&str]) -> String {
     let markdown = dir.join("no-existe.md");
-    let mut argv = vec!["investigacion", markdown.to_str().unwrap(), "--title", "T", "--course", "M"];
+    let mut argv = vec!["investigacion", markdown.to_str().unwrap(), "--title", "T"];
     for line in data.lines() {
         argv.extend(["--set", line]);
     }
     argv.extend_from_slice(extra);
     let args: Args = clap::Parser::try_parse_from(argv).unwrap();
     execute(&args, &common::isolated_project(dir), &mut Silent).unwrap_err().0
+}
+
+#[test]
+fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
+    let directory = tempfile::tempdir().unwrap();
+    // Sin perfil, todo llega por --set; la materia también.
+    let error = run(directory.path(), "MATERIA=M\nUNIVERSIDAD=U\nFACULTAD=F\nSEMESTRE=7", &[]);
+    assert!(!error.contains("Faltan datos") && !error.contains("Missing data"), "{error}");
+    assert!(error.contains("no-existe.md"));
 }
 
 #[test]

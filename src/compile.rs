@@ -171,19 +171,23 @@ pub fn compile_pdf(
 
 /// Copia el estado guardado junto al .tex y devuelve el índice que contenía.
 fn restore_state(state_dir: &Path, tex_path: &Path) -> Option<String> {
-    let toc = std::fs::read(state_dir.join("trabajo.toc")).ok()?;
+    let toc = std::fs::read(state_file(state_dir, tex_path, "toc")).ok()?;
     for extension in STATE_EXTENSIONS {
-        std::fs::copy(state_dir.join(format!("trabajo.{extension}")), tex_path.with_extension(extension))
-            .ok()?;
+        std::fs::copy(state_file(state_dir, tex_path, extension), tex_path.with_extension(extension)).ok()?;
     }
     Some(String::from_utf8_lossy(&toc).into_owned())
+}
+
+/// El archivo de estado guardado, con el nombre del `.tex` de la generación.
+fn state_file(state_dir: &Path, tex_path: &Path, extension: &str) -> PathBuf {
+    state_dir.join(tex_path.with_extension(extension).file_name().unwrap_or_default())
 }
 
 fn save_state(state_dir: &Path, tex_path: &Path) -> std::io::Result<()> {
     std::fs::create_dir_all(state_dir)?;
     for extension in STATE_EXTENSIONS {
         let source = tex_path.with_extension(extension);
-        let target = state_dir.join(format!("trabajo.{extension}"));
+        let target = state_file(state_dir, tex_path, extension);
         // Un diseño sin índice no escribe `.toc`: se guarda vacío, que es lo
         // mismo que lee `run_passes`, y la caché sirve igual.
         if source.is_file() {

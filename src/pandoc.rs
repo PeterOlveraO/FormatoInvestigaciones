@@ -16,6 +16,9 @@ pub const MARKDOWN_EXTENSIONS: [&str; 3] = ["mark", "emoji", "autolink_bare_uris
 
 /// Filtros Lua, en el orden en que se aplican. Van embebidos en el binario
 /// para no depender de dónde se instale; se escriben a un temporal al usarse.
+/// Funciones comunes que se pegan al principio de cada filtro.
+pub const LUA_COMMON: &str = include_str!("../resources/filters/common.lua");
+
 pub const LUA_FILTERS: [(&str, &str); 5] = [
     ("inline_html", include_str!("../resources/filters/inline_html.lua")),
     ("images", include_str!("../resources/filters/images.lua")),
@@ -27,7 +30,8 @@ pub const LUA_FILTERS: [(&str, &str); 5] = [
 /// Prefijo con el que los filtros marcan sus avisos en stderr.
 pub const FILTER_WARNING_PREFIX: &str = "[investigacion]";
 /// Pandoc no manda User-Agent y hay sitios que entonces responden 400.
-pub const USER_AGENT: &str = "investigacion/0.2 (academic paper generator; pandoc)";
+pub const USER_AGENT: &str =
+    concat!("investigacion/", env!("CARGO_PKG_VERSION"), " (academic paper generator; pandoc)");
 
 /// Separa los avisos de los filtros del resto de la salida de Pandoc.
 pub fn filter_warnings(stderr: &str) -> Vec<String> {
@@ -95,7 +99,7 @@ pub fn pandoc_to_latex(
         .arg(format!("--request-header=User-Agent:{USER_AGENT}"));
     for (name, source) in LUA_FILTERS {
         let path = filters_dir.path().join(format!("{name}.lua"));
-        std::fs::write(&path, source)?;
+        std::fs::write(&path, format!("{LUA_COMMON}{source}"))?;
         let mut arg = OsString::from("--lua-filter=");
         arg.push(&path);
         command.arg(arg);

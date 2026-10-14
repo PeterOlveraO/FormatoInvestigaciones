@@ -135,12 +135,19 @@ The **project root** is found by `Project::discover()` (`src/project.rs`):
 4. otherwise the current directory (nothing is written there: the log stays off
    when the root has no templates).
 
+The program folder (`root`) holds the templates, examples, cache and
+`settings.toml`. Your data lives in the **work folder** (`Project::work`):
+`input/`, `output/`, `courses/`, `my-templates/` and `logos/`. It is chosen on
+the first run (or Options → `w`) and saved as `CARPETA_TRABAJO`; without one it
+is the program folder itself, as below. `-p example` still finds
+`courses/example.toml` in the program folder.
+
 ```
 <root>/
   input/                    your Markdown papers (subfolder per course is common)
   output/                   generated PDFs (and last-error.tex/.log after a failed build)
   courses/                  course profiles: <key>.toml, example.toml, README.md
-  settings.toml             remembered interface language (IDIOMA) and optional LOGOS
+  settings.toml             remembered language (IDIOMA), theme (TEMA), work folder (CARPETA_TRABAJO), optional LOGOS
   templates/
     common/                 investigacion-base.sty, investigacion-final.sty (the base layer)
     formats/<f>/            format.sty + format.toml (the norm)
@@ -187,8 +194,10 @@ logos.
 
 ### Where output goes
 
-- **PDF folder:** `--output` > `output/<folder>` of the profile (when it has a
-  `folder`) > `output/`. A leading `~` is expanded (`HOME` or `USERPROFILE`).
+- **PDF folder:** `--output` > the profile's `output` > `output/<folder>` of
+  the profile (when it has a `folder`) > `output/`. Relative profile paths
+  start at the work folder.
+- **Copies:** every `--copy`, or else the profile's `copies`. A leading `~` is expanded (`HOME` or `USERPROFILE`).
 - **PDF name:** `--file-name` (with or without `.pdf`, case-insensitive) or, by
   default, the Markdown file's name. Either is passed through `slugify`
   (accents removed, lowercase, non-alphanumerics become `-`; an empty result
@@ -267,7 +276,9 @@ pandoc - --from=markdown-raw_tex+mark+emoji+autolink_bare_uris --to=latex --wrap
   (interface language) and `INVESTIGACION_DOC_LANG` (document language). Paths
   go through `pandoc::posix()` (always `/`).
 - Filters are embedded with `include_str!` (`LUA_FILTERS` in
-  `src/pandoc.rs`) and written to a temp folder on each run.
+  `src/pandoc.rs`) and written to a temp folder on each run, each one with
+  `common.lua` (`LUA_COMMON`: shared helpers and the warning prefix) pasted in
+  front. Pandoc does not let a filter `require` a file next to it.
 - Timeout: 180 s (`TOOL_TIMEOUT`). On a non-zero exit the stderr text is shown
   after "Pandoc could not convert the Markdown".
 
@@ -280,8 +291,8 @@ command-line option  >  course profile
 ```
 
 - There is **no `.env` any more**. All cover data comes from the profile or from
-  options. `settings.toml` only remembers the interface language (`IDIOMA`) and
-  an optional logos folder (`LOGOS`).
+  options. `settings.toml` only remembers the interface language (`IDIOMA`), the
+  menu theme (`TEMA`) and an optional logos folder (`LOGOS`).
 - `pick(option, profile)` returns the option when it is present (even if it is
   an empty string) and trims the result. An explicitly empty option therefore
   **overrides** the profile: `--course ""` or `--set UNIVERSIDAD=` blanks the
@@ -342,6 +353,8 @@ Keys the program reads:
 | Key | Meaning |
 |---|---|
 | `IDIOMA` (alias `INTERFACE_LANGUAGE`) | Interface language: `es`/`en` (also `español`, `inglés`, `spanish`, `english`) |
+| `CARPETA_TRABAJO` (alias `INVESTIGACION_WORKSPACE`) | Work folder with `input/`, `output/`, `courses/`, `my-templates/` and `logos/`; empty or missing = the program folder |
+| `TEMA` (alias `THEME`) | Menu color theme: `classic`, `dracula`, `nord`, `gruvbox`, `catppuccin`, `tokyo-night` |
 | `LOGOS` | Folder with the logos, used when `--logos` is not given |
 
 - A process environment variable with the same name wins over the file. The
@@ -360,7 +373,7 @@ Keys the program reads:
 | `INVESTIGACION_HOME` | `Project::discover` | Project root |
 | `INVESTIGACION_LOG` | `logging` | `debug`, `off`/`0`; anything else or unset is `info` ([section 18](#18-logging)) |
 | `INVESTIGACION_TIMING` | `process::report_timing` | `1` prints `[timing] <step>: <s>` to stderr |
-| `IDIOMA`, `INTERFACE_LANGUAGE`, `LOGOS` | `Settings::get` | Override `settings.toml` |
+| `IDIOMA`, `INTERFACE_LANGUAGE`, `CARPETA_TRABAJO`, `INVESTIGACION_WORKSPACE`, `LOGOS` | `Settings::get` | Override `settings.toml` |
 | `TEXINPUTS` | `compile::latex_search_path` | `.` (the temp folder), the Markdown folder and the image caches first; existing value preserved after them |
 | `HOME` / `USERPROFILE` | `expand_home` | `~` expansion |
 | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_LANG`, `INVESTIGACION_DOC_LANG` | Lua filters | **Set by the program** for Pandoc; do not set by hand |
@@ -391,6 +404,8 @@ All keys are strings except `fields`. Unknown keys are an error
 | `design` (alias `template`) | no | `geometric-cover`, `classic-cover`, `report`, `starter` or one of yours; legacy `apa`/`apa-simple` still work | n/a |
 | `language` | no | Document language `es` or `en`; default is the format's | n/a |
 | `folder` | no | Subfolder of `input/` (lookup) and `output/` (PDFs) | n/a |
+| `output` | no | Folder for the PDFs; wins over `output/<folder>`. Relative to the project root, `~` expanded | n/a |
+| `copies` | no | Array of extra folders for a copy of the PDF; `--copy` replaces them | n/a |
 | `[fields]` | no | Table of the design's own fields, for example `SALON = "B-204"` | custom markers |
 
 Example (placeholders; this is `courses/example.toml`):
@@ -408,6 +423,8 @@ format = "apa7"
 design = "geometric-cover"
 # language = "es"                        # default: the format's
 folder = "IA"                            # input/IA and output/IA
+# output = "~/Documentos/Entregas/IA"     # instead of output/IA
+# copies = ["~/Drive/IA"]                 # extra copies of the PDF
 
 # [fields]
 # SALON = "B-204"
@@ -428,7 +445,8 @@ Behavior:
 - **Fields not used by the design** are silently ignored.
 - **Saving** (`save_profile`): writes only non-empty keys, in the order
   `name, university, faculty, student, members, teacher, group, semester,
-  format, design, language, folder`, then `[fields]`. The key is `slugify`'d.
+  format, design, language, folder, output`, then `copies` (an array), then
+  `[fields]`. The key is `slugify`'d.
   An existing file with the same key is replaced.
 - **Privacy:** `courses/*.toml` is git-ignored except `example.toml`.
 - **`example.toml`** holds placeholders. It is not listed in the menu and does
@@ -451,10 +469,15 @@ answer with "This field is required."
 | 3 | Design | list, only designs that accept the format (or self-contained) | yes |
 | 4+ | One step per **standard marker the design uses**, in this order: `UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO`, `SEMESTRE` | text | `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `MATERIA` unless the design lists them in `optional`; others never |
 | ... | One step per **custom field** of the design (label and help from `template.toml`) | text | only if `required = true` |
-| last | Papers folder (`folder`) | text | no |
+| ... | Papers folder (`folder`) | text | no |
+| ... | Output folder (`output`) | folder picker: Enter/Right opens, `./` chooses and moves on | no |
+| last | Extra copies (`copies`) | folder picker: each `./` is added and the step stays | no |
 
 Keys: Enter accepts and moves on, Shift+Tab goes back one step, Esc cancels,
 Backspace/Delete/Left/Right/Home/End edit text, Up/Down/typing work in lists.
+In the folder steps, Tab moves on keeping what was chosen, Del clears it, and
+Left or Backspace (empty filter) goes up. Chosen folders inside the project
+are saved relative to its root (the root itself is `.`).
 
 Details:
 
@@ -815,7 +838,8 @@ Extras:
   1. `--logos <folder>` or `LOGOS` in `settings.toml`/environment (must exist,
      else "The logos folder does not exist: ...");
   2. `logos/` next to the design's `template.ltx`;
-  3. `templates/logos/`.
+  3. `logos/` in the work folder, if it holds a logo;
+  4. `templates/logos/`, if it holds a logo.
 - Having none is not an error: the cover compiles without logos.
 - Use dark or colored PNGs with transparent background (a white logo is
   invisible on the white cover). The built-in designs scale by **height**, so a
@@ -1097,8 +1121,10 @@ Conventions:
 To see what Pandoc produces for a snippet:
 
 ```bash
+# Each filter needs common.lua in front of it, as the program writes them.
+cat resources/filters/common.lua resources/filters/inline_html.lua > /tmp/filter.lua
 pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
-  --to=latex --wrap=none --lua-filter=resources/filters/inline_html.lua
+  --to=latex --wrap=none --lua-filter=/tmp/filter.lua
 ```
 
 ## 14. Reading, cleaning and finding the Markdown
@@ -1171,8 +1197,9 @@ Windows remember which screen opened them (`App::base`) and return to it.
 
 Start (`App::start`): if no `IDIOMA` is saved, ask for the language (arrows or
 Tab move the mark, Enter saves it in `settings.toml`, Esc uses it without
-saving, so it asks again next time); then, if `courses/` has no profiles, the
-wizard; then the home view. Windows' key-release events are ignored
+saving, so it asks again next time); then, if no work folder is saved, the
+work-folder picker (Esc keeps everything in the program folder and saves that);
+then, if `courses/` has no profiles, the wizard; then the home view. Windows' key-release events are ignored
 (`KeyEventKind::Press` filter). **Ctrl+C quits from any mode**, even while
 generating.
 
@@ -1210,8 +1237,8 @@ quits, `v` opens the last PDF (hidden).
 | 12 | Semester | text | only if the design uses `SEMESTRE` and does not list it optional | profile's; if none, omitted |
 | 13 | Format | list | no | first one the design accepts |
 | 14 | Design | list (filtered by the chosen format) | no | `geometric-cover` |
-| 15 | Output folder | text (relative to the project root) | no | `output/` or the profile's |
-| 16 | Extra copies | text, folders separated by `;` | no | no copies |
+| 15 | Output folder | folder picker (`./` chooses; saved relative to the project root) | no | `output/` or the profile's |
+| 16 | Extra copies | folder picker; each `./` is added to a `;` list | no | the profile's; if none, no copies |
 | 17+ | The design's own fields | text | per `template.toml` | n/a |
 
 - A `*` after the label marks required fields; `▸` before the label marks
@@ -1223,7 +1250,7 @@ quits, `v` opens the last PDF (hidden).
   options for them), so the form works without a profile too.
 - Choosing a profile fills university, faculty, student, semester, course,
   teacher, members, group, format, design, the
-  design's own fields and the output folder; what you change afterwards wins
+  design's own fields, the output folder and the extra copies; what you change afterwards wins
   (the same as a CLI option over a profile).
 - Choosing a format removes the chosen design if it does not accept it.
 - `--allow-latex`, `--settings`, `--logos`, `--doc-lang` and a design by path are
@@ -1246,7 +1273,7 @@ Form keys:
 | `o` | Open the options |
 | Esc | Back to the home view |
 | `s` or `q` | Quit |
-| option letters | Hidden shortcuts: `p`, `n`, `c`/`f`, `l`, `r`, `i`/`h` (the form's own keys win on a clash) |
+| option letters | Hidden shortcuts: `p`, `n`, `c`/`f`, `l`, `t`, `r`, `i`/`h` (the form's own keys win on a clash) |
 
 Text editing (`Editing`): Enter saves (trimmed), Esc cancels, Ctrl+U clears,
 Left/Right/Home/End/Backspace/Delete as usual.
@@ -1263,22 +1290,29 @@ list. Both languages' letters work in either language.
 | `n` | New profile (empty wizard) |
 | `c` / `f` | Open a project folder with the system's program: `input`, `output`, `courses`, `templates`, `cache`, or the project root `.` (a missing folder is created) |
 | `l` | Switch Spanish/English; saved as `IDIOMA` in `settings.toml`. The row starts with the *other* language's name |
+| `w` | Work folder: the same folder picker as the first run; `./` creates `input/`, `output/`, `courses/`, `my-templates/` and `logos/` there and copies what the program folder had (without overwriting), Esc cancels |
+| `t` | Color theme: Classic (the terminal's colors), Dracula, Nord, Gruvbox, Catppuccin Mocha, Tokyo Night; saved as `TEMA` in `settings.toml`. The themes other than Classic paint their own background (they need a true-color terminal) |
 | `r` | Open the log file (a warning if it is off or does not exist) |
 | `i` / `h` | Back to the home view |
 
 ### Pickers
 
 One component (`src/tui/picker.rs`) serves the Markdown browser, profiles,
-formats, designs and project folders.
+formats, designs, themes and project folders, and the output and copy
+folders.
 
 - Typing filters the list. Ranking: exact name, then prefix, then substring,
   then match in the description; so `ia` picks the profile `ia`, not `example`
   ("mater**ia**").
-- Markdown browser: starts in the chosen profile's `input/<folder>` (else
-  `input/`, else the project root); shows `../`, folders, then `.md` files, each
+- Markdown browser: starts in the folder of the Markdown already chosen (else
+  the chosen profile's `input/<folder>`, else `input/`, else the project root); shows `../`, folders, then `.md` files, each
   group alphabetical ignoring case, hidden entries (starting with `.`) excluded.
   Enter or Right opens a folder or chooses a file; Left, or Backspace with an
   empty filter, goes up and keeps the folder you left selected.
+- Folder picker (output folder, extra copies; also in the wizard): the same
+  browser without files, plus `./` (use this folder) after `../`. It starts in
+  the folder already chosen (the last copy), or the nearest existing parent,
+  else the project root.
 - Other keys: Up/Down, PageUp/PageDown (10 rows), Esc cancels.
 - The design list shows only designs that accept the chosen format (and
   self-contained designs), with their `description`.

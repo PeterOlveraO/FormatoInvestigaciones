@@ -7,6 +7,16 @@ are in `INSTALL.md`.
 
 ### Fixed
 
+- Choosing the Markdown again in the menu opens the folder of the file already
+  chosen instead of the project folder.
+- `~` in the menu's output and copy folders now means the home folder.
+- `--set MATERIA=…` now sets the course, as the "Missing data" message
+  suggests; before, it was ignored and the error repeated.
+- Renaming a profile in the wizard no longer leaves the old file behind (two
+  profiles with the same data).
+- A ```` ```python ```` line inside a ```` ```` ```` block no longer ends the
+  block early, so `#` comments in that code are not taken as headings.
+
 - The PDF build no longer fails with "I can't find file `C:/Users/...'" when
   the temp folder is a short path with `~` or the user folder has spaces.
   pdflatex now runs inside the temp folder and gets only the file name.
@@ -39,12 +49,30 @@ are in `INSTALL.md`.
 
 ### Changed
 
+- Fewer libraries are compiled (104 → 86 crates): `thiserror` is gone, `clap`
+  is built without colors and suggestions, and `crossterm` comes from
+  `ratatui`.
 - The Spanish cover date is written as Spanish does it, "8 de octubre de
   2026", instead of "Octubre 8, 2026". This changes the cover of every
   Spanish paper.
 
 ### Added
 
+- **Work folder.** The first time, the menu asks where your papers should live
+  and creates `input/`, `output/`, `courses/`, `my-templates/` and `logos/`
+  there, copying what the program folder already had (nothing is
+  overwritten). You no longer need to open the program folder. Saved as
+  `CARPETA_TRABAJO`; change it in Options → `w`. Without one, everything stays
+  in the program folder as before.
+- `install.sh` (Linux) and `install.ps1` (Windows) check the tools, run
+  `cargo install --path . --locked` and delete the intermediate build files.
+- In the menu, the output folder and the extra copies are chosen with the same
+  folder browser as the Markdown (`./` picks the folder you are in). The
+  profile wizard asks for both too, and profiles gain the keys `output` and
+  `copies` (`--copy` replaces the profile's copies).
+- Color themes for the menu (Options → `t`): Classic, Dracula, Nord, Gruvbox,
+  Catppuccin Mocha and Tokyo Night. The choice is saved as `TEMA` in
+  `settings.toml`.
 - CI on GitHub Actions: format, lint and tests on Linux (with real PDFs) and
   Windows.
 
