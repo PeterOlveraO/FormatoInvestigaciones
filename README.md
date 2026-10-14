@@ -43,16 +43,18 @@ Step by step: **[INSTALL.md](INSTALL.md)**.
 ```bash
 git clone https://github.com/PeterOlveraO/FormatoInvestigaciones.git
 cd FormatoInvestigaciones
-cargo install --path .
+./install.sh                                          # Windows: powershell -ExecutionPolicy Bypass -File install.ps1
 ```
 
-Keep the cloned folder: it holds the formats, designs, profiles and papers.
+The script checks the tools and runs `cargo install` for you. Keep the cloned
+folder: it holds the built-in formats and designs.
 
 ## Use it
 
-1. Run `investigacion`. The first time it asks for the language and creates
-   your first profile.
-2. Put your paper in `input/` (for example `input/IA/Tarea1.md`).
+1. Run `investigacion`. The first time it asks for the language and your work
+   folder (where `input/`, `output/`, `courses/`, `my-templates/` and `logos/`
+   are created), and creates your first profile.
+2. Put your paper in `input/` of your work folder (for example `input/IA/Tarea1.md`).
 3. On the home screen choose **Generate a PDF**, pick the Markdown, write the
    title and press `g`. The PDF lands in `output/`.
 

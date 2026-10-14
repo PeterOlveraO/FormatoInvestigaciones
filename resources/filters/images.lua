@@ -16,8 +16,6 @@ El generador le pasa las rutas por dos variables de entorno:
   INVESTIGACION_RESOURCES   carpetas donde buscar una imagen local, una por línea
 ]]
 
-local utils = require("pandoc.utils")
-
 local CACHE = os.getenv("INVESTIGACION_REMOTE_IMAGES")
 local RECURSOS = os.getenv("INVESTIGACION_RESOURCES") or ""
 
@@ -34,31 +32,6 @@ local function formato_del_contenido(contenido)
   return nil
 end
 
-local avisados = {}
-
--- Idioma de la interfaz, que pasa el generador; por omisión, español.
-local INGLES = os.getenv("INVESTIGACION_LANG") == "en"
-local function texto(es, en)
-  if INGLES then return en end
-  return es
-end
-
--- El prefijo lo reconoce el generador para reenviar el aviso a la terminal.
-local function avisar(mensaje)
-  if avisados[mensaje] then return end
-  avisados[mensaje] = true
-  io.stderr:write("[investigacion] " .. mensaje .. "\n")
-end
-
-local function existe(ruta)
-  local archivo = io.open(ruta, "rb")
-  if archivo then
-    archivo:close()
-    return true
-  end
-  return false
-end
-
 local function es_remota(ruta)
   return ruta:match("^https?://") ~= nil
 end
@@ -68,14 +41,6 @@ local function extension_de(url)
   local limpia = url:gsub("[?#].*$", "")
   local extension = limpia:match("%.([%a%d]+)$")
   return extension and extension:lower() or nil
-end
-
-local function escribir(ruta, contenido)
-  local archivo = io.open(ruta, "wb")
-  if not archivo then return false end
-  archivo:write(contenido)
-  archivo:close()
-  return true
 end
 
 -- Sustituye la imagen por su texto alternativo, para que el PDF se genere igual.

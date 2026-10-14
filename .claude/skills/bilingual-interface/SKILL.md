@@ -89,8 +89,11 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   - `ChooseLanguage` when no `IDIOMA` is saved, with the system language
     preselected. Enter saves it with `Settings::save_value()`; Esc uses it
     without saving. Arrows only move the mark.
+  - Then the work-folder picker (`PickerPurpose::Workspace`) if none is saved
+    (`pending_workspace`); `App::set_workspace` → `Project::create_workspace`.
+    Esc there saves the program folder only while `work == root`.
   - Then the profile wizard if `courses/` has no profiles
-    (`pending_wizard`).
+    (`pending_wizard`). `continue_setup()` opens whichever is next.
   - Then `Home(0)`. With a saved language and profiles, straight to home.
   - Tests that call `App::new()` without `start()` begin in `Form`.
 - **Home view:** `HOME_ITEMS` (Generate a PDF → form, New profile → empty
@@ -100,6 +103,9 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   never in `App::new`) runs `pandoc --version`, `pdflatex --version` and
   `dot -V` in a background thread; `poll_tools()` collects the result.
   Not found = `RunError::NotFound`; a timeout counts as installed.
+- **Themes** (`theme.rs`): `THEMES` (classic + 5 palettes), per-thread like
+  the language; `ui.rs` reads `theme()` and never names a `Color`. Saved as
+  `TEMA` (`THEME_SETTINGS`), loaded in `tui::run()`.
 - **Options view:** one const table, `OPTIONS` (`keys: [es, en]`, `Text`
   label, `OptionAction`), drives both `app.rs` and `ui.rs`. To add a row:
   append an entry and handle its action in `App::run_option()`. The letters
@@ -136,7 +142,11 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
     `c`/`f`, `i`/`h`). The language row starts with the *other* language's
     name.
 - **One picker for everything.** `picker.rs` serves the Markdown (folder
-  browsing, `.md` only), profiles, templates and project folders. The filter
+  browsing, `.md` only), profiles, templates, themes and project folders.
+  With an empty extension it is a folder picker (only folders, plus `./` =
+  `PickValue::Here`): Output, Copies and the wizard's folder steps use it.
+  Pickers start where the current value is (the Markdown's folder, the
+  chosen output, the last copy). The filter
   ranks an exact name, then a prefix, then a substring, then the description;
   without that, `ia` picked the profile `example` ("mater**ia**").
 - **Windows** also sends key-release events; keep the
@@ -172,7 +182,8 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   - `university`, `faculty`, `student`, `semester`, `members`, `teacher`,
     `group`;
   - `format` and `design` (alias `template`);
-  - `language`, `folder`, and `[fields]` for custom fields.
+  - `language`, `folder`, `output` (wins over `output/<folder>`), `copies`
+    (array; `--copy` replaces it), and `[fields]` for custom fields.
 - **`deny_unknown_fields`:** a typo is an error, not silently ignored. The
   `toml` crate's detail message stays English.
 - **`folder`:** the Markdown is looked up in `input/<folder>` first, and the

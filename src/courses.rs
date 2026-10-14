@@ -50,6 +50,12 @@ pub struct CourseProfile {
     /// guarda en la misma subcarpeta de `output/`.
     #[serde(default)]
     pub folder: String,
+    /// Carpeta del PDF; gana sobre `output/<folder>`. Relativa a la raíz del proyecto.
+    #[serde(default)]
+    pub output: String,
+    /// Carpetas extra para una copia del PDF.
+    #[serde(default)]
+    pub copies: Vec<String>,
 }
 
 /// Un perfil junto con su clave (el nombre del archivo sin `.toml`).
@@ -89,12 +95,24 @@ impl Course {
         (!folder.is_empty()).then(|| project.input_dir().join(folder)).filter(|dir| dir.is_dir())
     }
 
-    /// Carpeta de salida: `output/<folder>` o `output/` si no hay carpeta.
+    /// Carpeta de salida: `output`, si no `output/<folder>` y si no `output/`.
     pub fn output_dir(&self, project: &Project) -> PathBuf {
-        match self.profile.folder.trim() {
-            "" => project.output_dir(),
-            folder => project.output_dir().join(folder),
+        match (self.profile.output.trim(), self.profile.folder.trim()) {
+            ("", "") => project.output_dir(),
+            ("", folder) => project.output_dir().join(folder),
+            (output, _) => project.resolve(output),
         }
+    }
+
+    /// Carpetas de las copias extra, relativas a la carpeta de trabajo.
+    pub fn copy_dirs(&self, project: &Project) -> Vec<PathBuf> {
+        self.profile
+            .copies
+            .iter()
+            .map(|c| c.trim())
+            .filter(|c| !c.is_empty())
+            .map(|c| project.resolve(c))
+            .collect()
     }
 }
 
@@ -130,8 +148,13 @@ pub fn list_courses(project: &Project) -> (Vec<Course>, Vec<GenerationError>) {
 
 /// Busca un perfil por clave (sin distinguir mayúsculas) o por ruta.
 pub fn find_course(project: &Project, choice: &str) -> Result<Course> {
-    let by_key = project.courses_dir().join(format!("{}.toml", choice.trim()));
-    if by_key.is_file() {
+    // `example.toml` vive en el programa aunque la carpeta de trabajo sea otra.
+    let file = format!("{}.toml", choice.trim());
+    if let Some(by_key) = [project.courses_dir(), project.root.join("courses")]
+        .iter()
+        .map(|d| d.join(&file))
+        .find(|f| f.is_file())
+    {
         return Course::load(&by_key);
     }
     let (courses, _) = list_courses(project);
@@ -189,11 +212,17 @@ pub fn save_profile(project: &Project, key: &str, profile: &CourseProfile) -> Re
         ("design", &profile.design),
         ("language", &profile.language),
         ("folder", &profile.folder),
+        ("output", &profile.output),
     ];
     for (name, value) in entries {
         if !value.trim().is_empty() {
             text.push_str(&format!("{name} = {}\n", toml_string(value.trim())));
         }
+    }
+    let copies: Vec<String> =
+        profile.copies.iter().map(|c| c.trim()).filter(|c| !c.is_empty()).map(toml_string).collect();
+    if !copies.is_empty() {
+        text.push_str(&format!("copies = [{}]\n", copies.join(", ")));
     }
     let fields: Vec<_> = profile.fields.iter().filter(|(_, v)| !v.trim().is_empty()).collect();
     if !fields.is_empty() {
@@ -270,12 +299,18 @@ mod tests {
             format: "apa7".into(),
             design: "report".into(),
             folder: "IA".into(),
+            output: "salida/IA".into(),
+            copies: vec!["/media/usb".into(), "Drive \"IA\"".into()],
             ..Default::default()
         };
         profile.fields.insert("SALON".into(), "B-204".into());
         let path = save_profile(&project, "IA Uno", &profile).unwrap();
         assert!(path.ends_with("ia-uno.toml"));
-        assert_eq!(find_course(&project, "ia-uno").unwrap().profile, profile);
+        let course = find_course(&project, "ia-uno").unwrap();
+        assert_eq!(course.profile, profile);
+        // `output` gana sobre `folder`; las rutas relativas parten de la raíz.
+        assert_eq!(course.output_dir(&project), project.root.join("salida/IA"));
+        assert_eq!(course.copy_dirs(&project)[1], project.root.join("Drive \"IA\""));
     }
 
     #[test]

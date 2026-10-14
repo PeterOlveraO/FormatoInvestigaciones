@@ -4,13 +4,14 @@
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, Receiver, TryRecvError};
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose};
+use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose, design_items, format_items};
 use crate::cli::{Args, Reporter, execute};
 use std::collections::BTreeMap;
 
 use super::guard;
+use super::theme;
 use super::tools::{self, Tool};
 use super::wizard::{Outcome as WizardOutcome, Wizard};
 use crate::courses::{Course, list_courses, save_profile};
@@ -39,6 +40,19 @@ pub enum FieldKey {
     Template,
     Output,
     Copies,
+}
+
+impl FieldKey {
+    /// El marcador de los datos que el diseño puede exigir.
+    fn marker(self) -> Option<&'static str> {
+        Some(match self {
+            FieldKey::University => "UNIVERSIDAD",
+            FieldKey::Faculty => "FACULTAD",
+            FieldKey::Course => "MATERIA",
+            FieldKey::Semester => "SEMESTRE",
+            _ => return None,
+        })
+    }
 }
 
 /// Cómo se edita un campo: escribiendo o eligiendo de una lista.
@@ -227,9 +241,12 @@ pub const FIELDS: [Field; 16] = [
     Field {
         key: FieldKey::Output,
         label: Text::new("Carpeta de salida", "Output folder"),
-        kind: FieldKind::Text,
+        kind: FieldKind::Pick(PickerPurpose::Output),
         required: false,
-        help: Text::new("Carpeta donde se guarda el PDF.", "Folder where the PDF is saved."),
+        help: Text::new(
+            "Carpeta donde se guarda el PDF. Recorre las carpetas y elige ./ en la que quieras.",
+            "Folder where the PDF is saved. Browse the folders and choose ./ in the one you want.",
+        ),
         example: Text::new("output/IA", "output/IA"),
         empty: Text::new(
             "output/ (u output/<carpeta> del perfil)",
@@ -239,14 +256,14 @@ pub const FIELDS: [Field; 16] = [
     Field {
         key: FieldKey::Copies,
         label: Text::new("Copias extra", "Extra copies"),
-        kind: FieldKind::Text,
+        kind: FieldKind::Pick(PickerPurpose::Copies),
         required: false,
         help: Text::new(
-            "Carpetas extra para una copia del PDF, separadas por ;",
-            "Extra folders for a copy of the PDF, separated by ;",
+            "Carpetas extra para una copia del PDF. Cada carpeta elegida (./) se suma a la lista; Supr la vacía.",
+            "Extra folders for a copy of the PDF. Each folder you choose (./) is added to the list; Del clears it.",
         ),
         example: Text::new("~/Drive/IA; /media/usb", "~/Drive/IA; /media/usb"),
-        empty: Text::new("sin copias", "no copies"),
+        empty: Text::new("las del perfil; si no hay, sin copias", "the profile's; if none, no copies"),
     },
 ];
 
@@ -293,6 +310,8 @@ pub enum OptionAction {
     NewProfile,
     Folders,
     Language,
+    Theme,
+    Workspace,
     Log,
     Home,
 }
@@ -338,6 +357,16 @@ pub const OPTIONS: &[OptionEntry] = &[
         keys: ['l', 'l'],
         label: Text::new("English (idioma del menú)", "Español (menu language)"),
         action: OptionAction::Language,
+    },
+    OptionEntry {
+        keys: ['t', 't'],
+        label: Text::new("Tema de colores", "Color theme"),
+        action: OptionAction::Theme,
+    },
+    OptionEntry {
+        keys: ['w', 'w'],
+        label: Text::new("Carpeta de trabajo", "Work folder"),
+        action: OptionAction::Workspace,
     },
     OptionEntry {
         keys: ['r', 'r'],
@@ -480,7 +509,9 @@ pub struct App {
     pub extras: Vec<ExtraField>,
     /// El diseño elegido (o el de omisión), para saber qué datos pide.
     pub design: Option<Design>,
-    /// Abrir el asistente en cuanto se elija el idioma (primera vez sin perfiles).
+    /// Pasos de la primera vez que faltan: la carpeta de trabajo y, sin
+    /// perfiles, el asistente.
+    pending_workspace: bool,
     pending_wizard: bool,
     /// La pantalla desde la que se abrió la ventana actual.
     base: Screen,
@@ -489,15 +520,19 @@ pub struct App {
     tools_check: Option<Receiver<Vec<Tool>>>,
 }
 
-/// El marcador de los datos que el diseño puede exigir (el alumno nunca se exige).
-fn required_marker(key: FieldKey) -> Option<&'static str> {
-    match key {
-        FieldKey::University => Some("UNIVERSIDAD"),
-        FieldKey::Faculty => Some("FACULTAD"),
-        FieldKey::Course => Some("MATERIA"),
-        FieldKey::Semester => Some("SEMESTRE"),
-        _ => None,
+/// Ruta para guardar en un campo: relativa a la raíz del proyecto si cae
+/// dentro (la raíz misma es `.`), absoluta si no.
+pub fn short_path(root: &Path, path: &Path) -> String {
+    match path.strip_prefix(root) {
+        Ok(relative) if relative.as_os_str().is_empty() => ".".into(),
+        Ok(relative) => relative.display().to_string(),
+        Err(_) => path.display().to_string(),
     }
+}
+
+/// La carpeta que existe más cercana a `path` (ella misma o un padre).
+pub fn existing_dir(path: &Path) -> Option<PathBuf> {
+    path.ancestors().find(|p| p.is_dir()).map(Path::to_path_buf)
 }
 
 pub fn index_of(key: FieldKey) -> usize {
@@ -520,6 +555,7 @@ impl App {
             file_name_is_auto: true,
             extras: Vec::new(),
             design: None,
+            pending_workspace: false,
             pending_wizard: false,
             base: Screen::Form,
             tools: Vec::new(),
@@ -529,20 +565,49 @@ impl App {
         app
     }
 
-    /// Arranque: el idioma si no estaba guardado, el asistente si no hay
-    /// perfiles y luego la vista de inicio.
-    pub fn start(&mut self, ask_language: Option<Lang>) {
+    /// Arranque: el idioma si no estaba guardado, la carpeta de trabajo si no
+    /// hay, el asistente si no hay perfiles y luego la vista de inicio.
+    pub fn start(&mut self, ask_language: Option<Lang>, ask_workspace: bool) {
         self.base = Screen::Home(0);
         self.mode = Mode::Home(0);
-        let no_profiles = self.courses.is_empty();
+        self.pending_workspace = ask_workspace;
+        self.pending_wizard = self.courses.is_empty();
         match ask_language {
-            Some(lang) => {
-                self.ask_language(lang);
-                self.pending_wizard = no_profiles;
-            }
-            None if no_profiles => self.open_wizard(None),
-            None => {}
+            Some(lang) => self.ask_language(lang),
+            None => self.continue_setup(),
         }
+    }
+
+    /// Abre el siguiente paso pendiente de la primera vez, si queda alguno.
+    fn continue_setup(&mut self) {
+        if std::mem::take(&mut self.pending_workspace) {
+            self.mode = Mode::Picking(self.picker_for(PickerPurpose::Workspace));
+        } else if std::mem::take(&mut self.pending_wizard) {
+            self.open_wizard(None);
+        }
+    }
+
+    pub fn uses_program_folder(&self) -> bool {
+        self.project.work == self.project.root
+    }
+
+    /// Usa `dir` como carpeta de trabajo y relee los perfiles que tenga.
+    fn set_workspace(&mut self, dir: &Path) {
+        match self.project.create_workspace(dir) {
+            Ok(()) => {
+                let shown = self.project.work.display();
+                self.log.push(LogLine::Info(tr!(
+                    es: "Carpeta de trabajo: {shown} (input, output, courses, my-templates y logos).",
+                    en: "Work folder: {shown} (input, output, courses, my-templates and logos)."
+                )));
+            }
+            Err(error) => self.log.push(LogLine::Error(error.0)),
+        }
+        let (courses, errors) = list_courses(&self.project);
+        self.log.extend(errors.into_iter().map(|e| LogLine::Warning(e.0)));
+        self.courses = courses;
+        self.pending_wizard = self.courses.is_empty();
+        self.continue_setup();
     }
 
     /// Empieza a buscar Pandoc, pdflatex y Graphviz sin frenar el menú.
@@ -616,6 +681,18 @@ impl App {
                 self.back();
                 match save_profile(&self.project, &wizard.key, &wizard.finished_profile()) {
                     Ok(path) => {
+                        // Renombrar: el archivo con la clave vieja se quita.
+                        let renamed =
+                            wizard.original.as_ref().filter(|old| path.file_stem() != Some(old.as_ref()));
+                        if let Some(old) = renamed {
+                            let old = self.project.courses_dir().join(format!("{old}.toml"));
+                            if let Err(error) = std::fs::remove_file(&old) {
+                                logging::warn(format_args!(
+                                    "old profile {} not removed: {error}",
+                                    old.display()
+                                ));
+                            }
+                        }
                         let (courses, _) = list_courses(&self.project);
                         self.courses = courses;
                         // El perfil nuevo queda elegido en el formulario.
@@ -684,11 +761,10 @@ impl App {
     /// la usa; los campos propios si su ficha lo dice.
     pub fn is_required(&self, index: usize) -> bool {
         match FIELDS.get(index) {
-            // Mismas reglas que `generate::missing_data`.
-            Some(field) if let Some(marker) = required_marker(field.key) => self
-                .design
-                .as_ref()
-                .is_some_and(|d| d.uses(marker) && !d.manifest.optional.iter().any(|o| o == marker)),
+            // Mismas reglas que `generate::missing_data` (el alumno nunca se exige).
+            Some(field) if let Some(marker) = field.key.marker() => {
+                self.design.as_ref().is_some_and(|d| d.requires(marker))
+            }
             Some(field) => field.required,
             None => self.extras[index - FIELDS.len()].required,
         }
@@ -725,10 +801,10 @@ impl App {
 
     /// Ruta corta para mostrar: relativa a la raíz del proyecto si cae dentro.
     pub fn display_path(&self, path: &str) -> String {
-        Path::new(path)
-            .strip_prefix(&self.project.root)
-            .map(|p| p.display().to_string())
-            .unwrap_or_else(|_| path.to_owned())
+        [&self.project.work, &self.project.root]
+            .iter()
+            .find_map(|base| Path::new(path).strip_prefix(base).ok())
+            .map_or_else(|| path.to_owned(), |p| p.display().to_string())
     }
 
     fn current_course(&self) -> Option<&Course> {
@@ -740,6 +816,8 @@ impl App {
     /// se pasan, para que siga valiendo el perfil.
     pub fn build_args(&self) -> Args {
         let optional = |key| Some(self.value(key).to_owned()).filter(|v| !v.is_empty());
+        // Las carpetas del formulario parten de la raíz del proyecto; `~` es la carpeta personal.
+        let folder = |path: &str| self.project.resolve(path);
         Args {
             markdown: PathBuf::from(self.value(FieldKey::Markdown)),
             title: self.value(FieldKey::Title).to_owned(),
@@ -749,13 +827,13 @@ impl App {
             teacher: optional(FieldKey::Teacher),
             members: optional(FieldKey::Members),
             group: optional(FieldKey::Group),
-            output: optional(FieldKey::Output).map(|o| self.project.root.join(o)),
+            output: optional(FieldKey::Output).map(|o| folder(&o)),
             copy: self
                 .value(FieldKey::Copies)
                 .split(';')
                 .map(str::trim)
                 .filter(|p| !p.is_empty())
-                .map(PathBuf::from)
+                .map(folder)
                 .collect(),
             settings: None,
             allow_latex: false,
@@ -825,9 +903,7 @@ impl App {
             }
         }
         self.back();
-        if std::mem::take(&mut self.pending_wizard) {
-            self.open_wizard(None);
-        }
+        self.continue_setup();
     }
 
     fn home_key(&mut self, key: KeyEvent, selected: usize) {
@@ -884,6 +960,8 @@ impl App {
                 self.set_language(lang);
                 self.log.push(LogLine::Info(tr!(es: "Idioma: español.", en: "Language: English.")));
             }
+            OptionAction::Theme => self.mode = Mode::Picking(self.picker_for(PickerPurpose::Theme)),
+            OptionAction::Workspace => self.mode = Mode::Picking(self.picker_for(PickerPurpose::Workspace)),
             OptionAction::Log => match logging::path().filter(|p| p.is_file()) {
                 Some(path) => self.open_path(&path),
                 None => self.log.push(LogLine::Warning(tr!(
@@ -952,17 +1030,18 @@ impl App {
     fn picker_for(&self, purpose: PickerPurpose) -> Picker {
         match purpose {
             PickerPurpose::Markdown => {
-                // Empieza en la carpeta de la materia elegida, si existe.
-                let start = self
-                    .current_course()
-                    .and_then(|s| s.input_dir(&self.project))
+                // Empieza donde está el Markdown ya elegido o en la carpeta de la materia.
+                let start = Path::new(self.value(FieldKey::Markdown))
+                    .parent()
+                    .filter(|d| !d.as_os_str().is_empty() && d.is_dir())
+                    .map(Path::to_path_buf)
+                    .or_else(|| self.current_course().and_then(|s| s.input_dir(&self.project)))
                     .or_else(|| Some(self.project.input_dir()).filter(|d| d.is_dir()))
                     .unwrap_or_else(|| self.project.root.clone());
                 Picker::files(
                     purpose,
                     Text::new("Elige el archivo Markdown", "Choose the Markdown file").get(),
                     &start,
-                    "md",
                 )
             }
             PickerPurpose::Profile => {
@@ -982,36 +1061,60 @@ impl App {
                     items,
                 )
             }
-            PickerPurpose::Format => {
-                let items = crate::template::list_formats(&self.project)
-                    .into_iter()
-                    .map(|key| {
-                        let detail = crate::template::load_format(&self.project, &key)
-                            .map(|f| f.manifest.name.get().to_owned())
-                            .unwrap_or_default();
-                        Item { label: key.clone(), detail, value: PickValue::Choice(key) }
-                    })
-                    .collect();
-                Picker::choices(purpose, Text::new("Elige un formato", "Choose a format").get(), items)
+            PickerPurpose::Format => Picker::choices(
+                purpose,
+                Text::new("Elige un formato", "Choose a format").get(),
+                format_items(&self.project),
+            ),
+            // Solo los diseños que combinan con el formato elegido.
+            PickerPurpose::Template => Picker::choices(
+                purpose,
+                Text::new("Elige un diseño", "Choose a design").get(),
+                design_items(&self.project, self.value(FieldKey::Format)),
+            ),
+            PickerPurpose::Output | PickerPurpose::Copies => {
+                // Empieza en la carpeta ya elegida (la última copia) o en la raíz.
+                let current = match purpose {
+                    PickerPurpose::Output => self.value(FieldKey::Output),
+                    _ => self.value(FieldKey::Copies).rsplit(';').next().unwrap_or_default().trim(),
+                };
+                let start =
+                    existing_dir(&self.project.resolve(current)).unwrap_or_else(|| self.project.work.clone());
+                let title = match purpose {
+                    PickerPurpose::Output => {
+                        Text::new("Elige la carpeta de salida", "Choose the output folder")
+                    }
+                    _ => Text::new("Elige una carpeta para la copia", "Choose a folder for the copy"),
+                };
+                Picker::files(purpose, title.get(), &start)
             }
-            PickerPurpose::Template => {
-                // Solo los diseños que combinan con el formato elegido.
-                let format = self.value(FieldKey::Format).to_owned();
-                let items = crate::template::list_designs(&self.project)
-                    .into_iter()
-                    .filter_map(|name| {
-                        let design = crate::template::load_design(&self.project, Some(&name)).ok()?;
-                        let fits = format.is_empty() || design.is_self_contained() || design.accepts(&format);
-                        let detail = design
-                            .manifest
-                            .description
-                            .as_ref()
-                            .map(|d| d.get().to_owned())
-                            .unwrap_or_default();
-                        fits.then(|| Item { label: name.clone(), detail, value: PickValue::Choice(name) })
+            PickerPurpose::Workspace => {
+                let home = crate::markdown::expand_home(Path::new("~"));
+                let start = if home.is_dir() { home } else { self.project.root.clone() };
+                let title = Text::new(
+                    "Carpeta de trabajo: entra en ella y elige ./ (ahí se crean input, output, courses, my-templates y logos)",
+                    "Work folder: go into it and choose ./ (input, output, courses, my-templates and logos are created there)",
+                );
+                Picker::files(purpose, title.get(), &start)
+            }
+            PickerPurpose::Theme => {
+                let current = theme::current().key;
+                let items = theme::THEMES
+                    .iter()
+                    .map(|t| Item {
+                        label: t.name.get().into(),
+                        detail: if t.key == current {
+                            Text::new("actual", "current").get().into()
+                        } else {
+                            String::new()
+                        },
+                        value: PickValue::Choice(t.key.into()),
                     })
                     .collect();
-                Picker::choices(purpose, Text::new("Elige un diseño", "Choose a design").get(), items)
+                let mut picker =
+                    Picker::choices(purpose, Text::new("Elige un tema", "Choose a theme").get(), items);
+                picker.selected = theme::THEMES.iter().position(|t| t.key == current).unwrap_or(0);
+                picker
             }
             PickerPurpose::Folder => {
                 let project = &self.project;
@@ -1028,19 +1131,32 @@ impl App {
                         Text::new("perfiles de materia (*.toml)", "course profiles (*.toml)"),
                     ),
                     (
+                        "my-templates",
+                        project.user_templates_dir(),
+                        Text::new("tus formatos y diseños", "your formats and designs"),
+                    ),
+                    (
+                        "logos",
+                        project.work.join("logos"),
+                        Text::new(
+                            "logo-universidad.png y logo-facultad.png",
+                            "logo-universidad.png and logo-facultad.png",
+                        ),
+                    ),
+                    (".", project.work.clone(), Text::new("carpeta de trabajo", "work folder")),
+                    (
                         "templates",
                         project.templates_dir(),
-                        Text::new("formatos, diseños y logos", "formats, designs and logos"),
+                        Text::new("formatos y diseños incluidos", "built-in formats and designs"),
                     ),
                     (
                         "cache",
                         project.cache_dir(),
                         Text::new(
-                            "imágenes descargadas, diagramas y estado de LaTeX",
-                            "downloaded images, diagrams, LaTeX state",
+                            "imágenes descargadas, diagramas, registro",
+                            "downloaded images, diagrams, log",
                         ),
                     ),
-                    (".", project.root.clone(), Text::new("raíz del proyecto", "project root")),
                 ];
                 let items = folders
                     .into_iter()
@@ -1089,45 +1205,16 @@ impl App {
     }
 
     fn picking_key(&mut self, key: KeyEvent, mut picker: Picker) {
-        let extension = "md";
-        let outcome = match key.code {
-            KeyCode::Esc => PickOutcome::Cancel,
-            KeyCode::Up => {
-                picker.move_by(-1);
-                PickOutcome::Stay
-            }
-            KeyCode::Down => {
-                picker.move_by(1);
-                PickOutcome::Stay
-            }
-            KeyCode::PageUp => {
-                picker.move_by(-10);
-                PickOutcome::Stay
-            }
-            KeyCode::PageDown => {
-                picker.move_by(10);
-                PickOutcome::Stay
-            }
-            KeyCode::Enter => picker.activate(extension),
-            KeyCode::Right if picker.dir.is_some() => picker.activate(extension),
-            KeyCode::Left if picker.dir.is_some() => {
-                picker.go_up(extension);
-                PickOutcome::Stay
-            }
-            KeyCode::Backspace => {
-                if !picker.pop_filter() && picker.dir.is_some() {
-                    picker.go_up(extension);
-                }
-                PickOutcome::Stay
-            }
-            KeyCode::Char(c) => {
-                picker.push_filter(c);
-                PickOutcome::Stay
-            }
-            _ => PickOutcome::Stay,
-        };
-        match outcome {
+        match picker.handle_key(key.code) {
             PickOutcome::Stay => self.mode = Mode::Picking(picker),
+            // Sin carpeta de trabajo propia, Esc la fija en la del programa (y no
+            // se vuelve a preguntar); con una ya elegida, solo cancela.
+            PickOutcome::Cancel
+                if picker.purpose == PickerPurpose::Workspace && self.uses_program_folder() =>
+            {
+                self.back();
+                self.set_workspace(&self.project.root.clone());
+            }
             PickOutcome::Cancel => self.back(),
             PickOutcome::Chosen(value) => {
                 self.back();
@@ -1162,6 +1249,32 @@ impl App {
                 self.refresh_design();
             }
             (PickerPurpose::Folder, PickValue::Dir(path)) => self.open_path(&path),
+            (PickerPurpose::Output, PickValue::Here(path)) => {
+                self.set(FieldKey::Output, short_path(&self.project.work, &path))
+            }
+            (PickerPurpose::Copies, PickValue::Here(path)) => {
+                let path = short_path(&self.project.work, &path);
+                let mut copies: Vec<&str> = self
+                    .value(FieldKey::Copies)
+                    .split(';')
+                    .map(str::trim)
+                    .filter(|c| !c.is_empty())
+                    .collect();
+                if !copies.contains(&path.as_str()) {
+                    copies.push(&path);
+                }
+                self.set(FieldKey::Copies, copies.join("; "));
+            }
+            (PickerPurpose::Workspace, PickValue::Here(dir)) => self.set_workspace(&dir),
+            (PickerPurpose::Theme, PickValue::Choice(key)) => {
+                theme::set(&key);
+                let file = self.project.settings_file();
+                if let Err(error) = Settings::save_value(&file, theme::THEME_SETTINGS[0], &key) {
+                    self.log.push(LogLine::Warning(error.0));
+                }
+                let name = theme::current().name.get();
+                self.log.push(LogLine::Info(tr!(es: "Tema: {name}.", en: "Theme: {name}.")));
+            }
             _ => {}
         }
     }
@@ -1194,6 +1307,7 @@ impl App {
         }
         let output = course.output_dir(&self.project);
         self.set(FieldKey::Output, self.display_path(&output.display().to_string()));
+        self.set(FieldKey::Copies, profile.copies.join("; "));
     }
 
     fn start_generation(&mut self) {

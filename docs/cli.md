@@ -95,7 +95,7 @@ design that shows members replaces the student with them.
 **`--output`**: folder for the PDF. Created if missing. `~` is expanded.
 
 **`--copy`**: extra folder that receives a copy of the PDF. Repeat the option
-for several folders. A folder equal to the output folder, or repeated, is
+for several folders. Without `--copy`, the profile's `copies` are used. A folder equal to the output folder, or repeated, is
 skipped. Folders are created if missing; `~` is expanded.
 
 **`--settings`**: use another settings file instead of the project's
@@ -128,7 +128,8 @@ titles of boxes. It is independent of the interface language (`--lang`).
 
 **`--logos`**: folder with `logo-universidad.png` and `logo-facultad.png`. The
 folder must exist. Without the option, the `LOGOS` setting is used; if there
-is none, the `logos/` folder next to the design, then `templates/logos/`. No
+is none, the `logos/` folder next to the design, then `logos/` in your work
+folder, then `templates/logos/`. No
 logos at all is not an error: the cover is built without them.
 
 **`--lang`**: language of the messages, help and errors for this run. It does
@@ -144,15 +145,16 @@ Each value is taken from the first place that has it:
 
 | Value | Order |
 |---|---|
-| Course, teacher, members, group | option > profile |
+| Course, teacher, members, group | option > `--set MATERIA=…` (`DOCENTE`, `INTEGRANTES`, `GRUPO`) > profile |
 | University, faculty, student, semester | `--set` > profile |
 | Design | `--design` > profile `design` (or old `template`) > `geometric-cover` |
 | Format | `--format` > profile `format` > the design's first format > `apa7` |
 | Document language | `--doc-lang` > profile `language` > the format's > Spanish |
-| Output folder | `--output` > `output/<folder>` of the profile > `output/` |
+| Output folder | `--output` > profile `output` > `output/<folder>` of the profile > `output/` |
+| Extra copies | `--copy` (all of them) > profile `copies` > none |
 | Markdown folder to search | the profile's `input/<folder>` > `input/` |
 | Custom fields | `--set` over the profile's `[fields]`, name by name |
-| Logos | `--logos` > `LOGOS` setting > design's `logos/` > `templates/logos/` |
+| Logos | `--logos` > `LOGOS` setting > design's `logos/` > work folder `logos/` > `templates/logos/` |
 | Interface language | `--lang` > `IDIOMA` (environment or `settings.toml`) > the system's |
 
 An empty option or an empty profile value counts as "not given". The cover
@@ -212,13 +214,13 @@ folder.
 
 ## Where the output goes
 
-- The PDF goes to `--output`, else `output/<folder>` of the profile, else
-  `output/` in the project. The folder is created and tested for writing
+- The PDF goes to `--output`, else the profile's `output`, else
+  `output/<folder>` of the profile, else `output/` in the project. The folder is created and tested for writing
   before the build starts.
 - The name is described under `--file-name`. An existing PDF with that name is
   replaced.
 - The command prints `PDF generated: <path>` on standard output and one
-  `Copy saved: <path>` line per `--copy` folder.
+  `Copy saved: <path>` line per copy folder (`--copy` or the profile's `copies`).
 - Warnings (a missing image, an unknown symbol, a missing recommended
   heading, a missing Graphviz) go to standard error as `Warning: …`. They
   never stop the PDF.
@@ -288,6 +290,7 @@ Errors go to standard error as `Error: <message>`.
 | `INVESTIGACION_LOG` | Log level: `debug` records full commands and paths; `off` or `0` turns the log off; anything else (or unset) is `info`. |
 | `INVESTIGACION_TIMING` | `1` prints `[timing] <tool>: <seconds> s` to standard error after each Pandoc/pdflatex/Graphviz run. |
 | `IDIOMA`, `INTERFACE_LANGUAGE` | Interface language (`es` or `en`). `IDIOMA` is checked first. |
+| `CARPETA_TRABAJO`, `INVESTIGACION_WORKSPACE` | Work folder with `input/`, `output/`, `courses/`, `my-templates/` and `logos/`. |
 | `LOGOS` | Folder with the logos, when `--logos` is not given. |
 | `TEXINPUTS` | Your own value is kept and appended after the project's folders when pdflatex runs. |
 | `HOME`, `USERPROFILE` | Used to expand `~` in paths. |
@@ -305,21 +308,28 @@ created inside a real project folder.
 ## `settings.toml`
 
 The file `settings.toml` in the project root remembers the interface language
-and, if you want, the logos folder. Despite the name, it is **not** TOML:
+and color theme and, if you want, the logos folder. Despite the name, it is **not** TOML:
 it has one `KEY=value` per line.
 
 ```
 # comments start with #
 IDIOMA="en"
+TEMA="nord"
 LOGOS="/home/me/logos"
 ```
 
-- Accepted keys: `IDIOMA` (or `INTERFACE_LANGUAGE`) and `LOGOS`.
+- Accepted keys: `IDIOMA` (or `INTERFACE_LANGUAGE`), `TEMA` (or `THEME`),
+  `CARPETA_TRABAJO` (or `INVESTIGACION_WORKSPACE`) and `LOGOS`.
+- `CARPETA_TRABAJO` is the work folder the menu asks for on the first run.
+  `input/`, `output/`, `courses/`, `my-templates/` and `logos/` are read there
+  (and relative paths in profiles start there). Without it, the program folder
+  is used.
 - An optional `export ` prefix and single or double quotes are accepted.
   A comment after an unquoted value needs a space before the `#`.
 - A line without `=`, or a key that is not a plain name, is an error.
 - The menu writes `IDIOMA` here when you choose a language (first run, or
-  Options → l).
+  Options → l), and `TEMA` when you choose a color theme (Options → t):
+  `classic`, `dracula`, `nord`, `gruvbox`, `catppuccin` or `tokyo-night`.
 - The cover data is **not** stored here: it lives in the course profiles.
 - Use another file with `--settings`.
 

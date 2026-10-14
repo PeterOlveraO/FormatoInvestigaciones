@@ -5,6 +5,7 @@
 mod app;
 mod guard;
 mod picker;
+mod theme;
 mod tools;
 mod ui;
 mod wizard;
@@ -13,7 +14,7 @@ pub use app::{App, FIELDS, FieldKey};
 
 use std::time::Duration;
 
-use crossterm::event::{self, Event, KeyEventKind};
+use ratatui::crossterm::event::{self, Event, KeyEventKind};
 
 use crate::i18n;
 use crate::logging;
@@ -32,10 +33,12 @@ pub fn run() -> i32 {
     let settings = Settings::load(&project.settings_file()).unwrap_or_default();
     let saved = i18n::configured(&settings);
     i18n::set(saved.unwrap_or_else(i18n::detect));
+    theme::set(&settings.get(&theme::THEME_SETTINGS));
     let mut app = App::new(project);
     app.detect_tools();
-    // Idioma la primera vez, el asistente si no hay perfiles y luego el inicio.
-    app.start(saved.is_none().then(i18n::current));
+    // La primera vez: idioma, carpeta de trabajo y, sin perfiles, el asistente.
+    let ask_workspace = app.project.saved_workspace().is_none();
+    app.start(saved.is_none().then(i18n::current), ask_workspace);
     let mut terminal = ratatui::init();
     guard::install_hook();
     let result = event_loop(&mut terminal, &mut app);

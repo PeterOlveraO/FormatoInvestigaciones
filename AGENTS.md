@@ -19,23 +19,11 @@ INVESTIGACION_TIMING=1 target/release/investigacion examples/catalog.md --title 
 INVESTIGACION_LOG=debug target/release/investigacion …   # full log in cache/logs/investigacion.log (off: INVESTIGACION_LOG=off)
 ```
 
-### PDF per course profile (`courses/<key>.toml`)
+### PDF with a course profile (`courses/<key>.toml`)
 
 ```bash
-# Materia: Inteligencia artificial
-target/release/investigacion Tarea.md -p ia --title "Tema"
-# Materia: Ingeniería Económica
-target/release/investigacion Tarea.md -p ie --title "Tema"
-# Materia: Ingeniería de Software
-target/release/investigacion Tarea.md -p is --title "Tema"
-# Materia: Métodos de investigación
-target/release/investigacion Tarea.md -p mi --title "Tema"
-# Materia: Programación de Microprocesadores
-target/release/investigacion Tarea.md -p pm --title "Tema"
-# Materia: Programación de microprocesadores (report design)
-target/release/investigacion Tarea.md -p programacion-de-microprocesadores --title "Tema"
-# Materia: example (placeholders, for the catalog and screenshots)
-target/release/investigacion examples/catalog.md -p example --title "Tema"
+target/release/investigacion Tarea.md -p <key> --title "Tema"    # your own profiles (git-ignored)
+target/release/investigacion examples/catalog.md -p example --title "Tema"  # placeholders, for the catalog and screenshots
 ```
 
 System dependencies (not crates): Pandoc, pdflatex, Graphviz (optional).
@@ -135,7 +123,7 @@ src/
   pandoc.rs      Pandoc call; Lua filters embedded with include_str!
   latex.rs       latex_escape, render_template (standard markers + custom fields)
   compile.rs     pdflatex passes, TEXINPUTS, .aux/.toc cache
-  project.rs     project root, folders, logos
+  project.rs     program root, work folder (CARPETA_TRABAJO), folders, logos
   settings.rs    settings.toml (language, LOGOS) + environment (never mutates the process env)
   courses.rs     course profiles (courses/*.toml), save_profile
   document.rs    DocumentData, dates (es/en), slugify
@@ -144,7 +132,9 @@ src/
   tui/           app.rs (state), ui.rs (drawing), wizard.rs (profile wizard), picker.rs,
                  guard.rs (panic safety net), tools.rs (Pandoc/pdflatex/Graphviz check), tests.rs
 tests/           integration: templates.rs, pandoc.rs, pdf.rs, cli.rs
-resources/filters/   Lua filters: inline_html, images, diagrams, charts, blocks
+resources/filters/   Lua filters: inline_html, images, diagrams, charts, blocks;
+                     common.lua is pasted in front of each one
+install.sh, install.ps1   check the tools, cargo install --locked, cargo clean --release
 templates/       common/ (base + final .sty), formats/{apa7,harvard,mla}/,
                  designs/{geometric-cover,classic-cover,report,starter}/, logos/
 my-templates/    the user's own formats/ and designs/ (git-ignored)

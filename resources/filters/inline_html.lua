@@ -8,8 +8,6 @@ sin marcar. Trabaja sobre el arbol ya analizado, no sobre el texto, asi que
 nunca toca lo que va dentro de un bloque de codigo.
 ]]
 
-local utils = require("pandoc.utils")
-
 -- Cada etiqueta se traduce al nodo equivalente de Pandoc; el escritor de LaTeX
 -- ya sabe componer todos estos (Underline -> \ul, Strikeout -> \st, el Span de
 -- clase "mark" -> \hl).

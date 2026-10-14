@@ -17,24 +17,10 @@ bloque detiene la compilación y el CLI muestra la línea. Es la diferencia con
 los bloques ```dot, que se dibujan aparte y como mucho se quedan como código.
 ]]
 
-local utils = require("pandoc.utils")
-
 local CLASES = { pgfplot = true, pgfplots = true, grafica = true, tikz = true }
 
-local function es_grafica(bloque)
-  for _, clase in ipairs(bloque.classes) do
-    if CLASES[clase:lower()] then return true end
-  end
-  return false
-end
-
-local function pie_de_figura(texto)
-  if not texto or texto == "" then return nil end
-  return utils.blocks_to_inlines(pandoc.read(texto, "markdown").blocks)
-end
-
 function CodeBlock(bloque)
-  if not es_grafica(bloque) then return nil end
+  if not tiene_clase(bloque, CLASES) then return nil end
 
   local codigo = bloque.text
   if not codigo:find("\\begin{tikzpicture}", 1, true) then

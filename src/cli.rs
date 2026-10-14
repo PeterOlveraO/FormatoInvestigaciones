@@ -481,7 +481,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         student: pick(set("ALUMNO"), from_profile(|p| &p.student)),
         semester: pick(set("SEMESTRE"), from_profile(|p| &p.semester)),
         title: args.title.trim().to_owned(),
-        course: pick(args.course.as_deref(), from_profile(|p| &p.name)),
+        course: pick(args.course.as_deref().or(set("MATERIA")), from_profile(|p| &p.name)),
         teacher: pick(args.teacher.as_deref().or(set("DOCENTE")), from_profile(|p| &p.teacher)),
         date: today(doc_lang),
         members: parse_members(&pick(
@@ -526,17 +526,22 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         Some(course) => course.output_dir(project),
         None => project.output_dir(),
     });
+    // Las copias del CLI sustituyen a las del perfil, como cualquier otra opción.
+    let copies = match &course {
+        Some(course) if args.copy.is_empty() => course.copy_dirs(project),
+        _ => args.copy.clone(),
+    };
     logging::debug(format_args!(
         "output folder: {}, logos: {}, raw LaTeX: {}, copies: {}",
         output_dir.display(),
         shown(options.logos.as_ref().map(|l| l.display())),
         args.allow_latex,
-        args.copy.len()
+        copies.len()
     ));
     let pdf =
         generate_pdf(project, &markdown_path, &output_dir, &data, &options, &mut |w| reporter.warning(w))?;
     reporter.info(tr!(es: "PDF generado: {}", en: "PDF generated: {}", pdf.display()));
-    for copy in copy_pdf_to(&pdf, &args.copy)? {
+    for copy in copy_pdf_to(&pdf, &copies)? {
         reporter.info(tr!(es: "Copia guardada: {}", en: "Copy saved: {}", copy.display()));
     }
     Ok(pdf)

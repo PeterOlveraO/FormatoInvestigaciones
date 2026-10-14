@@ -14,15 +14,15 @@ path = "src/main.rs"
 
 [dependencies]
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
-clap = { version = "4", features = ["derive"] }
-crossterm = "0.28"
+# Sin colores ni sugerencias: los errores de argumentos los redacta `cli.rs`.
+clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
 opener = "0.8"
+# Trae crossterm (`ratatui::crossterm`), así la versión siempre coincide.
 ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
 regex = "1"
 serde = { version = "1", features = ["derive"] }
 sys-locale = "0.3"
 tempfile = "3"
-thiserror = "2"
 toml = { version = "0.9", default-features = false, features = ["parse", "serde", "std"] }
 unicode-normalization = "0.1"
 

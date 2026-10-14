@@ -17,58 +17,11 @@ vez: el trabajo se genera igual. La carpeta de la caché llega en la variable
 INVESTIGACION_DIAGRAMS.
 ]]
 
-local utils = require("pandoc.utils")
-
 local CACHE = os.getenv("INVESTIGACION_DIAGRAMS")
 local CLASES = { dot = true, graphviz = true }
 
-local avisados = {}
-
--- Idioma de la interfaz, que pasa el generador; por omisión, español.
-local INGLES = os.getenv("INVESTIGACION_LANG") == "en"
-local function texto(es, en)
-  if INGLES then return en end
-  return es
-end
-
-local function avisar(mensaje)
-  if avisados[mensaje] then return end
-  avisados[mensaje] = true
-  io.stderr:write("[investigacion] " .. mensaje .. "\n")
-end
-
-local function existe(ruta)
-  local archivo = io.open(ruta, "rb")
-  if archivo then
-    archivo:close()
-    return true
-  end
-  return false
-end
-
-local function escribir(ruta, contenido)
-  local archivo = io.open(ruta, "wb")
-  if not archivo then return false end
-  archivo:write(contenido)
-  archivo:close()
-  return true
-end
-
-local function es_diagrama(bloque)
-  for _, clase in ipairs(bloque.classes) do
-    if CLASES[clase:lower()] then return true end
-  end
-  return false
-end
-
--- El pie se escribe en Markdown, así que puede llevar formato.
-local function pie_de_figura(texto)
-  if not texto or texto == "" then return nil end
-  return utils.blocks_to_inlines(pandoc.read(texto, "markdown").blocks)
-end
-
 function CodeBlock(bloque)
-  if not es_diagrama(bloque) or not CACHE then return nil end
+  if not tiene_clase(bloque, CLASES) or not CACHE then return nil end
 
   local nombre = utils.sha1(bloque.text) .. ".pdf"
   local ruta = CACHE .. "/" .. nombre

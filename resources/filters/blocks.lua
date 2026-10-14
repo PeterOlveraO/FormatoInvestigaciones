@@ -17,13 +17,12 @@ porque dependen de lo que el documento diga y no de cómo se compone.
    límite se sube al último nivel permitido, con un aviso.
 ]]
 
-local utils = require("pandoc.utils")
-local texto = require("pandoc.text")
+local minusculas = require("pandoc.text").lower
 
 -- Nombre de la división → título que sale en la caja, en el idioma del
 -- documento (INVESTIGACION_DOC_LANG). Valen los nombres en español y en inglés.
-local INGLES = os.getenv("INVESTIGACION_DOC_LANG") == "en"
-local function caja(es, en) if INGLES then return en end return es end
+local DOCUMENTO_EN_INGLES = os.getenv("INVESTIGACION_DOC_LANG") == "en"
+local function caja(es, en) if DOCUMENTO_EN_INGLES then return en end return es end
 local CAJAS = {
   nota = caja("Nota", "Note"), note = caja("Nota", "Note"),
   aviso = caja("Aviso", "Warning"), warning = caja("Aviso", "Warning"),
@@ -63,7 +62,7 @@ end
 
 function Div(division)
   for _, clase in ipairs(division.classes) do
-    local titulo = CAJAS[texto.lower(clase)]
+    local titulo = CAJAS[minusculas(clase)]
     if titulo then
       titulo = division.attributes["title"] or titulo
       local bloques = { crudo("\\begin{CajaMarcada}{" .. a_latex(titulo) .. "}") }
@@ -79,7 +78,7 @@ end
 
 local function es_encabezado_de_referencias(bloque)
   if bloque.t ~= "Header" then return false end
-  return REFERENCIAS[texto.lower(utils.stringify(bloque))] == true
+  return REFERENCIAS[minusculas(utils.stringify(bloque))] == true
 end
 
 -- Una referencia por párrafo: si se escribieron como lista, cada elemento pasa
@@ -97,12 +96,6 @@ local function a_parrafos(bloque)
     end
   end
   return parrafos
-end
-
--- Avisos en el idioma de la interfaz, con el prefijo que reenvía el generador.
-local function avisar(es, en)
-  local mensaje = os.getenv("INVESTIGACION_LANG") == "en" and en or es
-  io.stderr:write("[investigacion] " .. mensaje .. "\n")
 end
 
 local function es_lista(bloque)
@@ -146,8 +139,8 @@ local function recorta_listas(documento)
   local raiz = function(lista) return recorta(lista, 0, 0), false end
   documento = documento:walk({ traverse = "topdown", BulletList = raiz, OrderedList = raiz })
   if recortada then
-    avisar("Una lista tiene más niveles de los que LaTeX admite (4 de viñetas o de números); los más profundos se subieron al último nivel.",
-      "A list is nested deeper than LaTeX allows (4 levels of bullets or numbers); the deepest levels were moved up to the last one.")
+    avisar(texto("Una lista tiene más niveles de los que LaTeX admite (4 de viñetas o de números); los más profundos se subieron al último nivel.",
+      "A list is nested deeper than LaTeX allows (4 levels of bullets or numbers); the deepest levels were moved up to the last one."))
   end
   return documento
 end

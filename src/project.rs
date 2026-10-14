@@ -1,10 +1,12 @@
-//! Carpetas del proyecto: dónde están las plantillas, los trabajos, la salida
-//! y la caché, se ejecute el programa desde donde se ejecute.
+//! Carpetas del proyecto: dónde están las plantillas y la caché (la raíz del
+//! programa) y dónde los trabajos, los PDF, los perfiles, los diseños propios y
+//! los logos (la carpeta de trabajo, que por omisión es la misma raíz).
 
 use std::path::{Path, PathBuf};
 
 use crate::error::{GenerationError, Result};
 use crate::markdown::expand_home;
+use crate::settings::Settings;
 
 /// Archivo que identifica la raíz del proyecto.
 const ROOT_MARKER: &str = "templates/common/investigacion-base.sty";
@@ -23,6 +25,11 @@ pub fn legacy_design(name: &str) -> &str {
     }
 }
 pub const LOGOS_DIRECTORY: &str = "logos";
+/// Claves de `settings.toml` con la carpeta de trabajo, la española primero.
+pub const WORKSPACE_SETTINGS: [&str; 2] = ["CARPETA_TRABAJO", "INVESTIGACION_WORKSPACE"];
+/// Lo que se crea en una carpeta de trabajo nueva.
+pub const WORKSPACE_DIRS: [&str; 6] =
+    ["input", "output", "courses", "my-templates/designs", "my-templates/formats", LOGOS_DIRECTORY];
 /// Nombres que busca la portada dentro de la carpeta de logos.
 pub const LOGO_FILES: [&str; 2] = ["logo-universidad.png", "logo-facultad.png"];
 
@@ -34,30 +41,91 @@ pub fn absolute(path: &Path) -> PathBuf {
 
 #[derive(Debug, Clone)]
 pub struct Project {
+    /// La carpeta del programa: plantillas, ejemplos, caché y `settings.toml`.
     pub root: PathBuf,
+    /// La carpeta de trabajo de la persona; por omisión, `root`.
+    pub work: PathBuf,
+}
+
+/// Copia `from` dentro de `to` sin pisar nada que ya exista.
+fn copy_missing(from: &Path, to: &Path) -> std::io::Result<()> {
+    for entry in std::fs::read_dir(from)?.flatten() {
+        let target = to.join(entry.file_name());
+        if entry.path().is_dir() {
+            std::fs::create_dir_all(&target)?;
+            copy_missing(&entry.path(), &target)?;
+        } else if !target.exists() {
+            std::fs::copy(entry.path(), &target)?;
+        }
+    }
+    Ok(())
 }
 
 impl Project {
     pub fn at(root: impl Into<PathBuf>) -> Self {
-        Self { root: absolute(&root.into()) }
+        let root = absolute(&root.into());
+        Self { work: root.clone(), root }
+    }
+
+    /// La carpeta de trabajo guardada (`CARPETA_TRABAJO`), si todavía existe.
+    pub fn saved_workspace(&self) -> Option<PathBuf> {
+        let settings = Settings::load(&self.settings_file()).unwrap_or_default();
+        Some(settings.get(&WORKSPACE_SETTINGS))
+            .filter(|dir| !dir.is_empty())
+            .map(|dir| absolute(&expand_home(Path::new(&dir))))
+            .filter(|dir| dir.is_dir())
+    }
+
+    /// Prepara `dir` como carpeta de trabajo: crea sus carpetas, copia lo que
+    /// ya había en el programa (trabajos, perfiles, diseños propios, logos) sin
+    /// pisar nada, la guarda en `settings.toml` y la usa desde ahora.
+    pub fn create_workspace(&mut self, dir: &Path) -> Result<()> {
+        let dir = absolute(dir);
+        for sub in WORKSPACE_DIRS {
+            std::fs::create_dir_all(dir.join(sub))?;
+        }
+        if dir != self.root {
+            let previous = [
+                (self.root.join("input"), "input"),
+                (self.root.join("courses"), "courses"),
+                (self.root.join("my-templates"), "my-templates"),
+                (self.templates_dir().join(LOGOS_DIRECTORY), LOGOS_DIRECTORY),
+            ];
+            for (from, to) in previous.iter().filter(|(from, _)| from.is_dir()) {
+                copy_missing(from, &dir.join(to))?;
+            }
+        }
+        Settings::save_value(&self.settings_file(), WORKSPACE_SETTINGS[0], &dir.display().to_string())?;
+        crate::logging::info(format_args!("workspace: {}", dir.display()));
+        self.work = dir;
+        Ok(())
+    }
+
+    /// Una ruta escrita por la persona (perfil, formulario): `~` es la carpeta
+    /// personal y lo relativo parte de la carpeta de trabajo.
+    pub fn resolve(&self, path: &str) -> PathBuf {
+        self.work.join(expand_home(Path::new(path)))
     }
 
     /// Raíz del proyecto: `INVESTIGACION_HOME`, luego el primer ancestro del
     /// directorio actual que tenga las plantillas y, por último, la carpeta
     /// donde se compiló el binario (así `cargo install` funciona desde fuera).
     pub fn discover() -> Self {
-        if let Some(home) = std::env::var_os("INVESTIGACION_HOME").filter(|v| !v.is_empty()) {
-            return Self::at(PathBuf::from(home));
-        }
         let cwd = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
-        if let Some(found) = cwd.ancestors().find(|dir| dir.join(ROOT_MARKER).is_file()) {
-            return Self::at(found);
-        }
         let built = Path::new(env!("CARGO_MANIFEST_DIR"));
-        if built.join(ROOT_MARKER).is_file() {
-            return Self::at(built);
+        let root = match std::env::var_os("INVESTIGACION_HOME").filter(|v| !v.is_empty()) {
+            Some(home) => PathBuf::from(home),
+            None => cwd
+                .ancestors()
+                .chain([built])
+                .find(|dir| dir.join(ROOT_MARKER).is_file())
+                .map_or(cwd.clone(), Path::to_path_buf),
+        };
+        let mut project = Self::at(root);
+        if let Some(work) = project.saved_workspace() {
+            project.work = work;
         }
-        Self::at(cwd)
+        project
     }
 
     /// Si la raíz tiene las plantillas; si no, `discover` cayó en una carpeta
@@ -79,10 +147,10 @@ impl Project {
     }
 
     pub fn input_dir(&self) -> PathBuf {
-        self.root.join("input")
+        self.work.join("input")
     }
     pub fn output_dir(&self) -> PathBuf {
-        self.root.join("output")
+        self.work.join("output")
     }
     pub fn templates_dir(&self) -> PathBuf {
         self.root.join("templates")
@@ -91,13 +159,17 @@ impl Project {
         self.templates_dir().join("common")
     }
     pub fn courses_dir(&self) -> PathBuf {
-        self.root.join("courses")
+        self.work.join("courses")
+    }
+    /// Los formatos y diseños propios (`formats/`, `designs/`).
+    pub fn user_templates_dir(&self) -> PathBuf {
+        self.work.join("my-templates")
     }
     pub fn cache_dir(&self) -> PathBuf {
         self.root.join("cache")
     }
-    /// Lo que el programa recuerda (idioma del menú, carpeta de logos). Los
-    /// datos de la portada van en los perfiles.
+    /// Lo que el programa recuerda (idioma, tema, carpeta de trabajo, logos).
+    /// Los datos de la portada van en los perfiles.
     pub fn settings_file(&self) -> PathBuf {
         self.root.join("settings.toml")
     }
@@ -114,7 +186,8 @@ impl Project {
     }
 
     /// De dónde salen los logos: la carpeta indicada (que debe existir), la
-    /// `logos/` junto a la plantilla o la compartida `templates/logos/`.
+    /// `logos/` junto a la plantilla, la de la carpeta de trabajo o la
+    /// compartida `templates/logos/`.
     /// Que no haya ninguna no es error: la portada se compila sin logos.
     pub fn resolve_logos_directory(
         &self,
@@ -133,8 +206,11 @@ impl Project {
             return Ok(Some(directory));
         }
         let beside = template.parent().map(|dir| dir.join(LOGOS_DIRECTORY));
-        let shared = self.templates_dir().join(LOGOS_DIRECTORY);
-        Ok(beside.into_iter().chain([shared]).find(|dir| dir.is_dir()))
+        // Las compartidas cuentan solo si traen un logo: una `logos/` vacía de
+        // la carpeta de trabajo no debe tapar a `templates/logos/`.
+        let shared = [self.work.join(LOGOS_DIRECTORY), self.templates_dir().join(LOGOS_DIRECTORY)];
+        let has_logo = |dir: &PathBuf| LOGO_FILES.iter().any(|logo| dir.join(logo).is_file());
+        Ok(beside.filter(|dir| dir.is_dir()).or_else(|| shared.into_iter().find(has_logo)))
     }
 }
 
@@ -152,5 +228,29 @@ mod tests {
         assert_eq!(project.resolve_logos_directory(&template, Some(&own)).unwrap(), Some(own));
         assert!(project.resolve_logos_directory(&template, Some(&directory.path().join("no"))).is_err());
         assert_eq!(project.resolve_logos_directory(&template, None).unwrap(), None);
+        // Una `logos/` vacía en la carpeta de trabajo no tapa a `templates/logos/`.
+        let shared = project.templates_dir().join(LOGOS_DIRECTORY);
+        std::fs::create_dir_all(&shared).unwrap();
+        std::fs::write(shared.join(LOGO_FILES[0]), "png").unwrap();
+        std::fs::create_dir(directory.path().join(LOGOS_DIRECTORY)).unwrap();
+        let design = directory.path().join("templates/designs/x/template.ltx");
+        assert_eq!(project.resolve_logos_directory(&design, None).unwrap(), Some(shared));
+    }
+
+    #[test]
+    fn a_new_work_folder_gets_the_user_data_without_overwriting() {
+        let program = tempfile::tempdir().unwrap();
+        let work = tempfile::tempdir().unwrap();
+        let mut project = Project::at(program.path());
+        std::fs::create_dir_all(program.path().join("courses")).unwrap();
+        std::fs::write(program.path().join("courses/ia.toml"), "viejo").unwrap();
+        std::fs::write(program.path().join("courses/fisica.toml"), "f").unwrap();
+        std::fs::create_dir_all(work.path().join("courses")).unwrap();
+        std::fs::write(work.path().join("courses/ia.toml"), "nuevo").unwrap();
+        project.create_workspace(work.path()).unwrap();
+        assert_eq!(std::fs::read_to_string(work.path().join("courses/ia.toml")).unwrap(), "nuevo");
+        assert!(work.path().join("courses/fisica.toml").is_file() && work.path().join("logos").is_dir());
+        assert_eq!(project.courses_dir(), absolute(work.path()).join("courses"));
+        assert_eq!(project.saved_workspace(), Some(absolute(work.path())));
     }
 }

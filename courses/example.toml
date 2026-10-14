@@ -17,6 +17,8 @@ format = "apa7"                          # apa7, harvard, mla…
 design = "geometric-cover"               # geometric-cover, classic-cover, report…
 # language = "es"                        # default: the format's
 folder = "IA"                            # input/IA and output/IA
+# output = "~/Documentos/Entregas/IA"     # instead of output/IA
+# copies = ["~/Drive/IA"]                 # extra copies of the PDF
 
 # The design's own fields, if it has any:
 # [fields]

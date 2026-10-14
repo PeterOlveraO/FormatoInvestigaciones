@@ -14,6 +14,8 @@ the menu, or automatically the first time). You can also edit them by hand:
 | `design` | `geometric-cover`, `classic-cover`, `report`, `starter` or one of yours (the old key `template` still works) |
 | `language` | Document language, `es` or `en` (default: the format's) |
 | `folder` | Subfolder of `input/` and `output/` for this course |
+| `output` | Folder for the PDFs, instead of `output/<folder>` (relative to the project, `~` works) |
+| `copies` | Extra folders for a copy of the PDF, e.g. `["~/Drive/IA"]` |
 | `[fields]` | The design's own fields, e.g. `SALON = "B-204"` |
 
 The file name is the profile's key: `ia.toml` is used with `-p ia`.

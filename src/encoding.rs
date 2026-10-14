@@ -7,58 +7,22 @@ use std::path::Path;
 
 use crate::error::{GenerationError, Result};
 
-// Bytes 0x80..=0x9F de Windows-1252; `None` son los cinco sin definir.
-const CP1252_HIGH: [Option<char>; 32] = [
-    Some('\u{20AC}'),
-    None,
-    Some('\u{201A}'),
-    Some('\u{0192}'),
-    Some('\u{201E}'),
-    Some('\u{2026}'),
-    Some('\u{2020}'),
-    Some('\u{2021}'),
-    Some('\u{02C6}'),
-    Some('\u{2030}'),
-    Some('\u{0160}'),
-    Some('\u{2039}'),
-    Some('\u{0152}'),
-    None,
-    Some('\u{017D}'),
-    None,
-    None,
-    Some('\u{2018}'),
-    Some('\u{2019}'),
-    Some('\u{201C}'),
-    Some('\u{201D}'),
-    Some('\u{2022}'),
-    Some('\u{2013}'),
-    Some('\u{2014}'),
-    Some('\u{02DC}'),
-    Some('\u{2122}'),
-    Some('\u{0161}'),
-    Some('\u{203A}'),
-    Some('\u{0153}'),
-    None,
-    Some('\u{017E}'),
-    Some('\u{0178}'),
+// Bytes 0x80..=0x9F de Windows-1252; U+FFFD marca los cinco sin definir.
+const CP1252_HIGH: [char; 32] = [
+    '€', '\u{FFFD}', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '\u{FFFD}', 'Ž', '\u{FFFD}',
+    '\u{FFFD}', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '\u{FFFD}', 'ž', 'Ÿ',
 ];
 
 /// Decodifica Windows-1252. En modo estricto un byte sin definir es `None`;
 /// si no, se sustituye por U+FFFD.
 pub fn decode_cp1252(raw: &[u8], strict: bool) -> Option<String> {
-    let mut text = String::with_capacity(raw.len());
-    for &byte in raw {
-        let character = match byte {
+    raw.iter()
+        .map(|&byte| match byte {
             0x80..=0x9F => CP1252_HIGH[usize::from(byte - 0x80)],
-            _ => Some(char::from(byte)),
-        };
-        match character {
-            Some(c) => text.push(c),
-            None if strict => return None,
-            None => text.push('\u{FFFD}'),
-        }
-    }
-    Some(text)
+            _ => char::from(byte),
+        })
+        .map(|c| (c != '\u{FFFD}' || !strict).then_some(c))
+        .collect()
 }
 
 /// Lee archivos de texto en UTF-8 (con o sin BOM) o Windows-1252.
@@ -99,6 +63,10 @@ mod tests {
     fn windows_encoding_is_accepted() {
         let raw = [b'I', b'n', b'f', b'o', b'r', b'm', b'a', b'c', 0xED, b'a'];
         assert_eq!(decode_text(&raw, Path::new("x.md")).unwrap(), "Informacía");
+        // Comillas y guion de Word; 0x81 no existe en Windows-1252.
+        assert_eq!(decode_cp1252(&[0x93, b'a', 0x94, 0x96], true).unwrap(), "“a”–");
+        assert_eq!(decode_cp1252(&[0x81], true), None);
+        assert_eq!(decode_cp1252(&[0x81], false).unwrap(), "\u{FFFD}");
     }
 
     #[test]

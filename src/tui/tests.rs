@@ -2,9 +2,9 @@
 
 use std::path::Path;
 
-use crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::Terminal;
 use ratatui::backend::TestBackend;
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
 use super::app::{
     App, FIELDS, FieldKey, HOME_ITEMS, HomeAction, LogLine, Mode, OPTIONS, OptionAction, index_of,
@@ -125,7 +125,7 @@ fn the_first_run_asks_for_the_language_saves_it_and_opens_home() {
     let env = project.settings_file();
     let mut app = App::new(project);
     i18n::set(Lang::Es);
-    app.start(Some(Lang::Es));
+    app.start(Some(Lang::Es), false);
     assert!(matches!(app.mode, Mode::ChooseLanguage(Lang::Es)));
     assert!(render(&app).contains("Idioma / Language"));
     press(&mut app, KeyCode::Down);
@@ -142,7 +142,7 @@ fn with_profiles_and_a_saved_language_the_menu_opens_at_home() {
     i18n::set(Lang::Es);
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
-    app.start(None);
+    app.start(None, false);
     assert!(matches!(app.mode, Mode::Home(0)));
     let screen = render(&app);
     for expected in ["Generar un PDF", "Nuevo perfil", "Opciones", "Salir", "APA 7, Harvard o MLA"] {
@@ -163,7 +163,7 @@ fn without_profiles_the_wizard_opens_and_then_home() {
     let (_dir, project) = sample_project();
     std::fs::remove_file(project.courses_dir().join("ia.toml")).unwrap();
     let mut app = App::new(project);
-    app.start(None);
+    app.start(None, false);
     assert!(matches!(app.mode, Mode::Wizard(_)));
     press(&mut app, KeyCode::Esc);
     assert!(matches!(app.mode, Mode::Home(0)));
@@ -256,6 +256,77 @@ fn the_picker_browses_folders_without_typing_paths() {
     press(&mut app, KeyCode::Down);
     press(&mut app, KeyCode::Enter);
     assert_eq!(Path::new(app.value(FieldKey::Markdown)), root.join("input/IA/Tarea 1.md"));
+}
+
+#[test]
+fn the_markdown_picker_reopens_where_the_chosen_file_is() {
+    let (_dir, project) = sample_project();
+    let root = project.root.clone();
+    std::fs::create_dir_all(root.join("otra")).unwrap();
+    std::fs::write(root.join("otra/x.md"), "").unwrap();
+    let mut app = App::new(project);
+    app.values[index_of(FieldKey::Markdown)] = root.join("otra/x.md").display().to_string();
+    select(&mut app, FieldKey::Markdown);
+    press(&mut app, KeyCode::Enter);
+    let Mode::Picking(picker) = &app.mode else { panic!("the picker did not open") };
+    assert_eq!(picker.dir.as_deref(), Some(root.join("otra").as_path()));
+}
+
+#[test]
+fn output_and_copies_are_chosen_with_the_folder_picker() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let root = project.root.clone();
+    let mut app = App::new(project);
+    // Salida: empieza en la raíz; se entra en input/ y se elige ./ (tras ../).
+    select(&mut app, FieldKey::Output);
+    press(&mut app, KeyCode::Enter);
+    let Mode::Picking(picker) = &app.mode else { panic!("the picker did not open") };
+    assert_eq!(picker.dir.as_deref(), Some(root.as_path()));
+    assert!(picker.items.iter().all(|i| !i.label.ends_with(".md")), "solo carpetas");
+    type_text(&mut app, "input");
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    assert!(matches!(app.mode, Mode::Form));
+    assert_eq!(Path::new(app.value(FieldKey::Output)), Path::new("input"));
+    // Al volver a abrirlo empieza en la carpeta elegida.
+    press(&mut app, KeyCode::Enter);
+    let Mode::Picking(picker) = &app.mode else { panic!("the picker did not open") };
+    assert_eq!(picker.dir.as_deref(), Some(root.join("input").as_path()));
+    press(&mut app, KeyCode::Esc);
+
+    // Copias: cada carpeta elegida se suma a la lista, sin repetir.
+    select(&mut app, FieldKey::Copies);
+    for _ in 0..2 {
+        press(&mut app, KeyCode::Enter);
+        press(&mut app, KeyCode::Down);
+        press(&mut app, KeyCode::Enter);
+    }
+    assert_eq!(app.value(FieldKey::Copies), ".");
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "courses");
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.value(FieldKey::Copies), format!(".; {}", Path::new("courses").display()));
+    assert_eq!(app.build_args().copy, [root.join("."), root.join("courses")]);
+}
+
+#[test]
+fn choosing_a_theme_applies_and_saves_it() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let settings = project.settings_file();
+    let mut app = App::new(project);
+    press(&mut app, KeyCode::Char('o'));
+    press(&mut app, KeyCode::Char('t'));
+    type_text(&mut app, "nord");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(super::theme::current().key, "nord");
+    assert!(std::fs::read_to_string(settings).unwrap().contains("TEMA=\"nord\""));
+    assert!(render(&app).contains("Tema: Nord."));
+    super::theme::set("classic");
 }
 
 #[test]
@@ -362,7 +433,7 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     let (_dir, project) = sample_project();
     std::fs::remove_file(project.courses_dir().join("ia.toml")).unwrap();
     let mut app = App::new(project.clone());
-    app.start(None);
+    app.start(None, false);
     assert!(matches!(app.mode, Mode::Wizard(_)), "sin perfiles se abre el asistente");
 
     type_text(&mut app, "Bases de Datos");
@@ -372,7 +443,7 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     // Con apa7 se ofrecen los dos diseños; se elige el que tiene campo propio.
     type_text(&mut app, "geometric");
     press(&mut app, KeyCode::Enter);
-    // Pasos: universidad*, materia*, docente, salón* y carpeta.
+    // Pasos: universidad*, materia*, docente, salón*, carpeta, salida y copias.
     press(&mut app, KeyCode::Enter);
     let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
     assert!(wizard.error.is_some(), "la universidad es obligatoria");
@@ -380,6 +451,23 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
         type_text(&mut app, answer);
         press(&mut app, KeyCode::Enter);
     }
+    // Salida: el selector de carpetas empieza en la raíz; se entra en input/ y se elige ./.
+    assert!(render(&app).contains("usar esta carpeta"));
+    type_text(&mut app, "input");
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    // Copias: cada ./ se suma (repetida no) y Tab termina.
+    type_text(&mut app, "input");
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "IA");
+    press(&mut app, KeyCode::Enter);
+    for _ in 0..2 {
+        press(&mut app, KeyCode::Down);
+        press(&mut app, KeyCode::Enter);
+    }
+    assert!(render(&app).contains("Elegido:"));
+    press(&mut app, KeyCode::Tab);
     assert!(matches!(app.mode, Mode::Home(0)), "el asistente vuelve a la vista de la que salió");
     let saved = std::fs::read_to_string(project.courses_dir().join("bases-de-datos.toml")).unwrap();
     for expected in [
@@ -393,6 +481,10 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
         assert!(saved.contains(expected), "{expected} en:\n{saved}");
     }
     assert!(!saved.contains("teacher"), "lo vacío no se guarda");
+    let profile = crate::courses::find_course(&project, "bases-de-datos").unwrap().profile;
+    assert_eq!(Path::new(&profile.output), Path::new("input"));
+    assert_eq!(profile.copies.len(), 1);
+    assert_eq!(Path::new(&profile.copies[0]), Path::new("input").join("IA"));
     // Se aplica al formulario, con el campo propio lleno.
     assert_eq!(app.value(FieldKey::Profile), "bases-de-datos");
     assert_eq!(app.extras[0].value, "B-204");
@@ -403,7 +495,7 @@ fn the_first_run_asks_the_language_and_then_opens_the_wizard() {
     let (_dir, project) = sample_project();
     std::fs::remove_file(project.courses_dir().join("ia.toml")).unwrap();
     let mut app = App::new(project);
-    app.start(Some(Lang::Es));
+    app.start(Some(Lang::Es), false);
     assert!(matches!(app.mode, Mode::ChooseLanguage(_)));
     // Las flechas solo cambian la marca; antes abrían el asistente sin elegir.
     press(&mut app, KeyCode::Down);
@@ -459,7 +551,7 @@ fn p_edits_the_chosen_profile_with_its_data() {
     press(&mut app, KeyCode::Enter);
     press(&mut app, KeyCode::Char('p'));
     let Mode::Wizard(wizard) = &app.mode else { panic!("p no abrió el asistente") };
-    assert!(wizard.editing);
+    assert!(wizard.editing());
     assert_eq!(wizard.input.text, "ia");
     assert!(render(&app).contains("Editar perfil"));
 }
@@ -469,7 +561,7 @@ fn the_home_menu_wraps_around_and_opens_each_item() {
     i18n::set(Lang::Es);
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
-    app.start(None);
+    app.start(None, false);
     press(&mut app, KeyCode::Up);
     assert!(matches!(app.mode, Mode::Home(3)));
     press(&mut app, KeyCode::Down);
@@ -487,7 +579,7 @@ fn the_home_menu_wraps_around_and_opens_each_item() {
             }
             HomeAction::NewProfile => {
                 let Mode::Wizard(wizard) = &app.mode else { panic!("no se abrió el asistente") };
-                assert!(!wizard.editing && wizard.input.text.is_empty());
+                assert!(!wizard.editing() && wizard.input.text.is_empty());
                 assert!(render(&app).contains("Nuevo perfil"));
                 press(&mut app, KeyCode::Esc);
                 assert!(matches!(app.mode, Mode::Home(i) if i == index));
@@ -503,7 +595,7 @@ fn the_home_menu_wraps_around_and_opens_each_item() {
     }
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
-    app.start(None);
+    app.start(None, false);
     press(&mut app, KeyCode::Char('q'));
     assert!(app.should_quit);
 }
@@ -530,7 +622,7 @@ fn each_option_runs_with_enter_and_with_its_letters() {
             match option.action {
                 OptionAction::EditProfile | OptionAction::NewProfile => {
                     let Mode::Wizard(wizard) = &app.mode else { panic!("{how}") };
-                    assert!(!wizard.editing, "sin perfil elegido se crea uno: {how}");
+                    assert!(!wizard.editing(), "sin perfil elegido se crea uno: {how}");
                     press(&mut app, KeyCode::Esc);
                     assert!(matches!(app.mode, Mode::Form), "{how}");
                 }
@@ -551,6 +643,22 @@ fn each_option_runs_with_enter_and_with_its_letters() {
                         matches!(app.log.last(), Some(LogLine::Warning(w)) if w.contains("registro")),
                         "{how}"
                     );
+                }
+                OptionAction::Theme => {
+                    assert!(
+                        matches!(&app.mode, Mode::Picking(p) if p.purpose == PickerPurpose::Theme),
+                        "{how}"
+                    );
+                    press(&mut app, KeyCode::Esc);
+                    assert!(matches!(app.mode, Mode::Form), "{how}");
+                }
+                OptionAction::Workspace => {
+                    assert!(
+                        matches!(&app.mode, Mode::Picking(p) if p.purpose == PickerPurpose::Workspace),
+                        "{how}"
+                    );
+                    press(&mut app, KeyCode::Esc);
+                    assert!(matches!(app.mode, Mode::Form), "{how}");
                 }
                 OptionAction::Home => assert!(matches!(app.mode, Mode::Home(0)), "{how}"),
             }
@@ -589,13 +697,73 @@ fn editing_the_profile_from_the_options_uses_the_chosen_one() {
     assert!(screen.contains("Editar el perfil elegido  ia"), "{screen}");
     press(&mut app, KeyCode::Enter);
     let Mode::Wizard(wizard) = &app.mode else { panic!("no se abrió el asistente") };
-    assert!(wizard.editing);
+    assert!(wizard.editing());
     // «Nuevo perfil» empieza vacío aunque haya uno elegido.
     press(&mut app, KeyCode::Esc);
     press(&mut app, KeyCode::Char('o'));
     press(&mut app, KeyCode::Char('n'));
     let Mode::Wizard(wizard) = &app.mode else { panic!("no se abrió el asistente") };
-    assert!(!wizard.editing && wizard.input.text.is_empty());
+    assert!(!wizard.editing() && wizard.input.text.is_empty());
+}
+
+#[test]
+fn the_first_run_asks_for_a_work_folder_and_moves_the_user_data_there() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let settings = project.settings_file();
+    let elsewhere = tempfile::tempdir().unwrap();
+    let mut app = App::new(project);
+    app.start(None, true);
+    let Mode::Picking(picker) = &mut app.mode else { panic!("no se pidió la carpeta de trabajo") };
+    assert_eq!(picker.purpose, PickerPurpose::Workspace);
+    assert!(footer(&render(&app)).contains("usar la carpeta del programa"));
+    // Se navega a otra carpeta y se elige ./ (tras ../).
+    let Mode::Picking(picker) = &mut app.mode else { unreachable!() };
+    picker.open_dir(elsewhere.path());
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    let work = elsewhere.path();
+    assert_eq!(app.project.work, crate::project::absolute(work));
+    for sub in crate::project::WORKSPACE_DIRS {
+        assert!(work.join(sub).is_dir(), "{sub}");
+    }
+    // El perfil y el trabajo que había en el programa se copiaron, y el menú los usa.
+    assert!(work.join("courses/ia.toml").is_file() && work.join("input/IA/Tarea 1.md").is_file());
+    assert_eq!(app.courses.len(), 1);
+    assert!(matches!(app.mode, Mode::Home(0)), "con perfiles no se abre el asistente");
+    assert!(std::fs::read_to_string(&settings).unwrap().contains("CARPETA_TRABAJO="));
+    assert_eq!(app.project.saved_workspace(), Some(crate::project::absolute(work)));
+}
+
+#[test]
+fn escape_on_the_first_run_keeps_everything_in_the_program_folder() {
+    let (_dir, project) = sample_project();
+    let root = project.root.clone();
+    let mut app = App::new(project);
+    app.start(None, true);
+    press(&mut app, KeyCode::Esc);
+    assert_eq!(app.project.work, root);
+    assert_eq!(app.project.saved_workspace(), Some(root), "no se vuelve a preguntar");
+    assert!(matches!(app.mode, Mode::Home(0)));
+}
+
+#[test]
+fn renaming_a_profile_in_the_wizard_does_not_leave_the_old_one() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let courses = project.courses_dir();
+    let mut app = App::new(project);
+    app.open_wizard(Some("ia"));
+    type_text(&mut app, "2");
+    // Nombre, formato, diseño y carpeta con Enter; salida y copias con Tab.
+    for _ in 0..4 {
+        press(&mut app, KeyCode::Enter);
+    }
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Tab);
+    assert!(matches!(app.mode, Mode::Form), "el asistente terminó");
+    assert!(courses.join("ia2.toml").is_file() && !courses.join("ia.toml").exists());
+    assert_eq!(app.value(FieldKey::Profile), "ia2");
 }
 
 #[test]
@@ -603,7 +771,7 @@ fn windows_opened_from_home_go_back_home() {
     i18n::set(Lang::En);
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
-    app.start(None);
+    app.start(None, false);
     let options = HOME_ITEMS.iter().position(|i| i.action == HomeAction::Options).unwrap();
     app.mode = Mode::Home(options);
     press(&mut app, KeyCode::Enter);
@@ -717,7 +885,7 @@ fn home_shows_the_last_pdf_and_the_missing_tools() {
     let (_dir, project) = sample_project();
     let root = project.root.clone();
     let mut app = App::new(project);
-    app.start(None);
+    app.start(None, false);
     app.last_pdf = Some(root.join("output").join("IA").join("tarea-1.pdf"));
     app.tools = vec![
         Tool { name: "Pandoc", required: true, found: false },
@@ -763,7 +931,7 @@ fn small_terminals_do_not_panic() {
             render_sized(app, width, height);
         }
     };
-    app.start(None);
+    app.start(None, false);
     check(&app);
     press(&mut app, KeyCode::Down);
     press(&mut app, KeyCode::Down);
@@ -794,7 +962,7 @@ fn v_on_home_reports_that_there_is_no_pdf_yet() {
     i18n::set(Lang::En);
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
-    app.start(None);
+    app.start(None, false);
     press(&mut app, KeyCode::Char('v'));
     assert!(matches!(app.mode, Mode::Home(0)));
     assert!(matches!(app.log.last(), Some(LogLine::Warning(w)) if w.contains("no PDF yet")));
@@ -874,7 +1042,7 @@ fn random_keys_never_panic_at_any_size() {
         i18n::set(Lang::Es);
         let (_dir, project) = sample_project();
         let mut app = App::new(project);
-        app.start(if seed % 2 == 0 { Some(Lang::En) } else { None });
+        app.start(if seed % 2 == 0 { Some(Lang::En) } else { None }, false);
         let mut state = seed;
         for step in 0..1000 {
             state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);

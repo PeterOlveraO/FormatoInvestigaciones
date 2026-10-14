@@ -16,6 +16,7 @@ settings.toml
 /templates/logos/*
 !/templates/logos/README.md
 /templates/*/logos/
+/logos/
 
 # Your own formats and designs (my-templates/formats, my-templates/designs)
 /my-templates/

@@ -2,18 +2,27 @@
 
 use ratatui::Frame;
 use ratatui::layout::{Constraint, Layout, Position, Rect};
-use ratatui::style::{Color, Modifier, Style, Stylize};
+use ratatui::style::{Modifier, Style, Stylize};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders, Clear, List, ListItem, ListState, Paragraph, Wrap};
 
 use super::app::{
     App, FIELDS, FieldKey, FieldKind, HOME_ITEMS, LogLine, Mode, OPTIONS, OptionAction, Screen, TextInput,
 };
-use super::picker::Picker;
-use super::wizard::Wizard;
+use super::picker::{Picker, PickerPurpose};
+use super::theme::{self, Theme};
+use super::wizard::{Target, Wizard};
 use crate::i18n::{Lang, Text};
 
-const ACCENT: Color = Color::Cyan;
+fn theme() -> &'static Theme {
+    theme::current()
+}
+
+/// Limpia una ventana y le pone el fondo del tema.
+fn clear(frame: &mut Frame, area: Rect) {
+    frame.render_widget(Clear, area);
+    frame.render_widget(Block::new().style(Style::new().bg(theme().bg).fg(theme().fg)), area);
+}
 
 /// Qué hace el programa, en la vista de inicio.
 const WELCOME: Text = Text::new(
@@ -23,6 +32,7 @@ const WELCOME: Text = Text::new(
 
 pub fn draw(frame: &mut Frame, app: &App) {
     let area = frame.area();
+    clear(frame, area);
     let [header, body, footer] =
         Layout::vertical([Constraint::Length(3), Constraint::Min(8), Constraint::Length(2)]).areas(area);
 
@@ -68,9 +78,9 @@ fn draw_form_screen(frame: &mut Frame, app: &App, body: Rect) {
 /// Ventana para escribir un campo; también los propios del diseño.
 fn draw_editing(frame: &mut Frame, app: &App, input: &TextInput) {
     let popup = centered(frame.area(), 70, 5);
-    frame.render_widget(Clear, popup);
-    let block =
-        titled_block(format!(" {} ", app.field_label(app.selected))).border_style(Style::new().fg(ACCENT));
+    clear(frame, popup);
+    let block = titled_block(format!(" {} ", app.field_label(app.selected)))
+        .border_style(Style::new().fg(theme().accent));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
     let [text_area, hint] = Layout::vertical([Constraint::Length(1), Constraint::Length(1)]).areas(inner);
@@ -84,7 +94,7 @@ fn draw_editing(frame: &mut Frame, app: &App, input: &TextInput) {
             Text::new("Enter guarda · Esc cancela · Ctrl+U borra", "Enter save · Esc cancel · Ctrl+U clear")
                 .get(),
         )
-        .style(Style::new().fg(Color::DarkGray)),
+        .style(Style::new().fg(theme().dim)),
         hint,
     );
     frame.set_cursor_position(Position::new(text_area.x + (input.cursor - skip) as u16, text_area.y));
@@ -116,14 +126,14 @@ fn draw_home(frame: &mut Frame, app: &App, selected: usize, area: Rect) {
         .map(|item| {
             let mut spans = vec![Span::styled(item.label.get(), Style::new().bold())];
             if !item.detail.get().is_empty() {
-                spans.push(Span::styled(format!("  {}", item.detail), Style::new().fg(Color::DarkGray)));
+                spans.push(Span::styled(format!("  {}", item.detail), Style::new().fg(theme().dim)));
             }
             ListItem::new(Line::from(spans))
         })
         .collect();
     let list = List::new(items)
         .block(titled_block(Text::new(" Menú ", " Menu ").get()))
-        .highlight_style(Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_style(Style::new().bg(theme().selection).add_modifier(Modifier::BOLD))
         .highlight_symbol("› ");
     let mut state = ListState::default().with_selected(Some(selected));
     frame.render_stateful_widget(list, menu, &mut state);
@@ -132,7 +142,7 @@ fn draw_home(frame: &mut Frame, app: &App, selected: usize, area: Rect) {
 
 /// Perfiles, último PDF y herramientas; debajo, los mensajes si hay.
 fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
-    let dim = Style::new().fg(Color::DarkGray);
+    let dim = Style::new().fg(theme().dim);
     let mut lines = Vec::new();
     let keys: Vec<&str> = app.courses.iter().map(|c| c.key.as_str()).collect();
     lines.push(if keys.is_empty() {
@@ -144,7 +154,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
                     "none yet; create one with \"New profile\".",
                 )
                 .get(),
-                Style::new().fg(Color::Yellow),
+                Style::new().fg(theme().warn),
             ),
         ])
     } else {
@@ -171,7 +181,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     for tool in &app.tools {
         lines.push(match (tool.found, tool.required) {
             (true, required) => {
-                let mut spans = vec![Span::styled("✓ ", Style::new().fg(Color::Green)), Span::raw(tool.name)];
+                let mut spans = vec![Span::styled("✓ ", Style::new().fg(theme().ok)), Span::raw(tool.name)];
                 if !required {
                     spans.push(Span::styled(Text::new(" (opcional)", " (optional)").get(), dim));
                 }
@@ -179,7 +189,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
             }
             (false, true) => Line::styled(
                 tr!(es: "✗ {}: no está instalado (obligatorio)", en: "✗ {}: not installed (required)", tool.name),
-                Style::new().fg(Color::Red),
+                Style::new().fg(theme().error),
             ),
             (false, false) => Line::styled(
                 tr!(
@@ -187,7 +197,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
                     en: "! {}: not installed; diagrams will show as code",
                     tool.name
                 ),
-                Style::new().fg(Color::Yellow),
+                Style::new().fg(theme().warn),
             ),
         });
     }
@@ -198,7 +208,7 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
                 "The PDF cannot be generated without the required tools: see INSTALL.md.",
             )
             .get(),
-            Style::new().fg(Color::Red).bold(),
+            Style::new().fg(theme().error).bold(),
         ));
     }
     let status = Paragraph::new(lines)
@@ -223,7 +233,10 @@ fn draw_options(frame: &mut Frame, app: &App, selected: usize) {
         .iter()
         .map(|option| {
             let mut spans = vec![
-                Span::styled(format!(" {} ", option.key()), Style::new().fg(Color::Black).bg(ACCENT)),
+                Span::styled(
+                    format!(" {} ", option.key()),
+                    Style::new().fg(theme().on_accent).bg(theme().accent),
+                ),
                 Span::raw(format!(" {}", option.label)),
             ];
             // El perfil que se editaría, o que se creará uno.
@@ -232,7 +245,10 @@ fn draw_options(frame: &mut Frame, app: &App, selected: usize) {
                     "" => Text::new("ninguno elegido: crea uno", "none chosen: creates one").get().to_owned(),
                     key => key.to_owned(),
                 };
-                spans.push(Span::styled(format!("  {detail}"), Style::new().fg(Color::DarkGray)));
+                spans.push(Span::styled(format!("  {detail}"), Style::new().fg(theme().dim)));
+            }
+            if option.action == OptionAction::Theme {
+                spans.push(Span::styled(format!("  {}", theme().name), Style::new().fg(theme().dim)));
             }
             Line::from(spans)
         })
@@ -242,12 +258,12 @@ fn draw_options(frame: &mut Frame, app: &App, selected: usize) {
     let area = frame.area();
     let popup =
         centered_size(area, widest.saturating_add(4).max(percent(area.width, 60)), OPTIONS.len() as u16 + 2);
-    frame.render_widget(Clear, popup);
-    let block =
-        titled_block(Text::new(" Opciones ", " Options ").get()).border_style(Style::new().fg(ACCENT));
+    clear(frame, popup);
+    let block = titled_block(Text::new(" Opciones ", " Options ").get())
+        .border_style(Style::new().fg(theme().accent));
     let list = List::new(rows.into_iter().map(ListItem::new).collect::<Vec<_>>())
         .block(block)
-        .highlight_style(Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_style(Style::new().bg(theme().selection).add_modifier(Modifier::BOLD))
         .highlight_symbol("› ");
     let mut state = ListState::default().with_selected(Some(selected));
     frame.render_stateful_widget(list, popup, &mut state);
@@ -257,13 +273,13 @@ fn draw_options(frame: &mut Frame, app: &App, selected: usize) {
 /// no se sabe cuál lee la persona.
 fn draw_language(frame: &mut Frame, selected: Lang) {
     let popup = centered(frame.area(), 50, 9);
-    frame.render_widget(Clear, popup);
-    let block = titled_block(" Idioma / Language ").border_style(Style::new().fg(ACCENT));
+    clear(frame, popup);
+    let block = titled_block(" Idioma / Language ").border_style(Style::new().fg(theme().accent));
     let inner = block.inner(popup);
     frame.render_widget(block, popup);
     let option = |lang: Lang, label: &'static str| {
         let style = if lang == selected {
-            Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD)
+            Style::new().bg(theme().selection).add_modifier(Modifier::BOLD)
         } else {
             Style::new()
         };
@@ -277,7 +293,7 @@ fn draw_language(frame: &mut Frame, selected: Lang) {
         option(Lang::Es, "Español"),
         option(Lang::En, "English"),
         Line::raw(""),
-        Line::styled("↑↓ · Enter", Style::new().fg(Color::DarkGray)),
+        Line::styled("↑↓ · Enter", Style::new().fg(theme().dim)),
     ];
     frame.render_widget(Paragraph::new(lines), inner);
 }
@@ -288,7 +304,7 @@ fn titled_block<'a>(title: impl Into<Line<'a>>) -> Block<'a> {
 
 fn draw_header(frame: &mut Frame, area: Rect) {
     let title = Line::from(vec![
-        Span::styled(" INVESTIGACION ", Style::new().fg(Color::Black).bg(ACCENT).bold()),
+        Span::styled(" INVESTIGACION ", Style::new().fg(theme().on_accent).bg(theme().accent).bold()),
         Span::raw("  Markdown → PDF"),
     ]);
     frame.render_widget(Paragraph::new(title).block(titled_block("")), area);
@@ -310,9 +326,9 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
             };
             let shown = if value.is_empty() {
                 if required {
-                    Span::styled(Text::new("[falta]", "[missing]").get(), Style::new().fg(Color::Red))
+                    Span::styled(Text::new("[falta]", "[missing]").get(), Style::new().fg(theme().error))
                 } else {
-                    Span::styled(format!("({empty})"), Style::new().fg(Color::DarkGray))
+                    Span::styled(format!("({empty})"), Style::new().fg(theme().dim))
                 }
             } else if field.is_some_and(|f| f.key == FieldKey::Markdown) {
                 Span::raw(app.display_path(value))
@@ -320,7 +336,7 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
                 Span::raw(value.to_owned())
             };
             ListItem::new(Line::from(vec![
-                Span::styled(format!("{:>2} ", index + 1), Style::new().fg(Color::DarkGray)),
+                Span::styled(format!("{:>2} ", index + 1), Style::new().fg(theme().dim)),
                 Span::raw(picker),
                 Span::styled(
                     format!("{:<label_width$}", format!("{}{marker}", app.field_label(index))),
@@ -332,7 +348,7 @@ fn draw_form(frame: &mut Frame, app: &App, area: Rect) {
         .collect();
     let list = List::new(items)
         .block(titled_block(Text::new(" Trabajo ", " Paper ").get()))
-        .highlight_style(Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD));
+        .highlight_style(Style::new().bg(theme().selection).add_modifier(Modifier::BOLD));
     let mut state = ListState::default().with_selected(Some(app.selected));
     frame.render_stateful_widget(list, area, &mut state);
 }
@@ -351,11 +367,11 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect) {
                 en: "The design's own field: %%{}%%. Saved in the profile or given with --set.",
                 extra.name
             ),
-            Style::new().fg(Color::DarkGray),
+            Style::new().fg(theme().dim),
         ));
         lines.push(Line::styled(
             Text::new("Enter para escribirlo", "Enter to write it").get(),
-            Style::new().fg(ACCENT),
+            Style::new().fg(theme().accent),
         ));
         frame.render_widget(
             Paragraph::new(lines).wrap(Wrap { trim: true }).block(titled_block(format!(" {} ", extra.label))),
@@ -366,17 +382,14 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect) {
     let mut lines = vec![
         Line::from(field.help.get()),
         Line::from(vec![
-            Span::styled(Text::new("Ejemplo: ", "Example: ").get(), Style::new().fg(Color::DarkGray)),
+            Span::styled(Text::new("Ejemplo: ", "Example: ").get(), Style::new().fg(theme().dim)),
             Span::raw(field.example.get()),
         ]),
     ];
     // La materia es obligatoria según el diseño, no según `FIELDS`.
     if !app.is_required(app.selected) && !field.empty.get().is_empty() {
         lines.push(Line::from(vec![
-            Span::styled(
-                Text::new("Si se deja vacío: ", "If empty: ").get(),
-                Style::new().fg(Color::DarkGray),
-            ),
+            Span::styled(Text::new("Si se deja vacío: ", "If empty: ").get(), Style::new().fg(theme().dim)),
             Span::raw(field.empty.get()),
         ]));
     }
@@ -385,7 +398,7 @@ fn draw_help(frame: &mut Frame, app: &App, area: Rect) {
         FieldKind::Pick(_) => Text::new("Enter para elegir de la lista", "Enter to choose from the list"),
     }
     .get();
-    lines.push(Line::from(Span::styled(action, Style::new().fg(ACCENT))));
+    lines.push(Line::from(Span::styled(action, Style::new().fg(theme().accent))));
     frame.render_widget(
         Paragraph::new(lines).wrap(Wrap { trim: true }).block(titled_block(format!(" {} ", field.label))),
         area,
@@ -399,13 +412,13 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
         lines.push(if missing.is_empty() {
             Line::styled(
                 Text::new("Listo. Pulsa g para generar el PDF.", "Ready. Press g to generate the PDF.").get(),
-                Style::new().fg(Color::Green),
+                Style::new().fg(theme().ok),
             )
         } else {
             let missing = missing.join(", ");
             Line::styled(
                 tr!(es: "Falta: {missing}.", en: "Missing: {missing}."),
-                Style::new().fg(Color::Yellow),
+                Style::new().fg(theme().warn),
             )
         });
     }
@@ -422,8 +435,8 @@ fn draw_log(frame: &mut Frame, app: &App, area: Rect) {
 fn log_line(entry: &LogLine) -> Line<'static> {
     match entry {
         LogLine::Info(text) => Line::raw(text.clone()),
-        LogLine::Warning(text) => Line::styled(format!("! {text}"), Style::new().fg(Color::Yellow)),
-        LogLine::Error(text) => Line::styled(format!("✗ {text}"), Style::new().fg(Color::Red)),
+        LogLine::Warning(text) => Line::styled(format!("! {text}"), Style::new().fg(theme().warn)),
+        LogLine::Error(text) => Line::styled(format!("✗ {text}"), Style::new().fg(theme().error)),
     }
 }
 
@@ -444,6 +457,14 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         Lang::En => "q",
     };
     let keys: Vec<(&str, Text)> = match app.mode {
+        Mode::Wizard(ref wizard) if wizard.is_folder_step() => vec![
+            ("Enter/→", Text::new("abrir/elegir", "open/choose")),
+            ("←", Text::new("subir", "up")),
+            ("Tab", Text::new("siguiente", "next")),
+            (Text::new("Supr", "Del").get(), Text::new("vaciar", "clear")),
+            ("⇧Tab", Text::new("atrás", "back")),
+            ("Esc", Text::new("cancelar", "cancel")),
+        ],
         Mode::Wizard(_) => vec![
             ("Enter", Text::new("siguiente", "next")),
             ("⇧Tab", Text::new("atrás", "back")),
@@ -475,6 +496,14 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         Mode::Editing(_) => {
             vec![("Enter", Text::new("guardar", "save")), ("Esc", Text::new("cancelar", "cancel"))]
         }
+        Mode::Picking(ref picker) if picker.purpose == PickerPurpose::Workspace => vec![
+            ("Enter/→", Text::new("abrir/elegir", "open/choose")),
+            ("←", Text::new("subir", "up")),
+            match app.uses_program_folder() {
+                true => ("Esc", Text::new("usar la carpeta del programa", "use the program folder")),
+                false => ("Esc", Text::new("cancelar", "cancel")),
+            },
+        ],
         Mode::Picking(_) => vec![
             ("↑↓", Text::new("mover", "move")),
             ("Enter/→", Text::new("abrir/elegir", "open/choose")),
@@ -488,7 +517,7 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
         .iter()
         .flat_map(|(key, action)| {
             [
-                Span::styled(format!(" {key} "), Style::new().fg(Color::Black).bg(ACCENT)),
+                Span::styled(format!(" {key} "), Style::new().fg(theme().on_accent).bg(theme().accent)),
                 Span::raw(format!(" {action}  ")),
             ]
         })
@@ -498,8 +527,8 @@ fn draw_footer(frame: &mut Frame, app: &App, area: Rect) {
 
 fn draw_picker(frame: &mut Frame, app: &App, picker: &Picker) {
     let area = centered(frame.area(), 80, frame.area().height.saturating_sub(4).max(8));
-    frame.render_widget(Clear, area);
-    let block = titled_block(format!(" {} ", picker.title)).border_style(Style::new().fg(ACCENT));
+    clear(frame, area);
+    let block = titled_block(format!(" {} ", picker.title)).border_style(Style::new().fg(theme().accent));
     let inner = block.inner(area);
     frame.render_widget(block, area);
     let [location, filter, list_area] =
@@ -511,7 +540,7 @@ fn draw_picker(frame: &mut Frame, app: &App, picker: &Picker) {
             if shown.is_empty() { Text::new("(proyecto)", "(project)").get().to_owned() } else { shown };
         frame.render_widget(
             Paragraph::new(Line::from(vec![
-                Span::styled(Text::new("En: ", "In: ").get(), Style::new().fg(Color::DarkGray)),
+                Span::styled(Text::new("En: ", "In: ").get(), Style::new().fg(theme().dim)),
                 Span::raw(shown),
             ])),
             location,
@@ -520,11 +549,11 @@ fn draw_picker(frame: &mut Frame, app: &App, picker: &Picker) {
     let filter_line = if picker.filter.is_empty() {
         Line::styled(
             Text::new("Escribe para filtrar…", "Type to filter…").get(),
-            Style::new().fg(Color::DarkGray),
+            Style::new().fg(theme().dim),
         )
     } else {
         Line::from(vec![
-            Span::styled(Text::new("Filtro: ", "Filter: ").get(), Style::new().fg(Color::DarkGray)),
+            Span::styled(Text::new("Filtro: ", "Filter: ").get(), Style::new().fg(theme().dim)),
             Span::raw(picker.filter.clone()),
         ])
     };
@@ -539,23 +568,24 @@ fn render_picker_list(frame: &mut Frame, picker: &Picker, list_area: Rect) {
     let items: Vec<ListItem> = if visible.is_empty() {
         vec![ListItem::new(Line::styled(
             Text::new("(nada aquí)", "(nothing here)").get(),
-            Style::new().fg(Color::DarkGray),
+            Style::new().fg(theme().dim),
         ))]
     } else {
         visible
             .iter()
             .map(|item| {
-                let style = if item.label.ends_with('/') { Style::new().fg(ACCENT) } else { Style::new() };
+                let style =
+                    if item.label.ends_with('/') { Style::new().fg(theme().accent) } else { Style::new() };
                 let mut spans = vec![Span::styled(item.label.clone(), style)];
                 if !item.detail.is_empty() {
-                    spans.push(Span::styled(format!("  {}", item.detail), Style::new().fg(Color::DarkGray)));
+                    spans.push(Span::styled(format!("  {}", item.detail), Style::new().fg(theme().dim)));
                 }
                 ListItem::new(Line::from(spans))
             })
             .collect()
     };
     let list = List::new(items)
-        .highlight_style(Style::new().bg(Color::DarkGray).add_modifier(Modifier::BOLD))
+        .highlight_style(Style::new().bg(theme().selection).add_modifier(Modifier::BOLD))
         .highlight_symbol("› ");
     let mut state = ListState::default().with_selected(Some(picker.selected));
     frame.render_stateful_widget(list, list_area, &mut state);
@@ -564,29 +594,50 @@ fn render_picker_list(frame: &mut Frame, picker: &Picker, list_area: Rect) {
 /// El asistente de perfiles: un paso a la vez, con su ayuda y su campo o lista.
 fn draw_wizard(frame: &mut Frame, wizard: &Wizard) {
     let area = centered(frame.area(), 80, frame.area().height.saturating_sub(4).max(12));
-    frame.render_widget(Clear, area);
-    let title = if wizard.editing {
+    clear(frame, area);
+    let title = if wizard.editing() {
         Text::new(" Editar perfil ", " Edit profile ")
     } else {
         Text::new(" Nuevo perfil ", " New profile ")
     };
-    let block = titled_block(title.get()).border_style(Style::new().fg(ACCENT));
+    let block = titled_block(title.get()).border_style(Style::new().fg(theme().accent));
     let inner = block.inner(area);
     frame.render_widget(block, area);
-    let [header, body] = Layout::vertical([Constraint::Length(5), Constraint::Min(1)]).areas(inner);
-
     let step = wizard.step();
     let mark = if step.required { " *" } else { "" };
     let progress = tr!(es: "Paso {} de {}", en: "Step {} of {}", wizard.index + 1, wizard.steps.len());
     let mut lines = vec![
-        Line::styled(progress, Style::new().fg(Color::DarkGray)),
+        Line::styled(progress, Style::new().fg(theme().dim)),
         Line::styled(format!("{}{mark}", step.title), Style::new().bold()),
         Line::raw(step.help.clone()),
     ];
     if let Some(error) = &wizard.error {
-        lines.push(Line::styled(error.clone(), Style::new().fg(Color::Red)));
+        lines.push(Line::styled(error.clone(), Style::new().fg(theme().error)));
     }
-    frame.render_widget(Paragraph::new(lines).wrap(Wrap { trim: true }), header);
+    // En los pasos de carpetas: lo elegido hasta ahora y dónde se está.
+    if wizard.is_folder_step() {
+        let chosen = match step.target {
+            Target::Output => wizard.profile.output.clone(),
+            _ => wizard.profile.copies.join("; "),
+        };
+        let chosen =
+            if chosen.is_empty() { Text::new("(ninguna)", "(none)").get().to_owned() } else { chosen };
+        lines.push(Line::from(vec![
+            Span::styled(Text::new("Elegido: ", "Chosen: ").get(), Style::new().fg(theme().dim)),
+            Span::styled(chosen, Style::new().bold()),
+        ]));
+        if let Some(dir) = wizard.picker.as_ref().and_then(|p| p.dir.as_ref()) {
+            lines.push(Line::from(vec![
+                Span::styled(Text::new("En: ", "In: ").get(), Style::new().fg(theme().dim)),
+                Span::raw(dir.display().to_string()),
+            ]));
+        }
+    }
+    let header_text = Paragraph::new(lines).wrap(Wrap { trim: true });
+    let header_height = (header_text.line_count(inner.width) as u16).min(inner.height.saturating_sub(3));
+    let [header, body] =
+        Layout::vertical([Constraint::Length(header_height + 1), Constraint::Min(1)]).areas(inner);
+    frame.render_widget(header_text, header);
 
     match &wizard.picker {
         Some(picker) => render_picker_list(frame, picker, body),

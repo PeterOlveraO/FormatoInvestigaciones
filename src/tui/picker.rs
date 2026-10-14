@@ -4,6 +4,11 @@
 
 use std::path::{Path, PathBuf};
 
+use ratatui::crossterm::event::KeyCode;
+
+use crate::project::Project;
+use crate::template::{list_designs, list_formats, load_design, load_format};
+
 /// Lo que devuelve una entrada al elegirla.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum PickValue {
@@ -13,6 +18,8 @@ pub enum PickValue {
     Dir(PathBuf),
     /// Archivo elegido.
     File(PathBuf),
+    /// La carpeta que se está viendo, en un selector de carpetas.
+    Here(PathBuf),
     /// Opción de una lista fija (clave de perfil, nombre de plantilla...).
     Choice(String),
 }
@@ -32,7 +39,14 @@ pub enum PickerPurpose {
     Profile,
     Format,
     Template,
+    /// Abrir una carpeta del proyecto con el explorador del sistema.
     Folder,
+    /// Elegir la carpeta de salida o una de las copias extra.
+    Output,
+    Copies,
+    Theme,
+    /// La carpeta de trabajo (primera vez u Opciones).
+    Workspace,
 }
 
 #[derive(Debug, Clone)]
@@ -60,16 +74,22 @@ impl Picker {
         Self { purpose, title: title.into(), dir: None, items, filter: String::new(), selected: 0 }
     }
 
-    /// Navegador de archivos que muestra carpetas y archivos con `extension`.
-    pub fn files(purpose: PickerPurpose, title: impl Into<String>, dir: &Path, extension: &str) -> Self {
+    /// Navegador de carpetas. El del Markdown muestra también los `.md`; los
+    /// demás son selectores de carpetas, con `./` para elegir la que se ve.
+    pub fn files(purpose: PickerPurpose, title: impl Into<String>, dir: &Path) -> Self {
         let mut picker = Self::choices(purpose, title, Vec::new());
-        picker.open_dir(dir, extension);
+        picker.open_dir(dir);
         picker
+    }
+
+    fn extension(&self) -> &'static str {
+        if self.purpose == PickerPurpose::Markdown { "md" } else { "" }
     }
 
     /// Carga una carpeta: primero `..`, luego carpetas y luego archivos, cada
     /// grupo en orden alfabético sin distinguir mayúsculas. Ocultos fuera.
-    pub fn open_dir(&mut self, dir: &Path, extension: &str) {
+    pub fn open_dir(&mut self, dir: &Path) {
+        let extension = self.extension();
         let mut dirs = Vec::new();
         let mut files = Vec::new();
         for entry in std::fs::read_dir(dir).into_iter().flatten().flatten() {
@@ -84,7 +104,9 @@ impl Picker {
                     detail: String::new(),
                     value: PickValue::Dir(path),
                 });
-            } else if path.extension().is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case(extension)) {
+            } else if !extension.is_empty()
+                && path.extension().is_some_and(|e| e.to_string_lossy().eq_ignore_ascii_case(extension))
+            {
                 files.push(Item { label: name, detail: String::new(), value: PickValue::File(path) });
             }
         }
@@ -98,6 +120,13 @@ impl Picker {
                 label: "../".into(),
                 detail: crate::i18n::Text::new("subir", "up").get().into(),
                 value: PickValue::Up(parent.into()),
+            });
+        }
+        if extension.is_empty() {
+            self.items.push(Item {
+                label: "./".into(),
+                detail: crate::i18n::Text::new("usar esta carpeta", "use this folder").get().into(),
+                value: PickValue::Here(dir.to_path_buf()),
             });
         }
         self.items.extend(dirs);
@@ -174,13 +203,13 @@ impl Picker {
     }
 
     /// Enter: entra en carpetas y devuelve lo demás a quien abrió el selector.
-    pub fn activate(&mut self, extension: &str) -> PickOutcome {
+    pub fn activate(&mut self) -> PickOutcome {
         let Some(item) = self.visible().get(self.selected).map(|item| item.value.clone()) else {
             return PickOutcome::Stay;
         };
         match item {
             PickValue::Up(dir) | PickValue::Dir(dir) if self.purpose != PickerPurpose::Folder => {
-                self.open_dir(&dir, extension);
+                self.open_dir(&dir);
                 PickOutcome::Stay
             }
             other => PickOutcome::Chosen(other),
@@ -188,10 +217,10 @@ impl Picker {
     }
 
     /// Retroceso con el filtro vacío o flecha izquierda: carpeta padre.
-    pub fn go_up(&mut self, extension: &str) {
+    pub fn go_up(&mut self) {
         if let Some(parent) = self.dir.as_ref().and_then(|d| d.parent()).map(Path::to_path_buf) {
             let previous = self.dir.clone();
-            self.open_dir(&parent, extension);
+            self.open_dir(&parent);
             // Deja seleccionada la carpeta de la que se salió.
             if let Some(previous) = previous {
                 let position =
@@ -200,6 +229,55 @@ impl Picker {
             }
         }
     }
+
+    /// Las teclas de cualquier selector: mover, filtrar, entrar, subir y Esc.
+    pub fn handle_key(&mut self, code: KeyCode) -> PickOutcome {
+        let browsing = self.dir.is_some();
+        match code {
+            KeyCode::Esc => return PickOutcome::Cancel,
+            KeyCode::Up => self.move_by(-1),
+            KeyCode::Down => self.move_by(1),
+            KeyCode::PageUp => self.move_by(-10),
+            KeyCode::PageDown => self.move_by(10),
+            KeyCode::Enter => return self.activate(),
+            KeyCode::Right if browsing => return self.activate(),
+            KeyCode::Left if browsing => self.go_up(),
+            // Con el filtro vacío, retroceso sube de carpeta.
+            KeyCode::Backspace => {
+                if !self.pop_filter() && browsing {
+                    self.go_up();
+                }
+            }
+            KeyCode::Char(c) => self.push_filter(c),
+            _ => {}
+        }
+        PickOutcome::Stay
+    }
+}
+
+/// Los formatos, con el nombre de su norma.
+pub fn format_items(project: &Project) -> Vec<Item> {
+    list_formats(project)
+        .into_iter()
+        .map(|key| {
+            let detail =
+                load_format(project, &key).map(|f| f.manifest.name.get().to_owned()).unwrap_or_default();
+            Item { label: key.clone(), detail, value: PickValue::Choice(key) }
+        })
+        .collect()
+}
+
+/// Los diseños que combinan con `format` (vacío = todos), con su descripción.
+pub fn design_items(project: &Project, format: &str) -> Vec<Item> {
+    list_designs(project)
+        .into_iter()
+        .filter_map(|key| {
+            let design = load_design(project, Some(&key)).ok()?;
+            let fits = format.is_empty() || design.is_self_contained() || design.accepts(format);
+            let detail = design.manifest.description.as_ref().map(|d| d.get().to_owned()).unwrap_or_default();
+            fits.then(|| Item { label: key.clone(), detail, value: PickValue::Choice(key) })
+        })
+        .collect()
 }
 
 #[cfg(test)]
@@ -215,9 +293,25 @@ mod tests {
         std::fs::write(root.join("A.MD"), "").unwrap();
         std::fs::write(root.join("notas.txt"), "").unwrap();
         std::fs::write(root.join(".oculto.md"), "").unwrap();
-        let picker = Picker::files(PickerPurpose::Markdown, "x", root, "md");
+        let picker = Picker::files(PickerPurpose::Markdown, "x", root);
         let labels: Vec<&str> = picker.items.iter().map(|i| i.label.as_str()).collect();
         assert_eq!(labels, ["../", "IA/", "A.MD", "b.md"]);
+    }
+
+    #[test]
+    fn without_an_extension_only_folders_are_listed_and_dot_chooses_the_current_one() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        std::fs::create_dir(root.join("IA")).unwrap();
+        std::fs::write(root.join("a.md"), "").unwrap();
+        std::fs::write(root.join("sin-extension."), "").unwrap();
+        let mut picker = Picker::files(PickerPurpose::Output, "x", root);
+        let labels: Vec<&str> = picker.items.iter().map(|i| i.label.as_str()).collect();
+        assert_eq!(labels, ["../", "./", "IA/"]);
+        picker.move_by(2);
+        assert_eq!(picker.activate(), PickOutcome::Stay);
+        picker.move_by(1);
+        assert_eq!(picker.activate(), PickOutcome::Chosen(PickValue::Here(root.join("IA"))));
     }
 
     #[test]
@@ -226,16 +320,13 @@ mod tests {
         let root = directory.path();
         std::fs::create_dir(root.join("IA")).unwrap();
         std::fs::write(root.join("IA").join("Tarea.md"), "").unwrap();
-        let mut picker = Picker::files(PickerPurpose::Markdown, "x", root, "md");
+        let mut picker = Picker::files(PickerPurpose::Markdown, "x", root);
         picker.push_filter('i');
-        assert_eq!(picker.activate("md"), PickOutcome::Stay);
+        assert_eq!(picker.activate(), PickOutcome::Stay);
         assert_eq!(picker.dir.as_deref(), Some(root.join("IA").as_path()));
         picker.push_filter('t');
-        assert_eq!(
-            picker.activate("md"),
-            PickOutcome::Chosen(PickValue::File(root.join("IA").join("Tarea.md")))
-        );
-        picker.go_up("md");
+        assert_eq!(picker.activate(), PickOutcome::Chosen(PickValue::File(root.join("IA").join("Tarea.md"))));
+        picker.go_up();
         assert_eq!(picker.dir.as_deref(), Some(root));
         assert_eq!(picker.visible()[picker.selected].label, "IA/");
     }
@@ -268,7 +359,7 @@ mod tests {
             picker.push_filter(c);
         }
         assert_eq!(picker.visible().len(), 1);
-        assert_eq!(picker.activate("md"), PickOutcome::Chosen(PickValue::Choice("ia".into())));
+        assert_eq!(picker.activate(), PickOutcome::Chosen(PickValue::Choice("ia".into())));
         picker.move_by(10);
         assert_eq!(picker.selected, 0);
     }

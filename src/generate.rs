@@ -13,7 +13,7 @@ use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::{pandoc_to_latex, resource_dirs};
 use crate::project::{Project, absolute};
-use crate::template::{Layout, resolve_layout};
+use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 
 /// Opciones de la generación que no son datos de la portada.
 #[derive(Debug, Default, Clone)]
@@ -147,21 +147,12 @@ fn latex_state_dir(project: &Project, output_pdf: &Path, template: &str) -> Path
 /// tiene su marcador, y los campos propios que su ficha marca como obligatorios.
 pub fn missing_data(layout: &Layout, data: &DocumentData) -> Vec<String> {
     let design = &layout.design;
-    let standard = [
-        ("TITULO", &data.title),
-        ("UNIVERSIDAD", &data.university),
-        ("FACULTAD", &data.faculty),
-        ("SEMESTRE", &data.semester),
-        ("MATERIA", &data.course),
-    ];
-    let mut missing: Vec<String> = standard
-        .iter()
-        .filter(|(marker, value)| {
-            design.uses(marker)
-                && !design.manifest.optional.iter().any(|o| o == marker)
-                && value.trim().is_empty()
-        })
-        .map(|(marker, _)| (*marker).to_owned())
+    let values = [&data.title, &data.university, &data.faculty, &data.semester, &data.course];
+    let mut missing: Vec<String> = REQUIRED_MARKERS
+        .into_iter()
+        .zip(values)
+        .filter(|(marker, value)| design.requires(marker) && value.trim().is_empty())
+        .map(|(marker, _)| marker.to_owned())
         .collect();
     for name in design.custom_fields() {
         let empty = data.fields.get(name).is_none_or(|v| v.trim().is_empty());
@@ -181,8 +172,6 @@ pub fn missing_data_error(layout: &Layout, missing: &[String]) -> GenerationErro
     ))
 }
 
-/// Deja una copia del PDF en cada carpeta extra, sin repetir ni copiar sobre
-/// la propia carpeta de salida.
 /// Error de escritura con la ruta y la causa más común (el PDF abierto en un
 /// visor que lo bloquea, típico de Windows).
 pub fn cannot_write(path: &Path, error: &std::io::Error) -> GenerationError {
@@ -194,6 +183,8 @@ pub fn cannot_write(path: &Path, error: &std::io::Error) -> GenerationError {
     ))
 }
 
+/// Deja una copia del PDF en cada carpeta extra, sin repetir ni copiar sobre
+/// la propia carpeta de salida.
 pub fn copy_pdf_to(pdf: &Path, directories: &[PathBuf]) -> Result<Vec<PathBuf>> {
     let mut seen: HashSet<PathBuf> = HashSet::new();
     if let Some(parent) = pdf.parent() {
