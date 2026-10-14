@@ -22,8 +22,7 @@ pub enum Target {
     /// Un campo propio del diseño (`SALON`).
     Custom(String),
     Folder,
-    /// Carpetas elegidas con el selector de carpetas.
-    Output,
+    /// Carpetas de las copias, elegidas con el selector de carpetas.
     Copies,
 }
 
@@ -175,7 +174,6 @@ impl Wizard {
             }
             Target::Custom(name) => self.profile.fields.get(&name).cloned().unwrap_or_default(),
             Target::Folder => self.profile.folder.clone(),
-            Target::Output => self.profile.output.clone(),
             Target::Copies => self.profile.copies.join("; "),
         }
     }
@@ -192,16 +190,11 @@ impl Wizard {
                 self.step().title.clone(),
                 design_items(project, &self.profile.format),
             )),
-            Target::Output | Target::Copies => {
-                // Empieza en la carpeta ya guardada (la última copia) o en la raíz.
+            Target::Copies => {
+                // Empieza en la última copia guardada o en la raíz.
                 let last = current.rsplit(';').next().unwrap_or_default().trim();
                 let start = existing_dir(&project.resolve(last)).unwrap_or_else(|| project.work.clone());
-                let purpose = if self.step().target == Target::Output {
-                    PickerPurpose::Output
-                } else {
-                    PickerPurpose::Copies
-                };
-                Some(Picker::files(purpose, self.step().title.clone(), &start))
+                Some(Picker::files(PickerPurpose::Copies, self.step().title.clone(), &start))
             }
             _ => None,
         };
@@ -252,17 +245,6 @@ impl Wizard {
             required: false,
         });
         self.steps.push(Step {
-            target: Target::Output,
-            title: Text::new("Carpeta de salida", "Output folder").get().into(),
-            help: Text::new(
-                "Dónde se guarda el PDF. Entra en la carpeta y elige ./; Tab sigue sin elegir (output/<carpeta>).",
-                "Where the PDF is saved. Go into the folder and choose ./; Tab moves on without one (output/<folder>).",
-            )
-            .get()
-            .into(),
-            required: false,
-        });
-        self.steps.push(Step {
             target: Target::Copies,
             title: Text::new("Copias extra", "Extra copies").get().into(),
             help: Text::new(
@@ -277,7 +259,7 @@ impl Wizard {
 
     /// Paso que se llena con el selector de carpetas.
     pub fn is_folder_step(&self) -> bool {
-        matches!(self.step().target, Target::Output | Target::Copies)
+        self.step().target == Target::Copies
     }
 
     /// Guarda la respuesta del paso actual y avanza.
@@ -329,7 +311,6 @@ impl Wizard {
                 }
             }
             Target::Folder => self.profile.folder = value,
-            Target::Output => self.profile.output = value,
             Target::Copies => {
                 self.profile.copies =
                     value.split(';').map(str::trim).filter(|c| !c.is_empty()).map(str::to_owned).collect()
@@ -360,10 +341,7 @@ impl Wizard {
                 return self.commit(value, project);
             }
             KeyCode::Delete if self.is_folder_step() => {
-                match self.step().target {
-                    Target::Output => self.profile.output.clear(),
-                    _ => self.profile.copies.clear(),
-                }
+                self.profile.copies.clear();
                 return Outcome::Continue;
             }
             _ => {}
@@ -371,12 +349,9 @@ impl Wizard {
         if let Some(picker) = &mut self.picker {
             return match picker.handle_key(key.code) {
                 PickOutcome::Chosen(PickValue::Choice(value)) => self.commit(value, project),
-                // Salida: se elige y se sigue. Copias: se suman y el paso sigue abierto.
+                // Las copias se suman y el paso sigue abierto.
                 PickOutcome::Chosen(PickValue::Here(dir)) => {
                     let path = short_path(&project.work, &dir);
-                    if self.step().target == Target::Output {
-                        return self.commit(path, project);
-                    }
                     if !self.profile.copies.contains(&path) {
                         self.profile.copies.push(path);
                     }

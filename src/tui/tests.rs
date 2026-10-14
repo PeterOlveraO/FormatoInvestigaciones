@@ -443,7 +443,7 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     // Con apa7 se ofrecen los dos diseños; se elige el que tiene campo propio.
     type_text(&mut app, "geometric");
     press(&mut app, KeyCode::Enter);
-    // Pasos: universidad*, materia*, docente, salón*, carpeta, salida y copias.
+    // Pasos: universidad*, materia*, docente, salón*, carpeta y copias.
     press(&mut app, KeyCode::Enter);
     let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
     assert!(wizard.error.is_some(), "la universidad es obligatoria");
@@ -451,13 +451,8 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
         type_text(&mut app, answer);
         press(&mut app, KeyCode::Enter);
     }
-    // Salida: el selector de carpetas empieza en la raíz; se entra en input/ y se elige ./.
+    // Copias: el selector empieza en la raíz; cada ./ se suma (repetida no) y Tab termina.
     assert!(render(&app).contains("usar esta carpeta"));
-    type_text(&mut app, "input");
-    press(&mut app, KeyCode::Enter);
-    press(&mut app, KeyCode::Down);
-    press(&mut app, KeyCode::Enter);
-    // Copias: cada ./ se suma (repetida no) y Tab termina.
     type_text(&mut app, "input");
     press(&mut app, KeyCode::Enter);
     type_text(&mut app, "IA");
@@ -482,7 +477,7 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     }
     assert!(!saved.contains("teacher"), "lo vacío no se guarda");
     let profile = crate::courses::find_course(&project, "bases-de-datos").unwrap().profile;
-    assert_eq!(Path::new(&profile.output), Path::new("input"));
+    assert!(profile.output.is_empty(), "el asistente ya no pide la salida");
     assert_eq!(profile.copies.len(), 1);
     assert_eq!(Path::new(&profile.copies[0]), Path::new("input").join("IA"));
     // Se aplica al formulario, con el campo propio lleno.

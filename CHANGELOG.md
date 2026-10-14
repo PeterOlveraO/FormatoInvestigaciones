@@ -5,6 +5,12 @@
 **Windows is supported** (tested on Windows 11 with MiKTeX). Installation steps
 are in `INSTALL.md`.
 
+### Changed
+
+- The profile wizard no longer asks for an output folder: the PDF goes to
+  `output/<folder>` of the profile. The `output` key still works in profiles
+  that have it, and the menu still lets you choose the folder.
+
 ### Fixed
 
 - Choosing the Markdown again in the menu opens the folder of the file already

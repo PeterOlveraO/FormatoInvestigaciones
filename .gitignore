@@ -1,11 +1,13 @@
 # Rust build output
 /target/
 
-# Personal data: everyone's own settings, papers and PDFs
+# Personal data: everyone's own settings, papers and PDFs (.env is the old settings file)
 .env
 settings.toml
 /input/
 /output/
+# A work folder (CARPETA_TRABAJO) inside the project holds the same personal data
+/entrada/
 
 # Course profiles hold teachers' names; only the example is shared
 /courses/*
@@ -15,7 +17,7 @@ settings.toml
 # Institution logos are rarely redistributable; only the explanation is shared
 /templates/logos/*
 !/templates/logos/README.md
-/templates/*/logos/
+/templates/designs/*/logos/
 /logos/
 
 # Your own formats and designs (my-templates/formats, my-templates/designs)
@@ -38,4 +40,4 @@ Thumbs.db
 .vscode/
 
 # Archivos de trabajo de la skill de investigación (agy)
-investigacion/
+/investigacion/

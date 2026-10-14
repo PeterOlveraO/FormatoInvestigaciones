@@ -470,7 +470,6 @@ answer with "This field is required."
 | 4+ | One step per **standard marker the design uses**, in this order: `UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO`, `SEMESTRE` | text | `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `MATERIA` unless the design lists them in `optional`; others never |
 | ... | One step per **custom field** of the design (label and help from `template.toml`) | text | only if `required = true` |
 | ... | Papers folder (`folder`) | text | no |
-| ... | Output folder (`output`) | folder picker: Enter/Right opens, `./` chooses and moves on | no |
 | last | Extra copies (`copies`) | folder picker: each `./` is added and the step stays | no |
 
 Keys: Enter accepts and moves on, Shift+Tab goes back one step, Esc cancels,
@@ -1309,7 +1308,7 @@ folders.
   group alphabetical ignoring case, hidden entries (starting with `.`) excluded.
   Enter or Right opens a folder or chooses a file; Left, or Backspace with an
   empty filter, goes up and keeps the folder you left selected.
-- Folder picker (output folder, extra copies; also in the wizard): the same
+- Folder picker (output folder, extra copies; the wizard uses it for the copies): the same
   browser without files, plus `./` (use this folder) after `../`. It starts in
   the folder already chosen (the last copy), or the nearest existing parent,
   else the project root.
