@@ -244,8 +244,9 @@ mod tests {
 
     #[test]
     fn a_folder_with_the_path_separator_is_split_off_with_a_warning() {
-        // El separador depende del sistema: se calcula en vez de escribirlo.
-        let separator = std::env::join_paths(["a", "b"]).unwrap().to_string_lossy().chars().nth(1).unwrap();
+        // `:` no cabe en Linux y macOS, `"` en Windows: se elige el que rechace este sistema.
+        let separator =
+            [':', '"'].into_iter().find(|c| std::env::join_paths([format!("a{c}b")]).is_err()).unwrap();
         let dirs =
             vec![PathBuf::from("/proyecto/figuras"), PathBuf::from(format!("/proyecto/car{separator}peta"))];
         let mut warnings = Vec::new();

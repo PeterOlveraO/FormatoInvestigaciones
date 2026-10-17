@@ -236,12 +236,14 @@ fn a_folder_named_like_an_image_is_not_an_image() {
 
 #[test]
 fn an_image_in_a_folder_with_the_path_separator_is_copied_to_the_cache() {
-    // El separador depende del sistema; donde no se puede crear la carpeta, no hay nada que probar.
+    // `:` en Linux y macOS. En Windows el carácter rechazado es `"`, que no puede ir en un
+    // nombre de carpeta: allí no hay nada que probar.
     if !has_tool("pandoc") {
         eprintln!("skipped: pandoc is not installed");
         return;
     }
-    let separator = std::env::join_paths(["a", "b"]).unwrap().to_string_lossy().chars().nth(1).unwrap();
+    let separator =
+        [':', '"'].into_iter().find(|c| std::env::join_paths([format!("a{c}b")]).is_err()).unwrap();
     let directory = tempfile::tempdir().unwrap();
     let folder = directory.path().join(format!("car{separator}peta"));
     if std::fs::create_dir(&folder).is_err() {

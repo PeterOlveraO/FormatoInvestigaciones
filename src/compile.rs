@@ -55,8 +55,8 @@ pub fn copy_template_assets(
 pub fn latex_search_path(directories: &[PathBuf]) -> Result<OsString> {
     let mut paths = Vec::new();
     for directory in directories {
-        // Con el separador del sistema en el nombre, la carpeta no cabe en TEXINPUTS:
-        // se omite y el resto de la búsqueda sigue. Al usuario ya lo avisó Pandoc,
+        // Una carpeta que `join_paths` no acepta (con `:` en Linux y macOS; en
+        // Windows `;` se entrecomilla) no cabe en TEXINPUTS: se omite y sigue. Al usuario ya lo avisó Pandoc,
         // que copia a la caché las imágenes de esa carpeta.
         if std::env::join_paths([directory]).is_err() {
             logging::warn(format_args!(
@@ -431,10 +431,12 @@ mod tests {
         remove_last_error(output);
     }
 
-    // Lleva `:` y `;`, así es inválida tanto en Linux como en Windows.
+    // `:` no cabe en Linux y macOS, `"` en Windows: se elige el que rechace este sistema.
     #[test]
     fn a_folder_with_the_path_separator_is_skipped() {
-        let bad = PathBuf::from("carpeta:con;separador");
+        let rejected =
+            [':', '"'].into_iter().find(|c| std::env::join_paths([format!("a{c}b")]).is_err()).unwrap();
+        let bad = PathBuf::from(format!("carpeta{rejected}separador"));
         let path = latex_search_path(&[PathBuf::from("."), bad.clone(), PathBuf::from("buena")]).unwrap();
 
         let entries: Vec<PathBuf> = std::env::split_paths(&path).collect();
