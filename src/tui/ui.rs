@@ -204,8 +204,8 @@ fn draw_status(frame: &mut Frame, app: &App, area: Rect) {
     if app.tools.iter().any(|t| t.required && !t.found) {
         lines.push(Line::styled(
             Text::new(
-                "Sin las herramientas obligatorias no se puede generar el PDF: mira INSTALL.md.",
-                "The PDF cannot be generated without the required tools: see INSTALL.md.",
+                "Sin las herramientas obligatorias no se puede generar el PDF: mira docs/install.md.",
+                "The PDF cannot be generated without the required tools: see docs/install.md.",
             )
             .get(),
             Style::new().fg(theme().error).bold(),

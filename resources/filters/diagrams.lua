@@ -29,9 +29,9 @@ function CodeBlock(bloque)
     local ok, salida = pcall(pandoc.pipe, "dot", { "-Tpdf" }, bloque.text)
     if not ok then
       avisar(texto(
-        "No se pudo dibujar un diagrama: falta Graphviz (ver INSTALL.md) o el diagrama " ..
+        "No se pudo dibujar un diagrama: falta Graphviz (ver docs/install.md) o el diagrama " ..
         "tiene un error de sintaxis. Mientras tanto sale como bloque de código.",
-        "Could not draw a diagram: Graphviz is missing (see INSTALL.md) or the diagram " ..
+        "Could not draw a diagram: Graphviz is missing (see docs/install.md) or the diagram " ..
         "has a syntax error. Meanwhile it shows as a code block."))
       return nil
     end

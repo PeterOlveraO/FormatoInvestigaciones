@@ -23,7 +23,7 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          # Los mismos paquetes que INSTALL.md, con sus recomendados (fuentes).
+          # Los mismos paquetes que docs/install.md, con sus recomendados (fuentes).
           sudo apt-get install -y pandoc graphviz \
             texlive-latex-recommended texlive-latex-extra texlive-fonts-extra \
             texlive-lang-spanish texlive-pictures texlive-plain-generic

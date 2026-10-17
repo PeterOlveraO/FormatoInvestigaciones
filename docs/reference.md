@@ -16,11 +16,11 @@ the code wins. Related files:
 | File | Content |
 |---|---|
 | [`cli.md`](cli.md) | Every command-line option, in detail |
-| [`../INSTALL.md`](../INSTALL.md) | Installing the tools on each operating system |
+| [`install.md`](install.md) | Installing the tools on each operating system |
 | [`../AGENTS.md`](../AGENTS.md) | Project rules for contributors and coding agents |
 | [`prompts/paper.md`](prompts/paper.md) | Prompt that tells an AI how to write a paper for this program |
 | [`prompts/design.md`](prompts/design.md) | Prompt that tells an AI how to make a compatible design |
-| [`../CHANGELOG.md`](../CHANGELOG.md) | User-visible changes |
+| [`changelog.md`](changelog.md) | User-visible changes |
 | [`../courses/README.md`](../courses/README.md), [`../courses/example.toml`](../courses/example.toml) | Profile file reference and an example |
 | [`../examples/catalog.md`](../examples/catalog.md), [`../examples/syntax.md`](../examples/syntax.md) | Papers that exercise every supported element |
 
@@ -87,13 +87,13 @@ paper.md  ->  investigacion  ->  output/paper.pdf
 
 | Tool | Required | Used for | If missing |
 |---|---|---|---|
-| Pandoc 3.0+ (tested with 3.10.2) | yes | Markdown to LaTeX fragment | Error: "Pandoc was not found. Install it and make sure it is on the PATH." If Pandoc fails and is older than 3.0 (the filters use `pandoc.Figure`): "Pandoc 3.0 or newer is needed and 2.9.2.1 is installed. INSTALL.md has the steps." |
+| Pandoc 3.0+ (tested with 3.10.2) | yes | Markdown to LaTeX fragment | Error: "Pandoc was not found. Install it and make sure it is on the PATH." If Pandoc fails and is older than 3.0 (the filters use `pandoc.Figure`): "Pandoc 3.0 or newer is needed and 2.9.2.1 is installed. docs/install.md has the steps." |
 | `pdflatex` (TeX Live or MiKTeX) | yes | Typesetting | Error: "pdflatex was not found. Install TeX Live (or MiKTeX) and make sure it is on the PATH." |
 | Graphviz (`dot`) | no | ` ```dot ` diagrams | Warning; the diagram stays as a code block |
 | Rust 1.88+ | build time only | `cargo install --path .` | n/a |
 
 LaTeX packages the templates load (installers are in
-[`../INSTALL.md`](../INSTALL.md)): `newtx`, `pgfplots`, `pgf-pie`,
+[`install.md`](install.md)): `newtx`, `pgfplots`, `pgf-pie`,
 `twemojis`, `pmboxdraw`, `floatrow`, `newunicodechar`, `ulem`, `framed`,
 `footnotehyper`, `xurl`, `titlesec`, `ragged2e`, `babel-spanish`, plus the
 usual `fancyhdr`, `booktabs`, `longtable`, `caption`, `etoolbox`, `soul`,
@@ -1253,7 +1253,7 @@ generating.
   Graphviz (optional, yellow warning). The check runs in a background thread
   (`pandoc --version`, `pdflatex --version`, `dot -V`, 5 s limit; a timeout counts
   as installed). A missing required tool shows in red with a pointer to
-  `INSTALL.md`. Messages (profile saved, profile errors, results) appear under
+  `docs/install.md`. Messages (profile saved, profile errors, results) appear under
   the status.
 
 Home keys: Up/Down/Tab/Shift+Tab move (wraps), Enter chooses, `s` or `q`
@@ -1642,7 +1642,7 @@ macOS update needs no redesign:
 4. If the menu needs it, add a `FIELDS` entry (`label`, `help`, `example`,
    `empty`, all `Text`) and map it in `App::build_args()`.
 5. Add tests (`src/cli.rs` tests and `tests/cli.rs`).
-6. Update `cli.md`, this page, `CHANGELOG.md` and, if it applies, `README.md`.
+6. Update `cli.md`, this page, `changelog.md` and, if it applies, `README.md`.
 
 **Add a profile key:** add it to `CourseProfile`, `save_profile`, `pick()` in
 `execute()`, the wizard if it is cover data, and `App::apply_profile()`; document
@@ -1676,9 +1676,9 @@ catalog check.
 - **Before finishing:** `cargo fmt`, `cargo clippy --all-targets -- -D
   warnings`, `cargo test`; for template or filter changes also generate
   `examples/catalog.md` and check the pages.
-- **Update the docs** when behavior changes: `README.md`, `INSTALL.md`, this
+- **Update the docs** when behavior changes: `README.md`, `install.md`, this
   page and `cli.md`, `docs/prompts/paper.md` (whenever accepted Markdown syntax
-  changes), `CHANGELOG.md`.
+  changes), `changelog.md`.
 
 ## 23. Testing and regression rules
 
@@ -1729,7 +1729,7 @@ Only the real LaTeX error is shown. After a failed build, `last-error.tex` and
 | "The input file must have the .md extension." | Rename the file |
 | "The Markdown file is empty." | The file has no content |
 | "Could not read <file>: save it as UTF-8 or Windows-1252." | Re-save the file in a supported encoding |
-| "Pandoc was not found" / "pdflatex was not found" | Install the tool and make sure it is on the `PATH`; reopen the terminal ([`../INSTALL.md`](../INSTALL.md)) |
+| "Pandoc was not found" / "pdflatex was not found" | Install the tool and make sure it is on the `PATH`; reopen the terminal ([`install.md`](install.md)) |
 | "Pandoc did not answer within 180 seconds" / "pdflatex kept working for more than 180 seconds" | A hang: look for something LaTeX cannot typeset; check `last-error.log` |
 | "The LaTeX build failed" pointing to a line of your text | A stray backslash with `--allow-latex` |
 | ... pointing to a chart | `pgfplot` syntax error (real LaTeX); the message gives the line; fix or delete the block |
@@ -1749,7 +1749,7 @@ Only the real LaTeX error is shown. After a failed build, `last-error.tex` and
 | Your own design fails | `investigacion --check-template <design>` |
 | "Invalid syntax in settings.toml, line N: expected KEY=VALUE" | `settings.toml` is KEY=VALUE lines, not TOML tables; fix or delete the file |
 | Menu shows "Internal error: ..." | A bug; the menu keeps running; send the log |
-| The menu says a required tool is missing | Install Pandoc/pdflatex ([`../INSTALL.md`](../INSTALL.md)) |
+| The menu says a required tool is missing | Install Pandoc/pdflatex ([`install.md`](install.md)) |
 | `investigacion: command not found` | Open a new terminal or `source ~/.cargo/env` |
 | The program cannot find its templates after moving the folder | Run `cargo install --path .` again or set `INVESTIGACION_HOME` |
 | Log empty or missing | `INVESTIGACION_LOG=off`, or the project root has no templates, or the folder is read-only |

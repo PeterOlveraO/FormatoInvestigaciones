@@ -66,7 +66,7 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
 4. If the menu needs it: add a `FIELDS` entry (`label`, `help`, `example`,
    `empty`, all `Text`) and map it in `App::build_args()`.
 5. Add tests (`src/cli.rs` tests and `tests/cli.rs`).
-6. Update `docs/cli.md`, `docs/reference.md`, `CHANGELOG.md` and, if it applies,
+6. Update `docs/cli.md`, `docs/reference.md`, `docs/changelog.md` and, if it applies,
    `README.md`.
 
 ## TUI (`src/tui/`)

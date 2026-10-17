@@ -16,7 +16,7 @@ Facts that are easy to get wrong:
 - [docs/usage.md](docs/usage.md): basic use of the menu and the CLI
 - [docs/cli.md](docs/cli.md): every command, option, alias, environment variable and exit code
 - [docs/reference.md](docs/reference.md): complete reference: pipeline, profiles, formats, designs, markers, Markdown syntax, filters, compilation, logging, troubleshooting
-- [INSTALL.md](INSTALL.md): installation per OS
+- [docs/install.md](docs/install.md): installation per OS
 
 ## Prompts
 
@@ -35,4 +35,4 @@ Facts that are easy to get wrong:
 - [examples/catalog.md](examples/catalog.md): every supported element (rendered: examples/catalog.pdf)
 - [examples/syntax.md](examples/syntax.md): syntax reference paper
 - [courses/example.toml](courses/example.toml): profile schema with placeholder data
-- [CHANGELOG.md](CHANGELOG.md): user-visible changes
+- [docs/changelog.md](docs/changelog.md): user-visible changes

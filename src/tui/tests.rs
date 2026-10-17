@@ -1006,13 +1006,13 @@ fn home_shows_the_last_pdf_and_the_missing_tools() {
         "✗ Pandoc: not installed (required)",
         "✓ pdflatex",
         "Graphviz (dot): not installed",
-        "INSTALL.md",
+        "docs/install.md",
     ] {
         assert!(screen.contains(expected), "{expected} in:\n{screen}");
     }
     app.tools.iter_mut().for_each(|t| t.found = true);
     let screen = render(&app);
-    assert!(!screen.contains("INSTALL.md") && screen.contains("✓ Graphviz (dot) (optional)"));
+    assert!(!screen.contains("install.md") && screen.contains("✓ Graphviz (dot) (optional)"));
 }
 
 #[test]

@@ -79,16 +79,14 @@ Paths with spaces or accents (`C:\Users\José Pérez\...`) are fine.
 ```bash
 git clone https://github.com/PeterOlveraO/FormatoInvestigaciones.git
 cd FormatoInvestigaciones
-./install.sh                                          # Linux
-powershell -ExecutionPolicy Bypass -File install.ps1  # Windows
+cargo install --path . --locked
 ```
 
-The script checks that `cargo`, `pandoc` and `pdflatex` are there (and warns if
-Graphviz is not), then runs `cargo install --path . --locked` for you. That
-leaves `investigacion` in `~/.cargo/bin`, which rustup adds to your `PATH`. At
-the end it runs `cargo clean --release` to delete the intermediate build files
-(several hundred MB) that are no longer needed. There is no virtual
-environment to activate.
+The same command works on Linux and Windows. It leaves `investigacion` in
+`~/.cargo/bin`, which rustup adds to your `PATH`. Afterwards, `cargo clean`
+deletes the intermediate build files (several hundred MB) that are no longer
+needed. There is no virtual environment to activate. The menu checks Pandoc,
+pdflatex and Graphviz when it starts and says what is missing.
 
 **Which libraries get installed.** Only the ones in `Cargo.toml`, at the exact
 versions in `Cargo.lock` (`--locked`). Cargo downloads their source once into
@@ -143,7 +141,7 @@ missing (a symbol, an image, Graphviz), and the PDF is still produced.
 
 ```bash
 git pull
-./install.sh        # Windows: powershell -ExecutionPolicy Bypass -File install.ps1
+cargo install --path . --locked
 ```
 
 Your work folder is not touched by updates.

@@ -1,7 +1,7 @@
 # Using investigacion
 
 A short, friendly guide to turn a Markdown paper into a PDF, with the menu or
-with one command. Installation is in [INSTALL.md](../INSTALL.md). Every
+with one command. Installation is in [install.md](install.md). Every
 option is in [cli.md](cli.md); formats, designs and the Markdown syntax are
 in [reference.md](reference.md).
 

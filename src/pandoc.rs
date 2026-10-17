@@ -182,8 +182,8 @@ pub fn pandoc_to_latex(
         // versión vieja el error de Lua no dice qué hacer, así que se explica.
         if let Some(version) = old_pandoc_version() {
             return Err(GenerationError::new(tr!(
-                es: "Hace falta Pandoc 3.0 o más nuevo y está instalado {version}. Las instrucciones están en INSTALL.md.",
-                en: "Pandoc 3.0 or newer is needed and {version} is installed. INSTALL.md has the steps."
+                es: "Hace falta Pandoc 3.0 o más nuevo y está instalado {version}. Las instrucciones están en docs/install.md.",
+                en: "Pandoc 3.0 or newer is needed and {version} is installed. docs/install.md has the steps."
             )));
         }
         let suffix = if detail.is_empty() { ".".to_owned() } else { format!(": {detail}") };

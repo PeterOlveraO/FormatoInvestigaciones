@@ -134,7 +134,6 @@ src/
 tests/           integration: templates.rs, pandoc.rs, pdf.rs, cli.rs
 resources/filters/   Lua filters: inline_html, images, diagrams, charts, blocks;
                      common.lua is pasted in front of each one
-install.sh, install.ps1   check the tools, cargo install --locked, cargo clean --release
 templates/       common/ (base + final .sty), formats/{apa7,harvard,mla}/,
                  designs/{geometric-cover,classic-cover,report,starter}/, logos/
 my-templates/    the user's own formats/ and designs/ (git-ignored)
@@ -162,7 +161,7 @@ on the matching files; other agents can open them by path.
 ## Docs to update when behavior changes
 
 - `README.md`: short overview for people, install, first use, doc index.
-- `INSTALL.md`: per-OS installation, configure, update, installation problems.
+- `docs/install.md`: per-OS installation, configure, update, installation problems.
 - `docs/usage.md`: basic use of the menu and the CLI (keep it short).
 - `docs/cli.md`: every CLI option, alias, environment variable and exit code.
   **Update it with every CLI change.**
@@ -173,5 +172,5 @@ on the matching files; other agents can open them by path.
 - `docs/prompts/design.md`: the prompt an AI follows to make a design.
   **Update it whenever the design contract changes.**
 - `llms.txt`: index for AI assistants.
-- `CHANGELOG.md`: user-visible changes.
+- `docs/changelog.md`: user-visible changes.
 - These docs are in English; `examples/` are Spanish papers.
