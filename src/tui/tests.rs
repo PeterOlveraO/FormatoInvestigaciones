@@ -1266,3 +1266,21 @@ fn ctrl_letters_do_not_act_as_letters() {
     press_ctrl(&mut app, 'u');
     assert_eq!(editing_text(&app), "");
 }
+
+#[test]
+fn ctrl_c_during_generation_asks_twice_before_leaving() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    let (_sender, receiver) = std::sync::mpsc::channel();
+    app.mode = Mode::Generating(receiver);
+    let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+    // La primera vez solo avisa: la generación sigue y el menú no se cierra.
+    app.handle_key(ctrl_c);
+    assert!(!app.should_quit);
+    assert!(matches!(app.mode, Mode::Generating(_)));
+    assert!(matches!(app.log.last(), Some(LogLine::Warning(_))));
+    // La segunda cierra.
+    app.handle_key(ctrl_c);
+    assert!(app.should_quit);
+}
