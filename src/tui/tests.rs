@@ -1200,3 +1200,39 @@ fn the_general_cover_data_is_in_the_form() {
     }
     assert!(render(&app).contains("Universidad"));
 }
+
+fn press_ctrl(app: &mut App, c: char) {
+    app.handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL));
+}
+
+fn editing_text(app: &App) -> String {
+    let Mode::Editing(input) = &app.mode else { panic!("no está editando: {:?}", app.mode.name()) };
+    input.text.clone()
+}
+
+#[test]
+fn ctrl_letters_do_not_act_as_letters() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    // Ctrl+G no genera: no aparece el aviso de que faltan datos.
+    let log_before = app.log.len();
+    press_ctrl(&mut app, 'g');
+    assert_eq!(app.log.len(), log_before);
+    assert!(matches!(app.mode, Mode::Form));
+    // La letra sin Ctrl sí, para comparar.
+    press(&mut app, KeyCode::Char('g'));
+    assert!(app.log.len() > log_before);
+
+    // Dentro de un campo: Ctrl+A no escribe «a»; Ctrl+U sí borra.
+    select(&mut app, FieldKey::Title);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ab");
+    press_ctrl(&mut app, 'a');
+    assert_eq!(editing_text(&app), "ab");
+    // Ctrl+Alt es AltGr (p. ej. @ en el teclado español): sí escribe.
+    app.handle_key(KeyEvent::new(KeyCode::Char('@'), KeyModifiers::CONTROL | KeyModifiers::ALT));
+    assert_eq!(editing_text(&app), "ab@");
+    press_ctrl(&mut app, 'u');
+    assert_eq!(editing_text(&app), "");
+}

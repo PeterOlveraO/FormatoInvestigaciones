@@ -875,6 +875,16 @@ impl App {
             self.should_quit = true;
             return;
         }
+        // Ctrl+letra no es la letra (Ctrl+G no genera, Ctrl+A no escribe «a»).
+        // Ctrl+Alt sí cuenta como texto: es AltGr en teclados como el español.
+        let control_letter = key.modifiers.contains(KeyModifiers::CONTROL)
+            && !key.modifiers.contains(KeyModifiers::ALT)
+            && matches!(key.code, KeyCode::Char(_));
+        let clears_input = key.code == KeyCode::Char('u') && matches!(self.mode, Mode::Editing(_));
+        if control_letter && !clears_input {
+            logging::debug(format_args!("tui: ignored Ctrl+{:?} in {before}", key.code));
+            return;
+        }
         self.dispatch_key(key);
         let after = self.mode.name();
         if after != before {
