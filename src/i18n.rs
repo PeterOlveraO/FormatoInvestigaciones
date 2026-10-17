@@ -46,9 +46,11 @@ impl Lang {
     }
 }
 
-/// Acepta el código o el nombre del idioma, en cualquiera de los dos.
+/// Acepta el código o el nombre del idioma, en cualquiera de los dos, con o
+/// sin región (`en-US`, `es_MX`): la región se ignora.
 pub fn parse(value: &str) -> Option<Lang> {
-    match value.trim().to_lowercase().as_str() {
+    let base = value.trim().split(['-', '_']).next().unwrap_or_default();
+    match base.to_lowercase().as_str() {
         "es" | "español" | "espanol" | "spanish" => Some(Lang::Es),
         "en" | "inglés" | "ingles" | "english" => Some(Lang::En),
         _ => None,
@@ -132,6 +134,11 @@ mod tests {
         assert_eq!(parse("ES"), Some(Lang::Es));
         assert_eq!(parse("English"), Some(Lang::En));
         assert_eq!(parse("fr"), None);
+        assert_eq!(parse("en-US"), Some(Lang::En));
+        assert_eq!(parse(" es_MX "), Some(Lang::Es));
+        assert_eq!(parse("EN"), Some(Lang::En));
+        assert_eq!(parse("español"), Some(Lang::Es));
+        assert_eq!(parse("fr-CA"), None);
         assert_eq!(Lang::Es.other(), Lang::En);
     }
 
