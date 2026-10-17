@@ -67,22 +67,16 @@ fn what_the_filters_produce_is_defined() {
 #[test]
 fn the_cover_order_is_fixed() {
     let template = full_template();
-    let positions: Vec<usize> = [
-        r"\textbf{ALUMNO:}",
-        r"\textbf{MATERIA:}",
-        r"\textbf{DOCENTE:}",
-        r"\textbf{SEMESTRE:}",
-        r"\textbf{GRUPO:}",
-    ]
-    .iter()
-    .map(|label| template.find(label).unwrap())
-    .collect();
+    let positions: Vec<usize> = [r"{ALUMNO:}", r"{MATERIA:}", r"{DOCENTE:}", r"{SEMESTRE:}", r"{GRUPO:}"]
+        .iter()
+        .map(|label| template.find(label).unwrap())
+        .collect();
     let mut sorted = positions.clone();
     sorted.sort();
     assert_eq!(positions, sorted);
-    assert!(template.find(r"\textbf{INTEGRANTES:}").unwrap() < template.find(r"\textbf{MATERIA:}").unwrap());
+    assert!(template.find(r"{INTEGRANTES:}").unwrap() < template.find(r"{MATERIA:}").unwrap());
     assert!(!template.contains("TRABAJO ACADÉMICO"));
-    assert!(template.contains(r"\ifdefempty{\NombreMaestro}{}{\textbf{DOCENTE:}"));
+    assert!(template.contains(r"\ifdefempty{\NombreMaestro}{}{\textbf{\SegunIdioma{DOCENTE:}"));
 }
 
 #[test]

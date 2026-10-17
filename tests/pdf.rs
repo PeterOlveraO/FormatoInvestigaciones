@@ -234,6 +234,29 @@ fn a_document_in_english_compiles() {
     assert!(pdf.is_file());
 }
 
+// Las etiquetas de la portada siguen el idioma del documento.
+#[test]
+fn cover_labels_follow_the_document_language() {
+    if !(has_tool("pandoc") && has_tool("pdflatex") && has_tool("pdftotext")) {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    let source =
+        write(directory.path(), "paper.md", "# Introduction\n\nText.\n\n# References\n\nSmith (2020).\n");
+    let options = GenerateOptions {
+        design: Some("classic-cover".into()),
+        doc_lang: Some(Lang::En),
+        ..Default::default()
+    };
+    let pdf =
+        generate_pdf(&project, &source, &directory.path().join("out"), &data("Paper"), &options, &mut |_| {})
+            .unwrap();
+    let text = std::process::Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
+    let text = String::from_utf8_lossy(&text.stdout);
+    assert!(text.contains("Course:") && !text.contains("Materia:"), "{text}");
+}
+
 #[test]
 fn a_minimal_design_with_a_custom_field_compiles() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
