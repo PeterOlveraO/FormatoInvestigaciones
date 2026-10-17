@@ -15,13 +15,35 @@ use crate::project::absolute;
 // ancho cero. Word, Notion y las IA los sueltan a menudo.
 const DISGUISED_SPACES: [char; 4] = ['\u{00A0}', '\u{2007}', '\u{202F}', '\u{200B}'];
 
-static FENCE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s{0,3}(`{3,}|~{3,})(.*)$").unwrap());
+// Los espacios invisibles cuentan como sangría para el cerco, como en Pandoc
+// no: por eso se quitan antes (ver `strip_leading_disguised`).
+static FENCE: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(&format!("^[ \\t{DISGUISED_CLASS}]{{0,3}}(`{{3,}}|~{{3,}})(.*)$")).unwrap());
 // Marcador de Markdown (encabezado, viñeta, lista numerada o cita) separado del
 // texto por espacios invisibles en vez de por uno normal.
 static MARKER_SEPARATOR: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new("^(\\s{0,3})(#{1,6}|[-*+]|\\d+[.)]|>)[\u{00A0}\u{2007}\u{202F}\u{200B}\t]+").unwrap()
+    Regex::new(&format!("^([ \\t]{{0,3}})(#{{1,6}}|[-*+]|\\d+[.)]|>)[{DISGUISED_CLASS}\\t]+")).unwrap()
 });
-static ATX_HEADING: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^\s{0,3}#{1,6}\s+(.+?)\s*$").unwrap());
+// Un marcador al principio de la línea (también un cerco), para decidir si el
+// espacio invisible de delante es de Markdown y debe quitarse.
+static MARKER_START: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[ \t]{0,3}(#{1,6}|[-*+]|\d+[.)]|>|`{3,}|~{3,})").unwrap());
+static ATX_HEADING: LazyLock<Regex> =
+    LazyLock::new(|| Regex::new(r"^[ \t]{0,3}#{1,6}[ \t]+(.+?)[ \t]*$").unwrap());
+
+/// Los mismos espacios invisibles, dentro de una clase de expresión regular.
+const DISGUISED_CLASS: &str = "\u{00A0}\u{2007}\u{202F}\u{200B}";
+
+/// Quita los espacios invisibles de delante de una línea solo si después viene
+/// un marcador de Markdown (encabezado, lista, cita o cerco). En el resto de
+/// líneas el espacio duro es texto y se deja como está.
+fn strip_leading_disguised(line: &str) -> &str {
+    if !line.starts_with(|c| DISGUISED_SPACES.contains(&c)) {
+        return line;
+    }
+    let text = line.trim_start_matches(|c| DISGUISED_SPACES.contains(&c));
+    if MARKER_START.is_match(text) { text } else { line }
+}
 
 /// Líneas como `str.splitlines()` de Python para los finales habituales.
 fn split_lines(text: &str) -> Vec<&str> {
@@ -33,10 +55,10 @@ fn split_lines(text: &str) -> Vec<&str> {
 }
 
 /// Cada línea con `true` si es parte de un bloque de código (``` o ~~~, con
-/// sus cercos). Como en CommonMark, cierra un cerco del mismo carácter, al
-/// menos igual de largo y sin texto detrás: un ```python dentro de un
-/// bloque de ```` sigue siendo código.
-fn fenced_lines(text: &str) -> Vec<(&str, bool)> {
+/// sus cercos), y con `true` en el tercer campo si es un cerco. Como en
+/// CommonMark, cierra un cerco del mismo carácter, al menos igual de largo y
+/// sin texto detrás: un ```python dentro de un bloque de ```` sigue siendo código.
+fn fenced_lines(text: &str) -> Vec<(&str, bool, bool)> {
     let mut open: Option<(char, usize)> = None;
     split_lines(text)
         .into_iter()
@@ -45,12 +67,18 @@ fn fenced_lines(text: &str) -> Vec<(&str, bool)> {
                 .captures(line)
                 .map(|f| (f[1].chars().next().unwrap(), f[1].len(), f[2].trim().is_empty()));
             match (open, fence) {
-                (None, Some((marker, len, _))) => open = Some((marker, len)),
-                (Some((marker, len)), Some((m, l, true))) if m == marker && l >= len => open = None,
-                (None, None) => return (line, false),
+                (None, Some((marker, len, _))) => {
+                    open = Some((marker, len));
+                    return (line, true, true);
+                }
+                (Some((marker, len)), Some((m, l, true))) if m == marker && l >= len => {
+                    open = None;
+                    return (line, true, true);
+                }
+                (None, None) => return (line, false, false),
                 _ => {}
             }
-            (line, true)
+            (line, true, false)
         })
         .collect()
 }
@@ -72,9 +100,14 @@ pub fn normalize_markdown(markdown: &str) -> String {
 
     let lines: Vec<String> = fenced_lines(markdown)
         .into_iter()
-        .map(|(line, code)| match code {
-            true => line.to_owned(),
-            false => MARKER_SEPARATOR.replace(line.trim_end_matches(trailing), "${1}${2} ").into_owned(),
+        .map(|(line, code, fence)| match (code, fence) {
+            // Un cerco con espacio invisible delante no lo reconoce Pandoc.
+            (true, true) => strip_leading_disguised(line).to_owned(),
+            (true, false) => line.to_owned(),
+            (false, _) => {
+                let line = strip_leading_disguised(line);
+                MARKER_SEPARATOR.replace(line.trim_end_matches(trailing), "${1}${2} ").into_owned()
+            }
         })
         .collect();
     let normalized = lines.join("\n");
@@ -110,8 +143,8 @@ pub fn normalize_heading(heading: &str) -> String {
 pub fn markdown_headings(markdown: &str) -> Vec<String> {
     fenced_lines(markdown)
         .into_iter()
-        .filter(|(_, code)| !code)
-        .filter_map(|(line, _)| ATX_HEADING.captures(line).map(|found| normalize_heading(&found[1])))
+        .filter(|(_, code, _)| !code)
+        .filter_map(|(line, _, _)| ATX_HEADING.captures(line).map(|found| normalize_heading(&found[1])))
         .collect()
 }
 
@@ -334,6 +367,29 @@ mod tests {
     fn headings_are_detected_after_normalizing() {
         let markdown = format!("#{NBSP}Introducción{NBSP}\n{NBSP}\nTexto.  \n{NBSP}\n#{NBSP}Conclusión\n");
         assert_eq!(markdown_headings(&normalize_markdown(&markdown)), ["introduccion", "conclusion"]);
+    }
+
+    #[test]
+    fn a_leading_hard_space_before_a_marker_is_removed() {
+        // Antes el encabezado llegaba a Pandoc con el espacio delante y no lo veía.
+        assert_eq!(normalize_markdown(&format!("{NBSP}# Introducción\n")), "# Introducción\n");
+        assert_eq!(normalize_markdown(&format!("{NBSP}- uno\n")), "- uno\n");
+        assert_eq!(normalize_markdown(&format!("{NBSP}```\n")), "```\n");
+        assert_eq!(
+            markdown_headings(&normalize_markdown(&format!("{NBSP}# Introducción\n"))),
+            ["introduccion"]
+        );
+    }
+
+    #[test]
+    fn a_leading_hard_space_in_plain_text_is_kept() {
+        assert_eq!(normalize_markdown(&format!("{NBSP}Texto\n")), format!("{NBSP}Texto\n"));
+    }
+
+    #[test]
+    fn a_leading_hard_space_inside_a_code_block_is_kept() {
+        let markdown = format!("```\n{NBSP}# no es título\n```\n");
+        assert_eq!(normalize_markdown(&markdown), markdown);
     }
 
     #[test]
