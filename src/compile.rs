@@ -158,8 +158,19 @@ pub fn compile_pdf(
     for warning in unsupported_character_warnings(&log) {
         on_warning(warning);
     }
-    crate::project::replace_file(output_pdf, |temporary| std::fs::copy(&generated, temporary).map(drop))
-        .map_err(|e| crate::generate::cannot_write(output_pdf, &e))?;
+    publish_built_pdf(tex_path, &generated, output_pdf, state_dir)
+}
+
+/// Pasa el PDF recién compilado a su destino. El estado de LaTeX se guarda
+/// antes de copiar, para que sirva aunque el destino esté bloqueado. Si el PDF
+/// no se puede escribir (abierto en un visor, típico de Windows), se deja una
+/// copia en la carpeta de estado de este trabajo y el error dice dónde está.
+fn publish_built_pdf(
+    tex_path: &Path,
+    generated: &Path,
+    output_pdf: &Path,
+    state_dir: Option<&Path>,
+) -> Result<()> {
     if let Some(dir) = state_dir {
         // La caché es una ayuda: si no se puede guardar, no es un error.
         match save_state(dir, tex_path) {
@@ -167,7 +178,33 @@ pub fn compile_pdf(
             Err(error) => logging::warn(format_args!("latex state not saved in {}: {error}", dir.display())),
         }
     }
-    Ok(())
+    let copied =
+        crate::project::replace_file(output_pdf, |temporary| std::fs::copy(generated, temporary).map(drop));
+    let Err(error) = copied else {
+        return Ok(());
+    };
+    let Some(kept) = state_dir.and_then(|dir| keep_built_pdf(generated, dir, output_pdf).ok()) else {
+        return Err(crate::generate::cannot_write(output_pdf, &error));
+    };
+    logging::error(format_args!(
+        "PDF kept in {} because {} could not be written: {error}",
+        kept.display(),
+        output_pdf.display()
+    ));
+    Err(GenerationError::new(tr!(
+        es: "No se pudo escribir en {}: {error}. El PDF recién compilado quedó en {}. Cierra el PDF si está abierto en otro programa y vuelve a generarlo.",
+        en: "Could not write to {}: {error}. The new PDF was kept in {}. Close the PDF if another program has it open and generate it again.",
+        output_pdf.display(),
+        kept.display()
+    )))
+}
+
+/// Copia el PDF compilado a la carpeta de estado, con el nombre de la salida.
+fn keep_built_pdf(generated: &Path, state_dir: &Path, output_pdf: &Path) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(state_dir)?;
+    let kept = state_dir.join(output_pdf.file_name().unwrap_or_default());
+    std::fs::copy(generated, &kept)?;
+    Ok(kept)
 }
 
 /// Copia el estado guardado junto al .tex y devuelve el índice que contenía.
@@ -305,4 +342,44 @@ fn run_passes(
         }
     }
     Ok(log)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Un directorio donde debe ir el PDF hace fallar la copia, como un PDF abierto.
+    #[test]
+    fn a_locked_pdf_keeps_the_build_in_the_state_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        let base = directory.path();
+        let generated = base.join("trabajo.pdf");
+        std::fs::write(&generated, b"%PDF-1.5 nuevo").unwrap();
+        let tex = base.join("trabajo.tex");
+        std::fs::write(&tex, "x").unwrap();
+        let output = base.join("salida").join("tarea.pdf");
+        std::fs::create_dir_all(&output).unwrap();
+        let state = base.join("cache");
+
+        let error = publish_built_pdf(&tex, &generated, &output, Some(&state)).unwrap_err();
+
+        let kept = state.join("tarea.pdf");
+        assert_eq!(std::fs::read(&kept).unwrap(), b"%PDF-1.5 nuevo");
+        assert!(error.0.contains(&kept.display().to_string()));
+        assert!(state.join("trabajo.toc").is_file(), "el estado de LaTeX se guarda antes de copiar");
+    }
+
+    #[test]
+    fn a_locked_pdf_without_state_folder_is_a_plain_write_error() {
+        let directory = tempfile::tempdir().unwrap();
+        let base = directory.path();
+        let generated = base.join("trabajo.pdf");
+        std::fs::write(&generated, b"%PDF-1.5").unwrap();
+        let output = base.join("tarea.pdf");
+        std::fs::create_dir_all(&output).unwrap();
+
+        let error = publish_built_pdf(&base.join("trabajo.tex"), &generated, &output, None).unwrap_err();
+        assert!(error.0.contains(&output.display().to_string()));
+        assert!(!error.0.contains("quedó en"));
+    }
 }
