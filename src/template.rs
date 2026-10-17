@@ -74,6 +74,9 @@ pub struct FormatManifest {
     /// Estructura recomendada; vacía = no se valida.
     #[serde(default)]
     pub headings: Vec<String>,
+    /// Lo mismo en inglés; vacía = con un documento en inglés no se revisa.
+    #[serde(default)]
+    pub headings_en: Vec<String>,
 }
 
 fn default_language() -> String {
@@ -227,6 +230,7 @@ pub fn load_format(project: &Project, key: &str) -> Result<Format> {
             language: default_language(),
             class_options: String::new(),
             headings: Vec::new(),
+            headings_en: Vec::new(),
         }
     };
     Ok(Format { key: key.to_owned(), sty: dir.join(FORMAT_FILE), manifest })
@@ -313,8 +317,15 @@ impl Layout {
         self.format.as_ref().map(|f| f.manifest.class_options.clone()).unwrap_or_default()
     }
 
-    pub fn headings(&self) -> Vec<String> {
-        self.format.as_ref().map(|f| f.manifest.headings.clone()).unwrap_or_default()
+    /// Encabezados recomendados en el idioma del documento.
+    pub fn headings_for(&self, lang: Lang) -> Vec<String> {
+        self.format
+            .as_ref()
+            .map(|f| match lang {
+                Lang::Es => f.manifest.headings.clone(),
+                Lang::En => f.manifest.headings_en.clone(),
+            })
+            .unwrap_or_default()
     }
 
     /// Clave para la caché de LaTeX: cambia si cambia el diseño o el formato.
@@ -340,7 +351,7 @@ mod tests {
         write(&t.join("formats/apa7/format.sty"), "x");
         write(
             &t.join("formats/apa7/format.toml"),
-            "name = \"APA 7\"\nclass_options = \"12pt\"\nheadings = [\"Introducción\"]\n",
+            "name = \"APA 7\"\nclass_options = \"12pt\"\nheadings = [\"Introducción\"]\nheadings_en = [\"Introduction\"]\n",
         );
         write(&t.join("formats/mla/format.sty"), "x");
         write(
@@ -376,7 +387,8 @@ mod tests {
         let layout = resolve_layout(&project, Some("cover"), None).unwrap();
         assert_eq!(layout.format.as_ref().unwrap().key, "apa7");
         assert_eq!(layout.class_options(), "12pt");
-        assert_eq!(layout.headings(), ["Introducción"]);
+        assert_eq!(layout.headings_for(Lang::Es), ["Introducción"]);
+        assert_eq!(layout.headings_for(Lang::En), ["Introduction"]);
         assert!(resolve_layout(&project, Some("cover"), Some("mla")).is_err());
         assert!(resolve_layout(&project, Some("cover"), Some("nope")).is_err());
         // Diseño propio en my-templates/ y autocontenido (sin %%FORMAT%%).

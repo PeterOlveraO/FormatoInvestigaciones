@@ -503,7 +503,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     logging::info(format_args!("markdown: {} ({} bytes)", markdown_path.display(), markdown.len()));
     // Un Markdown vacío ya falla en `generate_pdf`; avisar de sus encabezados sobra.
     if !markdown.trim().is_empty() {
-        for warning in validate_markdown(&markdown, &layout.headings()) {
+        for warning in validate_markdown(&markdown, &layout.headings_for(doc_lang)) {
             reporter.warning(warning);
         }
     }
