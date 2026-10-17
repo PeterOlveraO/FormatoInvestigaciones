@@ -55,19 +55,20 @@ fn decode_utf8_or_cp1252(raw: &[u8]) -> Option<String> {
 }
 
 /// UTF-16 con BOM (little o big endian). `None` si no empieza por BOM;
-/// `Some(Err)` si lo tiene pero el contenido no es UTF-16 válido.
+/// `Some(None)` si lo tiene pero el contenido no es UTF-16 válido.
 fn decode_utf16_bom(raw: &[u8]) -> Option<Option<String>> {
     let (body, big_endian) = match raw {
         [0xFF, 0xFE, body @ ..] => (body, false),
         [0xFE, 0xFF, body @ ..] => (body, true),
         _ => return None,
     };
-    if body.len() % 2 != 0 {
+    let (pairs, rest) = body.as_chunks::<2>();
+    if !rest.is_empty() {
         return Some(None);
     }
-    let units = body.chunks_exact(2).map(|pair| match big_endian {
-        true => u16::from_be_bytes([pair[0], pair[1]]),
-        false => u16::from_le_bytes([pair[0], pair[1]]),
+    let units = pairs.iter().map(|&pair| match big_endian {
+        true => u16::from_be_bytes(pair),
+        false => u16::from_le_bytes(pair),
     });
     let units: Vec<u16> = units.collect();
     Some(String::from_utf16(&units).ok())
