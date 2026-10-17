@@ -92,8 +92,9 @@ fn fenced_lines(text: &str) -> Vec<(&str, bool, bool)> {
 /// Indica si alguna línea termina en un espacio disfrazado (también la que
 /// parece vacía pero solo lleva uno). Sólo entonces se recorta el espacio
 /// normal del final, que en un documento limpio es un salto de línea deliberado.
+/// Los bloques de código no cuentan: ahí un espacio duro es parte del código.
 pub fn has_disguised_spaces(markdown: &str) -> bool {
-    split_lines(markdown).iter().any(|line| {
+    fenced_lines(markdown).into_iter().filter(|(_, code)| !code).any(|(line, _)| {
         line.trim_end_matches([' ', '\t']).chars().last().is_some_and(|c| DISGUISED_SPACES.contains(&c))
     })
 }
@@ -348,6 +349,14 @@ mod tests {
         assert!(!has_disguised_spaces("Texto.  \nOtro.\t\n"));
         assert!(has_disguised_spaces(&format!("Texto.{NBSP}\n")));
         assert!(has_disguised_spaces(&format!("Parrafo.\n{NBSP}\nOtro.\n")));
+    }
+
+    #[test]
+    fn a_disguised_space_inside_code_does_not_mark_the_document_as_dirty() {
+        // El espacio duro dentro del bloque no debe quitar los saltos de línea de fuera.
+        let markdown = format!("Línea  \n```\ncodigo{NBSP}\n```\nOtra  \n");
+        assert!(!has_disguised_spaces(&markdown));
+        assert_eq!(normalize_markdown(&markdown), markdown);
     }
 
     #[test]
