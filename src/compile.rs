@@ -52,19 +52,15 @@ pub fn copy_template_assets(
 /// TEXINPUTS que busca primero en `directories`, en orden. El separador final
 /// (entrada vacía) significa «y además las rutas por omisión»; sin él pdflatex
 /// no encontraría ni sus propios paquetes.
-pub fn latex_search_path(directories: &[PathBuf], on_warning: &mut dyn FnMut(String)) -> Result<OsString> {
+pub fn latex_search_path(directories: &[PathBuf]) -> Result<OsString> {
     let mut paths = Vec::new();
     for directory in directories {
         // Con el separador del sistema en el nombre, la carpeta no cabe en TEXINPUTS:
-        // se omite y el resto de la búsqueda sigue.
+        // se omite y el resto de la búsqueda sigue. Al usuario ya lo avisó Pandoc,
+        // que copia a la caché las imágenes de esa carpeta.
         if std::env::join_paths([directory]).is_err() {
             logging::warn(format_args!(
                 "TEXINPUTS: skipped {} (its name has the path separator)",
-                directory.display()
-            ));
-            on_warning(tr!(
-                es: "Se omite la carpeta {} al buscar imágenes: su nombre contiene el separador de rutas del sistema.",
-                en: "The folder {} is skipped when looking for images: its name contains the system path separator.",
                 directory.display()
             ));
             continue;
@@ -157,10 +153,10 @@ pub fn compile_pdf(
     state_dir: Option<&Path>,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<()> {
-    // Se calcula una sola vez para las dos ejecuciones posibles: así un aviso no se repite.
+    // Se calcula una sola vez para las dos ejecuciones posibles.
     let mut directories = vec![PathBuf::from(".")];
     directories.extend(search_dirs.iter().map(|d| crate::project::absolute(d)));
-    let texinputs = latex_search_path(&directories, on_warning)?;
+    let texinputs = latex_search_path(&directories)?;
     let restored = state_dir.and_then(|dir| restore_state(dir, tex_path));
     match (state_dir, &restored) {
         (Some(dir), Some(_)) => logging::info(format_args!("latex state: cache hit ({})", dir.display())),
@@ -437,19 +433,12 @@ mod tests {
 
     // Lleva `:` y `;`, así es inválida tanto en Linux como en Windows.
     #[test]
-    fn a_folder_with_the_path_separator_is_skipped_with_a_warning() {
+    fn a_folder_with_the_path_separator_is_skipped() {
         let bad = PathBuf::from("carpeta:con;separador");
-        let mut warnings = Vec::new();
-        let path =
-            latex_search_path(&[PathBuf::from("."), bad.clone(), PathBuf::from("buena")], &mut |warning| {
-                warnings.push(warning)
-            })
-            .unwrap();
+        let path = latex_search_path(&[PathBuf::from("."), bad.clone(), PathBuf::from("buena")]).unwrap();
 
         let entries: Vec<PathBuf> = std::env::split_paths(&path).collect();
         assert!(!entries.contains(&bad));
         assert!(entries.contains(&PathBuf::from("buena")));
-        assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].contains("carpeta:con;separador"));
     }
 }
