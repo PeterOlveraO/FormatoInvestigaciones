@@ -168,7 +168,7 @@ impl Design {
 pub fn extract_markers(text: &str) -> BTreeSet<String> {
     static MARKER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%%([A-Z_]+)%%").unwrap());
     text.lines()
-        .filter(|line| !line.trim_start().starts_with('%') || line.trim_start().starts_with("%%"))
+        .filter(|line| !crate::latex::is_comment_line(line))
         .flat_map(|line| MARKER.captures_iter(line).map(|c| c[1].to_owned()).collect::<Vec<_>>())
         .collect()
 }

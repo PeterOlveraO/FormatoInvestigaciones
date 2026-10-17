@@ -2,10 +2,16 @@
 //! contrato y lo compila con cada formato compatible, para encontrar los
 //! problemas antes de entregar un trabajo.
 
+use std::collections::BTreeSet;
+use std::sync::LazyLock;
+
+use regex::Regex;
+
 use crate::document::DocumentData;
 use crate::encoding::decode_text;
 use crate::error::Result;
 use crate::generate::{GenerateOptions, generate_pdf};
+use crate::latex::is_comment_line;
 use crate::logging;
 use crate::project::Project;
 use crate::template::{Design, STANDARD_MARKERS, list_formats, load_design};
@@ -123,6 +129,24 @@ pub fn inspect(project: &Project, design: &Design) -> CheckReport {
                 en: "optional mentions {name}, but the design does not use %%{name}%%."
             ));
         }
+    }
+    // Un marcador mal escrito (%%AULA2%%, %%salon%%) no se rellena, y su % deja
+    // en LaTeX el resto de la línea como comentario.
+    static MARKER_LIKE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%%([A-Za-z0-9_]+)%%").unwrap());
+    let mut malformed = BTreeSet::new();
+    for line in text.lines().filter(|line| !is_comment_line(line)) {
+        for found in MARKER_LIKE.captures_iter(line) {
+            let name = &found[1];
+            if !name.chars().all(|c| c.is_ascii_uppercase() || c == '_') {
+                malformed.insert(name.to_owned());
+            }
+        }
+    }
+    for name in malformed {
+        report.warnings.push(tr!(
+            es: "%%{name}%% no es un marcador válido (solo mayúsculas y _): no se rellena y en LaTeX el % deja comentado el resto de la línea.",
+            en: "%%{name}%% is not a valid marker (only capitals and _): it is not filled and in LaTeX the % comments out the rest of the line."
+        ));
     }
     report
 }
@@ -257,6 +281,18 @@ mod tests {
         std::fs::write(dir.join("template.ltx"), ltx).unwrap();
         std::fs::write(dir.join("template.toml"), toml).unwrap();
         load_design(project, Some("test")).unwrap()
+    }
+
+    #[test]
+    fn malformed_markers_are_reported_but_commented_ones_are_not() {
+        crate::i18n::set(crate::i18n::Lang::Es);
+        let directory = tempfile::tempdir().unwrap();
+        let project = Project::at(directory.path());
+        let ltx = "%%FORMAT%%\n%%AULA2%% %%salon%%\n% %%AULA3%%\n%%CONTENIDO_MARKDOWN%%\n";
+        let report = inspect(&project, &design(&project, ltx, ""));
+        let all = format!("{:?}", report.warnings);
+        assert!(all.contains("%%AULA2%%") && all.contains("%%salon%%"), "{all}");
+        assert!(!all.contains("%%AULA3%%"), "{all}");
     }
 
     #[test]
