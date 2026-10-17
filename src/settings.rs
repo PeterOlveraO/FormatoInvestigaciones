@@ -77,13 +77,22 @@ impl Settings {
                     number + 1
                 )));
             }
-            let quoted = value.len() >= 2
-                && (value.starts_with('"') && value.ends_with('"')
-                    || value.starts_with('\'') && value.ends_with('\''));
-            if quoted {
-                value = &value[1..value.len() - 1];
-            } else if let Some((before, _)) = value.split_once(" #") {
-                value = before.trim_end();
+            // Comillas cerradas: después solo puede venir un comentario.
+            // Las comillas son ASCII: el corte en 1 y en `end` cae entre caracteres.
+            let quote = value.chars().next().filter(|c| matches!(c, '"' | '\''));
+            let closing = quote.and_then(|q| value[1..].find(q).map(|i| i + 1));
+            match closing {
+                Some(end)
+                    if value[end + 1..].trim_start().is_empty()
+                        || value[end + 1..].trim_start().starts_with('#') =>
+                {
+                    value = &value[1..end];
+                }
+                _ => {
+                    if let Some((before, _)) = value.split_once(" #") {
+                        value = before.trim_end();
+                    }
+                }
             }
             file.insert(key.to_owned(), value.to_owned());
         }
@@ -153,6 +162,17 @@ mod tests {
         assert_eq!(settings.get(&["ZZ_FAC"]), "Facultad");
         assert_eq!(settings.get(&["ZZ_EMPTY", "ZZ_FAC"]), "Facultad");
         assert_eq!(settings.get(&["ZZ_MISSING"]), "");
+    }
+
+    #[test]
+    fn a_comment_after_closing_quotes_is_dropped() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("settings.toml");
+        std::fs::write(&path, "ZZ_LANG=\"en\" # nota\nZZ_SQ='a # b' # c\nZZ_BAD=\"x\"y\n").unwrap();
+        let settings = Settings::load(&path).unwrap();
+        assert_eq!(settings.get(&["ZZ_LANG"]), "en");
+        assert_eq!(settings.get(&["ZZ_SQ"]), "a # b");
+        assert_eq!(settings.get(&["ZZ_BAD"]), "\"x\"y");
     }
 
     #[test]
