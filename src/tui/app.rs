@@ -520,6 +520,8 @@ pub struct App {
     /// Pandoc, pdflatex y Graphviz; vacío hasta que termina la comprobación.
     pub tools: Vec<Tool>,
     tools_check: Option<Receiver<Vec<Tool>>>,
+    /// Ya se avisó de que Ctrl+C no cierra del todo una generación en curso.
+    interrupt_warned: bool,
 }
 
 /// Ruta para guardar en un campo: relativa a la raíz del proyecto si cae
@@ -562,6 +564,7 @@ impl App {
             base: Screen::Form,
             tools: Vec::new(),
             tools_check: None,
+            interrupt_warned: false,
         };
         app.refresh_design();
         app
@@ -871,8 +874,28 @@ impl App {
         let before = self.mode.name();
         logging::debug(format_args!("tui: key {:?} {:?} in {before}", key.code, key.modifiers));
         if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') {
+            // Durante una generación el hilo no se puede parar: primero se avisa.
+            if matches!(self.mode, Mode::Generating(_)) && !self.interrupt_warned {
+                self.interrupt_warned = true;
+                logging::info("tui: Ctrl+C during generation; asking for a second press");
+                self.log.push(LogLine::Warning(tr!(
+                    es: "Se está generando el PDF. Pulsa Ctrl+C otra vez para salir del menú (pdflatex puede terminar solo).",
+                    en: "The PDF is being generated. Press Ctrl+C again to leave the menu (pdflatex may finish on its own)."
+                )));
+                return;
+            }
             logging::info("tui: quit with Ctrl+C");
             self.should_quit = true;
+            return;
+        }
+        // Ctrl+letra no es la letra (Ctrl+G no genera, Ctrl+A no escribe «a»).
+        // Ctrl+Alt sí cuenta como texto: es AltGr en teclados como el español.
+        let control_letter = key.modifiers.contains(KeyModifiers::CONTROL)
+            && !key.modifiers.contains(KeyModifiers::ALT)
+            && matches!(key.code, KeyCode::Char(_));
+        let clears_input = key.code == KeyCode::Char('u') && matches!(self.mode, Mode::Editing(_));
+        if control_letter && !clears_input {
+            logging::debug(format_args!("tui: ignored Ctrl+{:?} in {before}", key.code));
             return;
         }
         self.dispatch_key(key);
@@ -1321,6 +1344,7 @@ impl App {
     }
 
     fn start_generation(&mut self) {
+        self.interrupt_warned = false;
         let missing = self.missing_fields();
         if !missing.is_empty() {
             let missing = missing.join(", ");
@@ -1365,6 +1389,15 @@ impl App {
         }
     }
 
+    /// Si al recoger el hilo hay un pánico, la generación se da por perdida:
+    /// al soltar el receptor, el hilo solo falla al enviar y no pasa nada.
+    pub fn abandon_generation(&mut self) {
+        if matches!(self.mode, Mode::Generating(_)) {
+            logging::error("tui: generation abandoned after a panic while collecting its result");
+            self.mode = Mode::Form;
+        }
+    }
+
     /// Recoge los mensajes del hilo de generación; se llama en cada ciclo.
     pub fn poll_worker(&mut self) {
         let Mode::Generating(receiver) = &self.mode else { return };
@@ -1389,7 +1422,11 @@ impl App {
                 )));
                 self.last_pdf = Some(pdf);
             }
-            Err(error) => self.log.push(LogLine::Error(error)),
+            Err(error) => {
+                // Un PDF anterior no corresponde a lo que acaba de fallar.
+                self.last_pdf = None;
+                self.log.push(LogLine::Error(error));
+            }
         }
         self.mode = Mode::Form;
     }

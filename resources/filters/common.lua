@@ -22,10 +22,14 @@ local function avisar(mensaje)
   io.stderr:write("[investigacion] " .. mensaje .. "\n")
 end
 
+-- Un archivo existe si se puede leer. En Linux `io.open` también abre las
+-- carpetas, pero leerlas da error: por eso se comprueba la lectura.
 local function existe(ruta)
   local archivo = io.open(ruta, "rb")
-  if archivo then archivo:close() end
-  return archivo ~= nil
+  if not archivo then return false end
+  local _, error_de_lectura = archivo:read(1)
+  archivo:close()
+  return error_de_lectura == nil
 end
 
 local function escribir(ruta, contenido)
@@ -45,9 +49,11 @@ local function tiene_clase(bloque, clases)
   return false
 end
 
--- El pie se escribe en Markdown, así que puede llevar formato.
+-- El pie se escribe en Markdown, así que puede llevar formato. Se lee con el
+-- mismo lector que el cuerpo (sin LaTeX crudo salvo con --allow-latex).
+local FORMATO_MARKDOWN = os.getenv("INVESTIGACION_MARKDOWN_FORMAT") or "markdown"
 local function pie_de_figura(markdown)
   if not markdown or markdown == "" then return nil end
-  return utils.blocks_to_inlines(pandoc.read(markdown, "markdown").blocks)
+  return utils.blocks_to_inlines(pandoc.read(markdown, FORMATO_MARKDOWN).blocks)
 end
 

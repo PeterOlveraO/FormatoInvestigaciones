@@ -77,13 +77,22 @@ impl Settings {
                     number + 1
                 )));
             }
-            let quoted = value.len() >= 2
-                && (value.starts_with('"') && value.ends_with('"')
-                    || value.starts_with('\'') && value.ends_with('\''));
-            if quoted {
-                value = &value[1..value.len() - 1];
-            } else if let Some((before, _)) = value.split_once(" #") {
-                value = before.trim_end();
+            // Comillas cerradas: después solo puede venir un comentario.
+            // Las comillas son ASCII: el corte en 1 y en `end` cae entre caracteres.
+            let quote = value.chars().next().filter(|c| matches!(c, '"' | '\''));
+            let closing = quote.and_then(|q| value[1..].find(q).map(|i| i + 1));
+            match closing {
+                Some(end)
+                    if value[end + 1..].trim_start().is_empty()
+                        || value[end + 1..].trim_start().starts_with('#') =>
+                {
+                    value = &value[1..end];
+                }
+                _ => {
+                    if let Some((before, _)) = value.split_once(" #") {
+                        value = before.trim_end();
+                    }
+                }
             }
             file.insert(key.to_owned(), value.to_owned());
         }
@@ -92,8 +101,24 @@ impl Settings {
 
     /// Guarda `key=value` en el archivo: reemplaza la línea de esa clave (con o
     /// sin `export`) o la añade al final, sin tocar las demás ni los
-    /// comentarios. Si el archivo no existe, lo crea.
+    /// comentarios. Si el archivo no existe, lo crea. Si tiene errores, no
+    /// lo toca y devuelve el motivo.
     pub fn save_value(path: &Path, key: &str, value: &str) -> Result<()> {
+        // Un archivo roto se deja como está: añadir líneas no lo arreglaría.
+        if path.exists()
+            && let Err(error) = Self::read(path)
+        {
+            logging::warn(format_args!(
+                "settings: {key} not saved, {} is broken: {}",
+                path.display(),
+                error.0
+            ));
+            let reason = error.0;
+            return Err(GenerationError::new(tr!(
+                es: "No se guardó {key}: {reason}",
+                en: "{key} was not saved: {reason}"
+            )));
+        }
         let text = if path.exists() { decode_text(&std::fs::read(path)?, path)? } else { String::new() };
         let new_line = format!("{key}=\"{value}\"");
         let mut found = false;
@@ -156,6 +181,17 @@ mod tests {
     }
 
     #[test]
+    fn a_comment_after_closing_quotes_is_dropped() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("settings.toml");
+        std::fs::write(&path, "ZZ_LANG=\"en\" # nota\nZZ_SQ='a # b' # c\nZZ_BAD=\"x\"y\n").unwrap();
+        let settings = Settings::load(&path).unwrap();
+        assert_eq!(settings.get(&["ZZ_LANG"]), "en");
+        assert_eq!(settings.get(&["ZZ_SQ"]), "a # b");
+        assert_eq!(settings.get(&["ZZ_BAD"]), "\"x\"y");
+    }
+
+    #[test]
     fn a_value_is_replaced_or_appended_keeping_the_rest() {
         let directory = tempfile::tempdir().unwrap();
         let path = directory.path().join("settings.toml");
@@ -177,5 +213,14 @@ mod tests {
         assert!(Settings::load(&path).is_err());
         std::fs::write(&path, "1MAL=x\n").unwrap();
         assert!(Settings::load(&path).is_err());
+    }
+
+    #[test]
+    fn a_broken_file_is_not_changed_by_a_save() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("settings.toml");
+        std::fs::write(&path, "SIN_IGUAL\nUNIVERSIDAD=\"U\"\n").unwrap();
+        assert!(Settings::save_value(&path, "IDIOMA", "en").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "SIN_IGUAL\nUNIVERSIDAD=\"U\"\n");
     }
 }

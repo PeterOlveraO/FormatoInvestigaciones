@@ -1,6 +1,6 @@
 //! Compilación del .tex con pdflatex.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -53,7 +53,20 @@ pub fn copy_template_assets(
 /// (entrada vacía) significa «y además las rutas por omisión»; sin él pdflatex
 /// no encontraría ni sus propios paquetes.
 pub fn latex_search_path(directories: &[PathBuf]) -> Result<OsString> {
-    let mut paths = directories.to_vec();
+    let mut paths = Vec::new();
+    for directory in directories {
+        // Una carpeta que `join_paths` no acepta (con `:` en Linux y macOS; en
+        // Windows `;` se entrecomilla) no cabe en TEXINPUTS: se omite y sigue. Al usuario ya lo avisó Pandoc,
+        // que copia a la caché las imágenes de esa carpeta.
+        if std::env::join_paths([directory]).is_err() {
+            logging::warn(format_args!(
+                "TEXINPUTS: skipped {} (its name has the path separator)",
+                directory.display()
+            ));
+            continue;
+        }
+        paths.push(directory.clone());
+    }
     if let Some(previous) = std::env::var_os("TEXINPUTS") {
         paths.extend(std::env::split_paths(&previous).filter(|p| !p.as_os_str().is_empty()));
     }
@@ -113,6 +126,19 @@ fn is_miktex() -> bool {
 /// Archivos que pdflatex escribe y relee en la siguiente pasada.
 const STATE_EXTENSIONS: [&str; 2] = ["aux", "toc"];
 
+/// Quita `last-error.tex` y `last-error.log` de la carpeta de salida. Que no
+/// existan no es un problema; si no se pueden borrar, solo se avisa en el registro.
+fn remove_last_error(output_dir: &Path) {
+    for extension in ["tex", "log"] {
+        let path = output_dir.join(format!("last-error.{extension}"));
+        match std::fs::remove_file(&path) {
+            Ok(()) => logging::info(format_args!("removed the old {}", path.display())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => logging::warn(format_args!("could not remove {}: {error}", path.display())),
+        }
+    }
+}
+
 /// Compila las veces necesarias para estabilizar índice y referencias.
 /// `search_dirs` son las carpetas donde pdflatex busca imágenes y diagramas.
 ///
@@ -127,6 +153,10 @@ pub fn compile_pdf(
     state_dir: Option<&Path>,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<()> {
+    // Se calcula una sola vez para las dos ejecuciones posibles.
+    let mut directories = vec![PathBuf::from(".")];
+    directories.extend(search_dirs.iter().map(|d| crate::project::absolute(d)));
+    let texinputs = latex_search_path(&directories)?;
     let restored = state_dir.and_then(|dir| restore_state(dir, tex_path));
     match (state_dir, &restored) {
         (Some(dir), Some(_)) => logging::info(format_args!("latex state: cache hit ({})", dir.display())),
@@ -135,7 +165,7 @@ pub fn compile_pdf(
     }
     // El intento con estado previo no deja `last-error.*`: si falla se repite
     // desde cero, y solo un fallo de ese segundo intento es un error real.
-    let log = match run_passes(tex_path, output_pdf, search_dirs, restored.clone(), restored.is_none()) {
+    let log = match run_passes(tex_path, output_pdf, &texinputs, restored.clone(), restored.is_none()) {
         Err(error) if restored.is_some() => {
             logging::warn(format_args!(
                 "build with the cached latex state failed; retrying from scratch:\n{error}"
@@ -143,7 +173,7 @@ pub fn compile_pdf(
             for extension in STATE_EXTENSIONS {
                 let _ = std::fs::remove_file(tex_path.with_extension(extension));
             }
-            run_passes(tex_path, output_pdf, search_dirs, None, true)?
+            run_passes(tex_path, output_pdf, &texinputs, None, true)?
         }
         other => other?,
     };
@@ -158,8 +188,19 @@ pub fn compile_pdf(
     for warning in unsupported_character_warnings(&log) {
         on_warning(warning);
     }
-    crate::project::replace_file(output_pdf, |temporary| std::fs::copy(&generated, temporary).map(drop))
-        .map_err(|e| crate::generate::cannot_write(output_pdf, &e))?;
+    publish_built_pdf(tex_path, &generated, output_pdf, state_dir)
+}
+
+/// Pasa el PDF recién compilado a su destino. El estado de LaTeX se guarda
+/// antes de copiar, para que sirva aunque el destino esté bloqueado. Si el PDF
+/// no se puede escribir (abierto en un visor, típico de Windows), se deja una
+/// copia en la carpeta de estado de este trabajo y el error dice dónde está.
+fn publish_built_pdf(
+    tex_path: &Path,
+    generated: &Path,
+    output_pdf: &Path,
+    state_dir: Option<&Path>,
+) -> Result<()> {
     if let Some(dir) = state_dir {
         // La caché es una ayuda: si no se puede guardar, no es un error.
         match save_state(dir, tex_path) {
@@ -167,7 +208,37 @@ pub fn compile_pdf(
             Err(error) => logging::warn(format_args!("latex state not saved in {}: {error}", dir.display())),
         }
     }
-    Ok(())
+    let copied =
+        crate::project::replace_file(output_pdf, |temporary| std::fs::copy(generated, temporary).map(drop));
+    let Err(error) = copied else {
+        // Solo un éxito borra los restos de un fallo anterior en la carpeta de salida.
+        if let Some(output_dir) = output_pdf.parent() {
+            remove_last_error(output_dir);
+        }
+        return Ok(());
+    };
+    let Some(kept) = state_dir.and_then(|dir| keep_built_pdf(generated, dir, output_pdf).ok()) else {
+        return Err(crate::generate::cannot_write(output_pdf, &error));
+    };
+    logging::error(format_args!(
+        "PDF kept in {} because {} could not be written: {error}",
+        kept.display(),
+        output_pdf.display()
+    ));
+    Err(GenerationError::new(tr!(
+        es: "No se pudo escribir en {}: {error}. El PDF recién compilado quedó en {}. Revisa los permisos o cierra el PDF si está abierto en otro programa y vuelve a generarlo.",
+        en: "Could not write to {}: {error}. The new PDF was kept in {}. Check the permissions or close the PDF if another program has it open, and generate it again.",
+        output_pdf.display(),
+        kept.display()
+    )))
+}
+
+/// Copia el PDF compilado a la carpeta de estado, con el nombre de la salida.
+fn keep_built_pdf(generated: &Path, state_dir: &Path, output_pdf: &Path) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(state_dir)?;
+    let kept = state_dir.join(output_pdf.file_name().unwrap_or_default());
+    std::fs::copy(generated, &kept)?;
+    Ok(kept)
 }
 
 /// Copia el estado guardado junto al .tex y devuelve el índice que contenía.
@@ -206,7 +277,7 @@ fn save_state(state_dir: &Path, tex_path: &Path) -> std::io::Result<()> {
 fn run_passes(
     tex_path: &Path,
     output_pdf: &Path,
-    search_dirs: &[PathBuf],
+    texinputs: &OsStr,
     restored_toc: Option<String>,
     keep_artifacts: bool,
 ) -> Result<String> {
@@ -216,9 +287,6 @@ fn run_passes(
     // de las rutas cortas de Windows (`C:\Users\USUARI~1\...`), que TeX lee
     // como carácter activo. Las imágenes y diagramas se buscan por TEXINPUTS.
     let tex_name = tex_path.file_name().unwrap_or(tex_path.as_os_str());
-    let mut directories = vec![PathBuf::from(".")];
-    directories.extend(search_dirs.iter().map(|d| crate::project::absolute(d)));
-    let texinputs = latex_search_path(&directories)?;
     let log_path = tex_path.with_extension("log");
     let toc_path = tex_path.with_extension("toc");
     let output_dir = output_pdf.parent().unwrap_or(Path::new("."));
@@ -244,7 +312,7 @@ fn run_passes(
             command.arg("-draftmode");
         }
         logging::info(format_args!("pdflatex pass {run}{}", if draft { " (draft mode)" } else { "" }));
-        command.arg(tex_name).current_dir(temp_dir).env("TEXINPUTS", &texinputs);
+        command.arg(tex_name).current_dir(temp_dir).env("TEXINPUTS", texinputs);
 
         let started = std::time::Instant::now();
         let result = run_with_timeout(command, None, TOOL_TIMEOUT).map_err(|e| match e {
@@ -305,4 +373,74 @@ fn run_passes(
         }
     }
     Ok(log)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Un directorio donde debe ir el PDF hace fallar la copia, como un PDF abierto.
+    #[test]
+    fn a_locked_pdf_keeps_the_build_in_the_state_folder() {
+        let directory = tempfile::tempdir().unwrap();
+        let base = directory.path();
+        let generated = base.join("trabajo.pdf");
+        std::fs::write(&generated, b"%PDF-1.5 nuevo").unwrap();
+        let tex = base.join("trabajo.tex");
+        std::fs::write(&tex, "x").unwrap();
+        let output = base.join("salida").join("tarea.pdf");
+        std::fs::create_dir_all(&output).unwrap();
+        let state = base.join("cache");
+
+        let error = publish_built_pdf(&tex, &generated, &output, Some(&state)).unwrap_err();
+
+        let kept = state.join("tarea.pdf");
+        assert_eq!(std::fs::read(&kept).unwrap(), b"%PDF-1.5 nuevo");
+        assert!(error.0.contains(&kept.display().to_string()));
+        assert!(state.join("trabajo.toc").is_file(), "el estado de LaTeX se guarda antes de copiar");
+    }
+
+    #[test]
+    fn a_locked_pdf_without_state_folder_is_a_plain_write_error() {
+        let directory = tempfile::tempdir().unwrap();
+        let base = directory.path();
+        let generated = base.join("trabajo.pdf");
+        std::fs::write(&generated, b"%PDF-1.5").unwrap();
+        let output = base.join("tarea.pdf");
+        std::fs::create_dir_all(&output).unwrap();
+
+        let error = publish_built_pdf(&base.join("trabajo.tex"), &generated, &output, None).unwrap_err();
+        assert!(error.0.contains(&output.display().to_string()));
+        assert!(!error.0.contains("quedó en"));
+    }
+
+    #[test]
+    fn a_successful_build_removes_the_old_last_error_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path();
+        std::fs::write(output.join("last-error.tex"), "viejo").unwrap();
+        std::fs::write(output.join("last-error.log"), "viejo").unwrap();
+        std::fs::write(output.join("tarea.pdf"), "pdf").unwrap();
+
+        remove_last_error(output);
+
+        assert!(!output.join("last-error.tex").exists());
+        assert!(!output.join("last-error.log").exists());
+        assert!(output.join("tarea.pdf").is_file());
+        // Sin restos que borrar no es un error.
+        remove_last_error(output);
+    }
+
+    // `:` no cabe en Linux y macOS, `"` en Windows: se elige el que rechace este sistema.
+    #[test]
+    fn a_folder_with_the_path_separator_is_skipped() {
+        let rejected =
+            [':', '"'].into_iter().find(|c| std::env::join_paths([format!("a{c}b")]).is_err()).unwrap();
+        let bad = PathBuf::from(format!("carpeta{rejected}separador"));
+        let path = latex_search_path(&[PathBuf::from("."), bad.clone(), PathBuf::from("buena")]).unwrap();
+
+        let entries: Vec<PathBuf> = std::env::split_paths(&path).collect();
+        assert!(!entries.contains(&bad));
+        assert!(entries.contains(&PathBuf::from("buena")));
+    }
 }

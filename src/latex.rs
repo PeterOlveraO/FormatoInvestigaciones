@@ -65,13 +65,35 @@ pub fn render_template(template: &str, content: &str, data: &DocumentData) -> Re
         })
         .into_owned();
 
-    if !rendered.contains(CONTENT_MARKER) {
-        return Err(GenerationError::new(tr!(
+    place_content(&rendered, content).ok_or_else(|| {
+        GenerationError::new(tr!(
             es: "La plantilla no contiene el marcador {CONTENT_MARKER}.",
             en: "The template does not contain the {CONTENT_MARKER} marker."
-        )));
+        ))
+    })
+}
+
+/// Línea de comentario de LaTeX: empieza por `%` (no por `%%`, que es marcador).
+pub fn is_comment_line(line: &str) -> bool {
+    let trimmed = line.trim_start();
+    trimmed.starts_with('%') && !trimmed.starts_with("%%")
+}
+
+/// Pone el contenido en la primera aparición del marcador fuera de los
+/// comentarios; `None` si no hay ninguna.
+fn place_content(rendered: &str, content: &str) -> Option<String> {
+    let mut offset = 0;
+    for line in rendered.split_inclusive('\n') {
+        if !is_comment_line(line)
+            && let Some(at) = line.find(CONTENT_MARKER)
+        {
+            let start = offset + at;
+            let end = start + CONTENT_MARKER.len();
+            return Some(format!("{}{content}{}", &rendered[..start], &rendered[end..]));
+        }
+        offset += line.len();
     }
-    Ok(rendered.replace(CONTENT_MARKER, content))
+    None
 }
 
 static FILE_LINE_ERROR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"^.+?\.\w+:\d+: ").unwrap());
@@ -164,6 +186,16 @@ mod tests {
         let rendered = render_template("[%%SALON%%][%%OTRO%%]%%CONTENIDO_MARKDOWN%%", "x", &values).unwrap();
         assert_eq!(rendered, r"[B-204 \& C][]x");
         assert!(render_template("%%TITULO%% sin contenido", "x", &data()).is_err());
+    }
+
+    #[test]
+    fn the_content_goes_only_where_the_marker_is_not_commented() {
+        let template = "% %%CONTENIDO_MARKDOWN%% (comentario)\n%%CONTENIDO_MARKDOWN%%\n";
+        assert_eq!(
+            render_template(template, "X", &data()).unwrap(),
+            "% %%CONTENIDO_MARKDOWN%% (comentario)\nX\n"
+        );
+        assert!(render_template("% %%CONTENIDO_MARKDOWN%%\n", "X", &data()).is_err());
     }
 
     #[test]

@@ -14,6 +14,17 @@ use crate::project::Project;
 /// `==resaltado==`, `:emoji:` y URL sueltas convertidas en enlace.
 pub const MARKDOWN_EXTENSIONS: [&str; 3] = ["mark", "emoji", "autolink_bare_uris"];
 
+/// Lector de Markdown del documento. Los filtros leen los pies de figura con el
+/// mismo lector (`INVESTIGACION_MARKDOWN_FORMAT`), para que no difieran.
+pub fn markdown_format(allow_raw_latex: bool) -> String {
+    let mut format = String::from(if allow_raw_latex { "markdown" } else { "markdown-raw_tex" });
+    for extension in MARKDOWN_EXTENSIONS {
+        format.push('+');
+        format.push_str(extension);
+    }
+    format
+}
+
 /// Filtros Lua, en el orden en que se aplican. Van embebidos en el binario
 /// para no depender de dónde se instale; se escriben a un temporal al usarse.
 /// Funciones comunes que se pegan al principio de cada filtro.
@@ -54,6 +65,26 @@ fn join_search_path(paths: &[PathBuf]) -> Result<OsString> {
     })
 }
 
+/// Separa las carpetas cuya ruta lleva el separador del sistema (`:` en Linux)
+/// de las que sí caben en la lista de búsqueda de Pandoc y de LaTeX. Las
+/// primeras se avisan: los filtros copian sus imágenes a la caché.
+fn split_resource_dirs(dirs: &[PathBuf], on_warning: &mut dyn FnMut(String)) -> (Vec<PathBuf>, Vec<PathBuf>) {
+    let (kept, dropped): (Vec<PathBuf>, Vec<PathBuf>) =
+        dirs.iter().cloned().partition(|dir| std::env::join_paths([dir]).is_ok());
+    for dir in &dropped {
+        logging::warn(format_args!(
+            "resource folder has the path separator, images are copied to the cache: {}",
+            dir.display()
+        ));
+        on_warning(tr!(
+            es: "La carpeta {} lleva el separador de rutas del sistema: sus imágenes se copian a la caché.",
+            en: "The folder {} has the system path separator: its images are copied to the cache.",
+            dir.display()
+        ));
+    }
+    (kept, dropped)
+}
+
 /// Dónde se buscan las imágenes: junto al Markdown y en la caché del proyecto.
 /// Pandoc las comprueba ahí y pdflatex las busca ahí por TEXINPUTS.
 pub fn resource_dirs(project: &Project, markdown_path: &Path) -> Result<Vec<PathBuf>> {
@@ -77,13 +108,10 @@ pub fn pandoc_to_latex(
     let (remote, diagrams) = project.media_directories()?;
     let base_dir = markdown_path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let resources = resource_dirs(project, markdown_path)?;
+    let (searchable, unsearchable) = split_resource_dirs(&resources, on_warning);
 
     let filters_dir = tempfile::Builder::new().prefix("investigacion-filters-").tempdir()?;
-    let mut format = String::from(if allow_raw_latex { "markdown" } else { "markdown-raw_tex" });
-    for extension in MARKDOWN_EXTENSIONS {
-        format.push('+');
-        format.push_str(extension);
-    }
+    let format = markdown_format(allow_raw_latex);
 
     let mut command = Command::new("pandoc");
     command
@@ -93,7 +121,7 @@ pub fn pandoc_to_latex(
         .arg("--wrap=none")
         .arg({
             let mut arg = OsString::from("--resource-path=");
-            arg.push(join_search_path(&resources)?);
+            arg.push(join_search_path(&searchable)?);
             arg
         })
         .arg(format!("--request-header=User-Agent:{USER_AGENT}"));
@@ -108,8 +136,14 @@ pub fn pandoc_to_latex(
         .current_dir(&base_dir)
         .env("INVESTIGACION_REMOTE_IMAGES", posix(&remote))
         .env("INVESTIGACION_DIAGRAMS", posix(&diagrams))
+        .env("INVESTIGACION_MARKDOWN_FORMAT", &format)
         // Una carpeta por línea: así una ruta puede llevar espacios.
         .env("INVESTIGACION_RESOURCES", resources.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"))
+        // Carpetas que LaTeX no puede buscar: sus imágenes se copian a la caché.
+        .env(
+            "INVESTIGACION_UNSEARCHABLE",
+            unsearchable.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"),
+        )
         // Los filtros redactan sus avisos en el idioma de la interfaz.
         .env("INVESTIGACION_LANG", crate::i18n::current().code())
         // Y el texto que va dentro del PDF (títulos de las cajas), en el del documento.
@@ -148,8 +182,8 @@ pub fn pandoc_to_latex(
         // versión vieja el error de Lua no dice qué hacer, así que se explica.
         if let Some(version) = old_pandoc_version() {
             return Err(GenerationError::new(tr!(
-                es: "Hace falta Pandoc 3.0 o más nuevo y está instalado {version}. Las instrucciones están en INSTALL.md.",
-                en: "Pandoc 3.0 or newer is needed and {version} is installed. INSTALL.md has the steps."
+                es: "Hace falta Pandoc 3.0 o más nuevo y está instalado {version}. Las instrucciones están en docs/install.md.",
+                en: "Pandoc 3.0 or newer is needed and {version} is installed. docs/install.md has the steps."
             )));
         }
         let suffix = if detail.is_empty() { ".".to_owned() } else { format!(": {detail}") };
@@ -206,5 +240,19 @@ mod tests {
             "[WARNING] Deprecated syntax\n[investigacion] No se pudo descargar la imagen x.png\notra linea\n";
         assert_eq!(filter_warnings(stderr), ["No se pudo descargar la imagen x.png"]);
         assert!(filter_warnings("").is_empty());
+    }
+
+    #[test]
+    fn a_folder_with_the_path_separator_is_split_off_with_a_warning() {
+        // `:` no cabe en Linux y macOS, `"` en Windows: se elige el que rechace este sistema.
+        let separator =
+            [':', '"'].into_iter().find(|c| std::env::join_paths([format!("a{c}b")]).is_err()).unwrap();
+        let dirs =
+            vec![PathBuf::from("/proyecto/figuras"), PathBuf::from(format!("/proyecto/car{separator}peta"))];
+        let mut warnings = Vec::new();
+        let (kept, dropped) = split_resource_dirs(&dirs, &mut |w| warnings.push(w));
+        assert_eq!(kept, [PathBuf::from("/proyecto/figuras")]);
+        assert_eq!(dropped, [PathBuf::from(format!("/proyecto/car{separator}peta"))]);
+        assert_eq!(warnings.len(), 1);
     }
 }

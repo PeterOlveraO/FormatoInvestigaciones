@@ -4,7 +4,7 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use crate::compile::{compile_pdf, copy_template_assets};
-use crate::document::{DocumentData, slugify};
+use crate::document::{DocumentData, safe_file_stem};
 use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
 use crate::i18n::Lang;
@@ -43,9 +43,9 @@ pub fn output_file_name(markdown_path: &Path, file_name: Option<&str>) -> String
         Some(name) => {
             let split = name.len().saturating_sub(4);
             let has_pdf = name.get(split..).is_some_and(|end| end.eq_ignore_ascii_case(".pdf"));
-            slugify(if has_pdf { &name[..split] } else { name })
+            safe_file_stem(if has_pdf { &name[..split] } else { name })
         }
-        None => slugify(&markdown_path.file_stem().unwrap_or_default().to_string_lossy()),
+        None => safe_file_stem(&markdown_path.file_stem().unwrap_or_default().to_string_lossy()),
     };
     format!("{base}.pdf")
 }
@@ -277,5 +277,12 @@ mod tests {
         assert_eq!(output_file_name(markdown, Some("Entrega Final.pdf")), "entrega-final.pdf");
         assert_eq!(output_file_name(markdown, Some("Reporte.PDF")), "reporte.pdf");
         assert_eq!(output_file_name(markdown, Some("  ")), "tarea2-3.pdf");
+    }
+
+    #[test]
+    fn a_reserved_windows_name_gets_a_prefix() {
+        let markdown = Path::new("input/IA/Tarea.md");
+        assert_eq!(output_file_name(markdown, Some("aux.pdf")), "investigacion-aux.pdf");
+        assert_eq!(output_file_name(markdown, Some("NUL")), "investigacion-nul.pdf");
     }
 }

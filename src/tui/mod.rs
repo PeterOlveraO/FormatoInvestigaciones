@@ -12,6 +12,7 @@ mod wizard;
 
 pub use app::{App, FIELDS, FieldKey};
 
+use std::path::Path;
 use std::time::Duration;
 
 use ratatui::crossterm::event::{self, Event, KeyEventKind};
@@ -30,11 +31,15 @@ pub fn run() -> i32 {
         return 1;
     }
     // El idioma guardado manda; si no hay, se pregunta con el del sistema marcado.
-    let settings = Settings::load(&project.settings_file()).unwrap_or_default();
+    let (settings, problem) = load_settings(&project.settings_file());
     let saved = i18n::configured(&settings);
     i18n::set(saved.unwrap_or_else(i18n::detect));
     theme::set(&settings.get(&theme::THEME_SETTINGS));
     let mut app = App::new(project);
+    // Un archivo roto se avisa en el menú; sigue con los valores por omisión.
+    if let Some(problem) = problem {
+        app.log.push(app::LogLine::Error(problem));
+    }
     app.detect_tools();
     // La primera vez: idioma, carpeta de trabajo y, sin perfiles, el asistente.
     let ask_workspace = app.project.saved_workspace().is_none();
@@ -60,12 +65,27 @@ pub fn run() -> i32 {
     }
 }
 
+/// Ajustes para arrancar. Si el archivo tiene errores, valores por omisión
+/// y el motivo para mostrar en el menú.
+fn load_settings(path: &Path) -> (Settings, Option<String>) {
+    match Settings::load(path) {
+        Ok(settings) => (settings, None),
+        Err(error) => (Settings::default(), Some(error.0)),
+    }
+}
+
 fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> std::io::Result<()> {
     // Un dibujo que falla dos veces seguidas no se arregla solo: se sale.
     let mut failed_draws = 0;
     while !app.should_quit {
-        app.poll_worker();
-        app.poll_tools();
+        // Un pánico al recoger el resultado no tumba el menú.
+        if let Err(message) = guard::run(|| app.poll_worker()) {
+            app.abandon_generation();
+            app.recover(message);
+        }
+        if let Err(message) = guard::run(|| app.poll_tools()) {
+            app.recover(message);
+        }
         let mut drawn = Ok(());
         terminal.draw(|frame| drawn = guard::run(|| ui::draw(frame, app)))?;
         match drawn {

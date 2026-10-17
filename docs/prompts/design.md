@@ -110,6 +110,9 @@ Rules, all of them checked or required:
 7. `%%CONTENIDO_MARKDOWN%%` appears exactly once, alone on its line, inside
    the document, after the cover. Never inside a comment.
 8. The file is UTF-8. Accents and `ñ` can be typed directly.
+9. Fixed labels on the cover follow the document language: write
+   `\SegunIdioma{Alumno:}{Student:}` (Spanish first, English second) instead
+   of a bare `Alumno:`. The base defines it.
 
 # 3. THE MARKERS
 

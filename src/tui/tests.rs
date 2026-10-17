@@ -1006,13 +1006,13 @@ fn home_shows_the_last_pdf_and_the_missing_tools() {
         "✗ Pandoc: not installed (required)",
         "✓ pdflatex",
         "Graphviz (dot): not installed",
-        "INSTALL.md",
+        "docs/install.md",
     ] {
         assert!(screen.contains(expected), "{expected} in:\n{screen}");
     }
     app.tools.iter_mut().for_each(|t| t.found = true);
     let screen = render(&app);
-    assert!(!screen.contains("INSTALL.md") && screen.contains("✓ Graphviz (dot) (optional)"));
+    assert!(!screen.contains("install.md") && screen.contains("✓ Graphviz (dot) (optional)"));
 }
 
 #[test]
@@ -1199,4 +1199,105 @@ fn the_general_cover_data_is_in_the_form() {
         assert!(fields.contains(&(pair.0.to_owned(), pair.1.to_owned())), "{pair:?} in {fields:?}");
     }
     assert!(render(&app).contains("Universidad"));
+}
+
+#[test]
+fn a_failed_generation_does_not_offer_the_previous_pdf() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    // Un PDF de una generación anterior y una nueva que falla.
+    app.last_pdf = Some("previo.pdf".into());
+    app.mode = Mode::Generating(receiver);
+    sender.send(super::app::WorkerMessage::Finished(Err("falló".into()))).unwrap();
+    app.poll_worker();
+    assert!(app.last_pdf.is_none());
+    assert!(matches!(app.mode, Mode::Form));
+    press(&mut app, KeyCode::Char('v'));
+    assert!(app.log.iter().any(|line| matches!(line, LogLine::Warning(_))));
+}
+
+#[test]
+fn a_broken_settings_file_is_reported_and_the_menu_uses_defaults() {
+    let (_dir, project) = sample_project();
+    let file = project.settings_file();
+    std::fs::write(&file, "SIN_IGUAL\n").unwrap();
+    i18n::set(Lang::Es);
+    let (settings, problem) = super::load_settings(&file);
+    assert_eq!(settings.get(&["IDIOMA"]), "");
+    let problem = problem.expect("un archivo roto debe avisarse");
+    assert!(problem.contains("settings.toml") && problem.contains("línea 1"), "{problem}");
+    std::fs::remove_file(&file).unwrap();
+    assert!(super::load_settings(&file).1.is_none());
+}
+
+fn press_ctrl(app: &mut App, c: char) {
+    app.handle_key(KeyEvent::new(KeyCode::Char(c), KeyModifiers::CONTROL));
+}
+
+fn editing_text(app: &App) -> String {
+    let Mode::Editing(input) = &app.mode else { panic!("no está editando: {:?}", app.mode.name()) };
+    input.text.clone()
+}
+
+#[test]
+fn ctrl_letters_do_not_act_as_letters() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    // Ctrl+G no genera: no aparece el aviso de que faltan datos.
+    let log_before = app.log.len();
+    press_ctrl(&mut app, 'g');
+    assert_eq!(app.log.len(), log_before);
+    assert!(matches!(app.mode, Mode::Form));
+    // La letra sin Ctrl sí, para comparar.
+    press(&mut app, KeyCode::Char('g'));
+    assert!(app.log.len() > log_before);
+
+    // Dentro de un campo: Ctrl+A no escribe «a»; Ctrl+U sí borra.
+    select(&mut app, FieldKey::Title);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ab");
+    press_ctrl(&mut app, 'a');
+    assert_eq!(editing_text(&app), "ab");
+    // Ctrl+Alt es AltGr (p. ej. @ en el teclado español): sí escribe.
+    app.handle_key(KeyEvent::new(KeyCode::Char('@'), KeyModifiers::CONTROL | KeyModifiers::ALT));
+    assert_eq!(editing_text(&app), "ab@");
+    press_ctrl(&mut app, 'u');
+    assert_eq!(editing_text(&app), "");
+}
+
+#[test]
+fn ctrl_c_during_generation_asks_twice_before_leaving() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    let (_sender, receiver) = std::sync::mpsc::channel();
+    app.mode = Mode::Generating(receiver);
+    let ctrl_c = KeyEvent::new(KeyCode::Char('c'), KeyModifiers::CONTROL);
+    // La primera vez solo avisa: la generación sigue y el menú no se cierra.
+    app.handle_key(ctrl_c);
+    assert!(!app.should_quit);
+    assert!(matches!(app.mode, Mode::Generating(_)));
+    assert!(matches!(app.log.last(), Some(LogLine::Warning(_))));
+    // La segunda cierra.
+    app.handle_key(ctrl_c);
+    assert!(app.should_quit);
+}
+
+#[test]
+fn a_panic_while_collecting_the_result_leaves_a_usable_menu() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    let (_sender, receiver) = std::sync::mpsc::channel();
+    app.mode = Mode::Generating(receiver);
+    // Lo que hace event_loop tras un pánico en poll_worker.
+    app.abandon_generation();
+    app.recover("boom".into());
+    assert!(!matches!(app.mode, Mode::Generating(_)));
+    assert!(matches!(app.log.last(), Some(LogLine::Error(error)) if error.contains("boom")));
+    // El menú sigue respondiendo.
+    press(&mut app, KeyCode::Char('o'));
+    assert!(matches!(app.mode, Mode::Options(_)));
 }

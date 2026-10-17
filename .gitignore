@@ -1,34 +1,26 @@
-# Rust build output
+# Build output and regenerable cache
 /target/
+/cache/
 
-# Personal data: everyone's own settings, papers and PDFs (.env is the old settings file)
-.env
+# Personal data: settings, papers, PDFs and the work folder
 settings.toml
+.env
 /input/
 /output/
-# A work folder (CARPETA_TRABAJO) inside the project holds the same personal data
 /entrada/
+/investigacion/
+last-error.tex
+last-error.log
 
-# Course profiles hold teachers' names; only the example is shared
+# Course profiles and logos (only the examples and guides are shared)
 /courses/*
 !/courses/example.toml
 !/courses/README.md
-
-# Institution logos are rarely redistributable; only the explanation is shared
 /templates/logos/*
 !/templates/logos/README.md
 /templates/designs/*/logos/
 /logos/
-
-# Your own formats and designs (my-templates/formats, my-templates/designs)
 /my-templates/
-
-# Regenerable cache: downloaded images, diagrams and LaTeX state
-/cache/
-
-# Leftovers of a failed build (saved next to the PDF)
-last-error.tex
-last-error.log
 
 # Editors and operating systems
 *.save
@@ -38,6 +30,3 @@ last-error.log
 Thumbs.db
 .idea/
 .vscode/
-
-# Archivos de trabajo de la skill de investigación (agy)
-/investigacion/

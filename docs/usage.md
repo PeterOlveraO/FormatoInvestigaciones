@@ -1,7 +1,7 @@
 # Using investigacion
 
 A short, friendly guide to turn a Markdown paper into a PDF, with the menu or
-with one command. Installation is in [INSTALL.md](../INSTALL.md). Every
+with one command. Installation is in [install.md](install.md). Every
 option is in [cli.md](cli.md); formats, designs and the Markdown syntax are
 in [reference.md](reference.md).
 
@@ -93,9 +93,11 @@ Keys in the form:
 | `v` | Open the last PDF. |
 | `o` | Open the options. |
 | `s` or `q` | Quit. |
+| Ctrl+C | Quit. While a PDF is being generated it asks first: press it again to leave. |
 | Esc | Back to the home view. |
 
-While you type a value: Enter saves, Esc cancels, Ctrl+U clears. In a list:
+While you type a value: Enter saves, Esc cancels, Ctrl+U clears; other
+Ctrl+letter combinations do nothing (Ctrl+Alt, AltGr, still types). In a list:
 ↑↓ move, Enter or → opens or chooses, ← or Backspace goes up a folder, and
 Esc cancels. In a folder list, typing a new name shows `+ <name>/  create and
 open`; Enter creates the folder and enters it.

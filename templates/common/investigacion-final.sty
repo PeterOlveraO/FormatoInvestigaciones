@@ -5,6 +5,13 @@
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{investigacion-final}[2026/10/03 Cierre del preambulo comun]
 
+% babel-spanish: \% en modo matemático falla con «Incompatible glue units» si
+% va tras \, \; o \!. En modo matemático se quita el espacio anterior y se
+% pone el fino de babel; en texto queda el \% original.
+\@ifundefined{es@sppercent}{}{%
+  \let\inv@sppercent\es@sppercent
+  \def\es@sppercent{\ifmmode\ifnum\lastnodetype=12 \unskip\fi\,\else\expandafter\inv@sppercent\fi}}
+
 % hyperref se carga al final del preámbulo (requisito del paquete)
 \RequirePackage{hyperref}
 \RequirePackage{bookmark}

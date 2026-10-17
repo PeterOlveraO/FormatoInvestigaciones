@@ -86,6 +86,27 @@ pub fn slugify(value: &str) -> String {
     if slug.is_empty() { "investigacion".to_owned() } else { slug }
 }
 
+/// Nombres que Windows reserva: no sirven como archivo, tenga o no extensión.
+const WINDOWS_RESERVED: [&str; 22] = [
+    "con", "prn", "aux", "nul", "com1", "com2", "com3", "com4", "com5", "com6", "com7", "com8", "com9",
+    "lpt1", "lpt2", "lpt3", "lpt4", "lpt5", "lpt6", "lpt7", "lpt8", "lpt9",
+];
+
+/// Nombre de archivo seguro en Windows y Linux: un slug, sin nombres reservados
+/// y con tope de largo (el temporal de la escritura añade caracteres). Se corta
+/// en un guion para no dejar una palabra a medias.
+pub fn safe_file_stem(value: &str) -> String {
+    const MAX_LEN: usize = 100;
+    // El slug es ASCII, así que cortar por bytes es seguro.
+    let mut stem = slugify(value);
+    if stem.len() > MAX_LEN {
+        let head = &stem[..MAX_LEN];
+        let cut = head.rfind('-').filter(|&i| i > 0).unwrap_or(MAX_LEN);
+        stem = head[..cut].trim_end_matches('-').to_owned();
+    }
+    if WINDOWS_RESERVED.contains(&stem.as_str()) { format!("investigacion-{stem}") } else { stem }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -101,6 +122,16 @@ mod tests {
     fn slugify_removes_accents() {
         assert_eq!(slugify("Álgebra: teoría y práctica"), "algebra-teoria-y-practica");
         assert_eq!(slugify("¿?"), "investigacion");
+    }
+
+    #[test]
+    fn safe_file_stem_avoids_windows_reserved_names_and_long_names() {
+        assert_eq!(safe_file_stem("con"), "investigacion-con");
+        assert_eq!(safe_file_stem("AUX"), "investigacion-aux");
+        assert_eq!(safe_file_stem("com1"), "investigacion-com1");
+        assert_eq!(safe_file_stem("conferencia"), "conferencia");
+        let long = safe_file_stem(&"palabra ".repeat(60));
+        assert!(long.len() <= 100 && long.ends_with("palabra") && !long.ends_with('-'));
     }
 
     #[test]

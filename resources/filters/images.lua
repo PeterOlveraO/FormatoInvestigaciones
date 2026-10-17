@@ -14,10 +14,15 @@ resto del proyecto: avisar sin impedir que el trabajo salga.
 El generador le pasa las rutas por dos variables de entorno:
   INVESTIGACION_REMOTE_IMAGES   carpeta donde se guardan las descargas
   INVESTIGACION_RESOURCES   carpetas donde buscar una imagen local, una por línea
+  INVESTIGACION_UNSEARCHABLE   carpetas de esa lista que LaTeX no puede buscar
 ]]
 
 local CACHE = os.getenv("INVESTIGACION_REMOTE_IMAGES")
 local RECURSOS = os.getenv("INVESTIGACION_RESOURCES") or ""
+local INACCESIBLES = {}
+for carpeta in (os.getenv("INVESTIGACION_UNSEARCHABLE") or ""):gmatch("[^\n]+") do
+  INACCESIBLES[carpeta] = true
+end
 
 -- pdflatex solo compone estos formatos. El resto (SVG, WEBP) necesitaría una
 -- conversión previa, que este proyecto no hace.
@@ -107,14 +112,13 @@ local function descargar(imagen)
 end
 
 -- Una ruta local se busca en las carpetas que pasa el generador; devuelve
--- dónde está, o nil si no aparece en ninguna.
+-- dónde está y de qué carpeta sale (nil si fue tal cual), o nil si no aparece.
 local function encuentra_local(ruta)
-  -- Tal cual: cubre tanto una ruta absoluta como una relativa al directorio de
-  -- trabajo, en cualquier sistema.
-  if existe(ruta) then return ruta end
   for carpeta in RECURSOS:gmatch("[^\n]+") do
-    if existe(carpeta .. "/" .. ruta) then return carpeta .. "/" .. ruta end
+    if existe(carpeta .. "/" .. ruta) then return carpeta .. "/" .. ruta, carpeta end
   end
+  -- Tal cual: cubre una ruta absoluta, en cualquier sistema.
+  if existe(ruta) then return ruta, nil end
   return nil
 end
 
@@ -156,11 +160,11 @@ function Image(imagen)
   end
 
   if RECURSOS == "" then return nil end
-  local encontrada = encuentra_local(imagen.src)
+  local encontrada, carpeta = encuentra_local(imagen.src)
   -- Muchos editores escriben los espacios como %20 (`mi%20foto.png`).
   local decodificada = imagen.src:gsub("%%(%x%x)", function(hex) return string.char(tonumber(hex, 16)) end)
   if not encontrada and decodificada ~= imagen.src then
-    encontrada = encuentra_local(decodificada)
+    encontrada, carpeta = encuentra_local(decodificada)
     if encontrada then imagen.src = decodificada end
   end
   if not encontrada then
@@ -170,7 +174,8 @@ function Image(imagen)
     return reemplazo(imagen)
   end
   if not formato_admitido(imagen.src, extension_de(imagen.src)) then return reemplazo(imagen) end
-  if imagen.src:match("^%.") then
+  -- LaTeX no busca en las carpetas con el separador de rutas: esas se copian.
+  if imagen.src:match("^%.") or (carpeta and INACCESIBLES[carpeta]) then
     local nombre = copia_a_cache(encontrada)
     if not nombre then
       avisar(texto("No se pudo copiar la imagen " .. imagen.src .. " a la caché.",

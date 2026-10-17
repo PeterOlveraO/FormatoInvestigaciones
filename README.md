@@ -1,6 +1,6 @@
 # Formato de Investigaciones
 
-[![Version](https://img.shields.io/badge/version-2.0.0-blue)](CHANGELOG.md)
+[![Version](https://img.shields.io/badge/version-2.0.0-blue)](docs/changelog.md)
 [![License: GPL-3.0-or-later](https://img.shields.io/badge/license-GPL--3.0--or--later-green)](LICENSE)
 [![Rust 1.88+](https://img.shields.io/badge/rust-1.88%2B-orange)](https://rustup.rs)
 ![Linux | Windows](https://img.shields.io/badge/platform-Linux%20%7C%20Windows-lightgrey)
@@ -38,16 +38,17 @@ and the formatting.
 You need [Rust](https://rustup.rs), [Pandoc](https://pandoc.org) and a TeX
 distribution with `pdflatex` ([Graphviz](https://graphviz.org) is optional, for
 diagrams). Works on **Linux and Windows**; macOS will come in a later update.
-Step by step: **[INSTALL.md](INSTALL.md)**.
+Step by step: **[docs/install.md](docs/install.md)**.
 
 ```bash
 git clone https://github.com/PeterOlveraO/FormatoInvestigaciones.git
 cd FormatoInvestigaciones
-./install.sh                                          # Windows: powershell -ExecutionPolicy Bypass -File install.ps1
+cargo install --path . --locked
 ```
 
-The script checks the tools and runs `cargo install` for you. Keep the cloned
-folder: it holds the built-in formats and designs.
+That leaves `investigacion` in `~/.cargo/bin` (same command on Linux and
+Windows). Keep the cloned folder: it holds the built-in formats and designs.
+`cargo clean` afterwards frees the intermediate build files.
 
 ## Use it
 
@@ -74,14 +75,14 @@ you generate the PDF.
 
 | For | Read |
 |---|---|
-| Installing on each system | [INSTALL.md](INSTALL.md) |
+| Installing on each system | [docs/install.md](docs/install.md) |
 | Using the menu and the basic commands | [docs/usage.md](docs/usage.md) |
 | Every command-line option | [docs/cli.md](docs/cli.md) |
 | How everything works (formats, designs, profiles, syntax, troubleshooting) | [docs/reference.md](docs/reference.md) |
 | Prompt for an AI to write the paper | [docs/prompts/paper.md](docs/prompts/paper.md) |
 | Prompt for an AI to turn a cover idea into a design | [docs/prompts/design.md](docs/prompts/design.md) |
 | AI assistants reading this repository | [llms.txt](llms.txt), [AGENTS.md](AGENTS.md) |
-| What changed | [CHANGELOG.md](CHANGELOG.md) |
+| What changed | [docs/changelog.md](docs/changelog.md) |
 
 `examples/` has sample papers and [`catalog.pdf`](examples/catalog.pdf), which
 shows every supported element.

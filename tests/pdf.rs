@@ -125,6 +125,14 @@ fn backslashes_in_the_text_do_not_break_the_build() {
     assert!(pdf.is_file());
 }
 
+// babel-spanish redefinía \% y fallaba tras un espacio de math (`\,`).
+#[test]
+fn percent_after_a_math_spacing_compiles_in_spanish() {
+    let markdown = "# Introducción\n\nCrece $28.9\\,\\%$, $x\\;\\%$ y $28\\%$ en texto 28.9\\%.\n";
+    let Some((pdf, _, _dir)) = build(markdown, "Porcentaje") else { return };
+    assert!(pdf.is_file());
+}
+
 #[test]
 fn images_with_dot_relative_or_percent_encoded_paths_are_found() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
@@ -224,6 +232,29 @@ fn a_document_in_english_compiles() {
         generate_pdf(&project, &source, &directory.path().join("out"), &data("Paper"), &options, &mut |_| {})
             .unwrap();
     assert!(pdf.is_file());
+}
+
+// Las etiquetas de la portada siguen el idioma del documento.
+#[test]
+fn cover_labels_follow_the_document_language() {
+    if !(has_tool("pandoc") && has_tool("pdflatex") && has_tool("pdftotext")) {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    let source =
+        write(directory.path(), "paper.md", "# Introduction\n\nText.\n\n# References\n\nSmith (2020).\n");
+    let options = GenerateOptions {
+        design: Some("classic-cover".into()),
+        doc_lang: Some(Lang::En),
+        ..Default::default()
+    };
+    let pdf =
+        generate_pdf(&project, &source, &directory.path().join("out"), &data("Paper"), &options, &mut |_| {})
+            .unwrap();
+    let text = std::process::Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
+    let text = String::from_utf8_lossy(&text.stdout);
+    assert!(text.contains("Course:") && !text.contains("Materia:"), "{text}");
 }
 
 #[test]
