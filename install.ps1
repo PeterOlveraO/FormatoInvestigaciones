@@ -21,4 +21,9 @@ if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 # El programa ya está en ~\.cargo\bin: la compilación intermedia solo ocupa espacio.
 cargo clean --release
+# cargo no detiene el script con error: hay que mirar su código de salida.
+if ($LASTEXITCODE -ne 0) {
+    Write-Host 'Falló la limpieza de cargo; el programa sí quedó instalado. / cargo clean failed; the program was installed anyway.'
+    exit $LASTEXITCODE
+}
 Write-Host 'Listo. Abre el menú con: investigacion   /   Done. Open the menu with: investigacion'
