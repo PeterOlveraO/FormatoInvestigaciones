@@ -1389,7 +1389,11 @@ impl App {
                 )));
                 self.last_pdf = Some(pdf);
             }
-            Err(error) => self.log.push(LogLine::Error(error)),
+            Err(error) => {
+                // Un PDF anterior no corresponde a lo que acaba de fallar.
+                self.last_pdf = None;
+                self.log.push(LogLine::Error(error));
+            }
         }
         self.mode = Mode::Form;
     }

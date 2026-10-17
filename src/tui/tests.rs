@@ -1200,3 +1200,19 @@ fn the_general_cover_data_is_in_the_form() {
     }
     assert!(render(&app).contains("Universidad"));
 }
+
+#[test]
+fn a_failed_generation_does_not_offer_the_previous_pdf() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    let (sender, receiver) = std::sync::mpsc::channel();
+    // Un PDF de una generación anterior y una nueva que falla.
+    app.last_pdf = Some("previo.pdf".into());
+    app.mode = Mode::Generating(receiver);
+    sender.send(super::app::WorkerMessage::Finished(Err("falló".into()))).unwrap();
+    app.poll_worker();
+    assert!(app.last_pdf.is_none());
+    assert!(matches!(app.mode, Mode::Form));
+    press(&mut app, KeyCode::Char('v'));
+    assert!(app.log.iter().any(|line| matches!(line, LogLine::Warning(_))));
+}
