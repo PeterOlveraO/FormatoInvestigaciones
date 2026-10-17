@@ -113,6 +113,19 @@ fn is_miktex() -> bool {
 /// Archivos que pdflatex escribe y relee en la siguiente pasada.
 const STATE_EXTENSIONS: [&str; 2] = ["aux", "toc"];
 
+/// Quita `last-error.tex` y `last-error.log` de la carpeta de salida. Que no
+/// existan no es un problema; si no se pueden borrar, solo se avisa en el registro.
+fn remove_last_error(output_dir: &Path) {
+    for extension in ["tex", "log"] {
+        let path = output_dir.join(format!("last-error.{extension}"));
+        match std::fs::remove_file(&path) {
+            Ok(()) => logging::info(format_args!("removed the old {}", path.display())),
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+            Err(error) => logging::warn(format_args!("could not remove {}: {error}", path.display())),
+        }
+    }
+}
+
 /// Compila las veces necesarias para estabilizar índice y referencias.
 /// `search_dirs` son las carpetas donde pdflatex busca imágenes y diagramas.
 ///
@@ -181,6 +194,10 @@ fn publish_built_pdf(
     let copied =
         crate::project::replace_file(output_pdf, |temporary| std::fs::copy(generated, temporary).map(drop));
     let Err(error) = copied else {
+        // Solo un éxito borra los restos de un fallo anterior en la carpeta de salida.
+        if let Some(output_dir) = output_pdf.parent() {
+            remove_last_error(output_dir);
+        }
         return Ok(());
     };
     let Some(kept) = state_dir.and_then(|dir| keep_built_pdf(generated, dir, output_pdf).ok()) else {
@@ -381,5 +398,22 @@ mod tests {
         let error = publish_built_pdf(&base.join("trabajo.tex"), &generated, &output, None).unwrap_err();
         assert!(error.0.contains(&output.display().to_string()));
         assert!(!error.0.contains("quedó en"));
+    }
+
+    #[test]
+    fn a_successful_build_removes_the_old_last_error_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let output = directory.path();
+        std::fs::write(output.join("last-error.tex"), "viejo").unwrap();
+        std::fs::write(output.join("last-error.log"), "viejo").unwrap();
+        std::fs::write(output.join("tarea.pdf"), "pdf").unwrap();
+
+        remove_last_error(output);
+
+        assert!(!output.join("last-error.tex").exists());
+        assert!(!output.join("last-error.log").exists());
+        assert!(output.join("tarea.pdf").is_file());
+        // Sin restos que borrar no es un error.
+        remove_last_error(output);
     }
 }
