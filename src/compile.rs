@@ -192,8 +192,8 @@ fn publish_built_pdf(
         output_pdf.display()
     ));
     Err(GenerationError::new(tr!(
-        es: "No se pudo escribir en {}: {error}. El PDF recién compilado quedó en {}. Cierra el PDF si está abierto en otro programa y vuelve a generarlo.",
-        en: "Could not write to {}: {error}. The new PDF was kept in {}. Close the PDF if another program has it open and generate it again.",
+        es: "No se pudo escribir en {}: {error}. El PDF recién compilado quedó en {}. Revisa los permisos o cierra el PDF si está abierto en otro programa y vuelve a generarlo.",
+        en: "Could not write to {}: {error}. The new PDF was kept in {}. Check the permissions or close the PDF if another program has it open, and generate it again.",
         output_pdf.display(),
         kept.display()
     )))
