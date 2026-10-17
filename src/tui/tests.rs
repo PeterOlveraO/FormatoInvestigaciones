@@ -1200,3 +1200,17 @@ fn the_general_cover_data_is_in_the_form() {
     }
     assert!(render(&app).contains("Universidad"));
 }
+
+#[test]
+fn a_broken_settings_file_is_reported_and_the_menu_uses_defaults() {
+    let (_dir, project) = sample_project();
+    let file = project.settings_file();
+    std::fs::write(&file, "SIN_IGUAL\n").unwrap();
+    i18n::set(Lang::Es);
+    let (settings, problem) = super::load_settings(&file);
+    assert_eq!(settings.get(&["IDIOMA"]), "");
+    let problem = problem.expect("un archivo roto debe avisarse");
+    assert!(problem.contains("settings.toml") && problem.contains("línea 1"), "{problem}");
+    std::fs::remove_file(&file).unwrap();
+    assert!(super::load_settings(&file).1.is_none());
+}

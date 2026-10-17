@@ -92,8 +92,24 @@ impl Settings {
 
     /// Guarda `key=value` en el archivo: reemplaza la línea de esa clave (con o
     /// sin `export`) o la añade al final, sin tocar las demás ni los
-    /// comentarios. Si el archivo no existe, lo crea.
+    /// comentarios. Si el archivo no existe, lo crea. Si tiene errores, no
+    /// lo toca y devuelve el motivo.
     pub fn save_value(path: &Path, key: &str, value: &str) -> Result<()> {
+        // Un archivo roto se deja como está: añadir líneas no lo arreglaría.
+        if path.exists()
+            && let Err(error) = Self::read(path)
+        {
+            logging::warn(format_args!(
+                "settings: {key} not saved, {} is broken: {}",
+                path.display(),
+                error.0
+            ));
+            let reason = error.0;
+            return Err(GenerationError::new(tr!(
+                es: "No se guardó {key}: {reason}",
+                en: "{key} was not saved: {reason}"
+            )));
+        }
         let text = if path.exists() { decode_text(&std::fs::read(path)?, path)? } else { String::new() };
         let new_line = format!("{key}=\"{value}\"");
         let mut found = false;
@@ -177,5 +193,14 @@ mod tests {
         assert!(Settings::load(&path).is_err());
         std::fs::write(&path, "1MAL=x\n").unwrap();
         assert!(Settings::load(&path).is_err());
+    }
+
+    #[test]
+    fn a_broken_file_is_not_changed_by_a_save() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("settings.toml");
+        std::fs::write(&path, "SIN_IGUAL\nUNIVERSIDAD=\"U\"\n").unwrap();
+        assert!(Settings::save_value(&path, "IDIOMA", "en").is_err());
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "SIN_IGUAL\nUNIVERSIDAD=\"U\"\n");
     }
 }
