@@ -78,8 +78,14 @@ fn event_loop(terminal: &mut ratatui::DefaultTerminal, app: &mut App) -> std::io
     // Un dibujo que falla dos veces seguidas no se arregla solo: se sale.
     let mut failed_draws = 0;
     while !app.should_quit {
-        app.poll_worker();
-        app.poll_tools();
+        // Un pánico al recoger el resultado no tumba el menú.
+        if let Err(message) = guard::run(|| app.poll_worker()) {
+            app.abandon_generation();
+            app.recover(message);
+        }
+        if let Err(message) = guard::run(|| app.poll_tools()) {
+            app.recover(message);
+        }
         let mut drawn = Ok(());
         terminal.draw(|frame| drawn = guard::run(|| ui::draw(frame, app)))?;
         match drawn {
