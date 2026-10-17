@@ -65,8 +65,15 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
     `Layout::document_language()`.
 - **Never fail.** On a problem, replace the image with its alt text (or leave
   the diagram as code) and warn.
-- **Paths from Rust.** `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`
-  and `INVESTIGACION_RESOURCES` (one folder per line) arrive through
+- **Captions use the body's reader.** `pie_de_figura` (common.lua) reads with
+  `INVESTIGACION_MARKDOWN_FORMAT` (`pandoc::markdown_format`), so raw LaTeX in a
+  caption is only allowed with `--allow-latex`, like in the body.
+- **A folder is not an image.** `existe` reads one byte, because `io.open`
+  opens folders on Linux.
+- **Paths from Rust.** `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`,
+  `INVESTIGACION_RESOURCES` and `INVESTIGACION_UNSEARCHABLE` (folders whose
+  name contains the path separator; their images are copied to the cache)
+  (one folder per line) arrive through
   `pandoc::posix()`, with `/` even on Windows. The filters use them only to
   read and write files: `\includegraphics` gets just the cache file name, and
   pdflatex finds it through `TEXINPUTS` (`pandoc::resource_dirs()`). A full
@@ -88,8 +95,9 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
 
 ## Reading and cleaning the Markdown
 
-- **Encoding.** `read_markdown()` = `decode_text()` (UTF-8 with or without BOM,
-  then strict Windows-1252) + `normalize_markdown()`.
+- **Encoding.** `read_markdown()` = `decode_text()` (UTF-16 with BOM; else
+  UTF-8 with or without BOM, with only the invalid bytes read as strict
+  Windows-1252) + `normalize_markdown()`.
 - **The bug it fixes.** Text pasted from Word, Notion or an AI has
   non-breaking spaces on "empty" lines and two trailing spaces. Pandoc then
   merges everything into one paragraph (`###` printed, tables as rows of bars),

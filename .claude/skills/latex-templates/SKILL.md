@@ -51,8 +51,13 @@ BASE    templates/common/investigacion-base.sty / -final.sty  universal: Pandoc 
 - **Inside a `.sty`:** no `\makeatletter`; load packages with
   `\RequirePackage`.
 - **Comment lines are not scanned for markers** (`extract_markers`), so a
-  comment can mention `%%X%%`. Never write `%%FORMAT%%` inside a comment
-  anyway, because it is replaced by a two-line block.
+  comment can mention `%%X%%`, and `%%CONTENIDO_MARKDOWN%%` in a comment is
+  not filled (`latex::is_comment_line`). Never write `%%FORMAT%%` inside a
+  comment anyway, because it is replaced by a two-line block.
+- **Cover labels:** `\SegunIdioma{<es>}{<en>}` (base) follows the document
+  language; the built-in covers use it. Spanish output must stay identical.
+- **babel-spanish `\%` in math:** `investigacion-final.sty` wraps
+  `\es@sppercent` so `$28.9\,\%$` compiles; text mode keeps the original.
 
 ## Markers and data
 

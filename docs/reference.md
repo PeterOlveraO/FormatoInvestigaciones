@@ -204,6 +204,9 @@ logos.
   becomes `investigacion`). `Tarea2-3.md` produces `tarea2-3.pdf`;
   `--file-name "Entrega Final.pdf"` produces `entrega-final.pdf`. The title never
   affects the file name. Generating again replaces the PDF.
+  `document::safe_file_stem` then cuts the name to 100 characters (at a `-`) and
+  prefixes Windows reserved names (`con`, `prn`, `aux`, `nul`, `com1`–`com9`,
+  `lpt1`–`lpt9`) with `investigacion-`: `con.md` produces `investigacion-con.pdf`.
 - **Copies:** `--copy <folder>` (repeatable) copies the PDF to each folder,
   skipping duplicates and the PDF's own folder. A destination that fails (it is
   a file, cannot be created, or the copy fails) is a warning: that copy is
@@ -227,7 +230,7 @@ which calls `generate::generate_pdf()`. Steps in the order they actually run:
 | 3 | Layout | `resolve_layout` | `src/template.rs` | Picks design and format; checks they are compatible |
 | 4 | Data | `pick()` and `DocumentData` | `src/cli.rs`, `src/document.rs` | Merges CLI > profile; date in the document language |
 | 5 | Required data | `missing_data` | `src/generate.rs` | Errors before reading any file if the design needs data that is empty |
-| 6 | Locate and read | `locate_markdown`, `read_markdown` | `src/cli.rs`, `src/markdown.rs` | Finds the file (profile folder first), decodes UTF-8/Windows-1252 |
+| 6 | Locate and read | `locate_markdown`, `read_markdown` | `src/cli.rs`, `src/markdown.rs` | Finds the file (profile folder first), decodes UTF-8/UTF-16/Windows-1252 |
 | 7 | Normalize | `normalize_markdown` | `src/markdown.rs` | Removes invisible spaces (part of `read_markdown`) |
 | 8 | Validate | `validate_markdown` | `src/markdown.rs` | Warns about missing or out-of-order recommended headings |
 | 9 | Re-resolve | `generate_pdf` | `src/generate.rs` | Checks the file is `.md` and non-empty; resolves layout and `missing_data` again; picks the logos folder |
@@ -256,7 +259,8 @@ Notes on the order:
   in the paper is never mistaken for a pending marker.
 - The temp build folder (`investigacion-*`) is removed at the end; failing to
   remove it (Windows file locks) is not an error. Failed builds keep
-  `last-error.tex/.log` next to the PDF ([section 17](#17-compilation)).
+  `last-error.tex/.log` next to the PDF; the next successful build into that
+  folder removes them ([section 17](#17-compilation)).
 
 ### The Pandoc call
 
@@ -274,11 +278,17 @@ pandoc - --from=markdown-raw_tex+mark+emoji+autolink_bare_uris --to=latex --wrap
 - `--from=markdown` (with `raw_tex`) replaces `markdown-raw_tex` when
   `--allow-latex` is given.
 - The resource-path separator comes from `std::env::join_paths` (`:` or `;`).
+  A folder whose name contains it (`car:peta` on Linux) cannot go into
+  `--resource-path` or `TEXINPUTS`: it is left out with a warning, and the
+  images found in it are copied to `cache/remote/` so LaTeX still finds them.
 - Environment variables set for Pandoc and its filters:
   `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`,
-  `INVESTIGACION_RESOURCES` (one folder per line), `INVESTIGACION_LANG`
-  (interface language) and `INVESTIGACION_DOC_LANG` (document language). Paths
-  go through `pandoc::posix()` (always `/`).
+  `INVESTIGACION_RESOURCES` (one folder per line), `INVESTIGACION_UNSEARCHABLE`
+  (the folders left out above, one per line), `INVESTIGACION_MARKDOWN_FORMAT`
+  (the reader string, so diagram and chart captions follow `--allow-latex` like
+  the body), `INVESTIGACION_LANG` (interface language) and
+  `INVESTIGACION_DOC_LANG` (document language). Paths go through
+  `pandoc::posix()` (always `/`).
 - Filters are embedded with `include_str!` (`LUA_FILTERS` in
   `src/pandoc.rs`) and written to a temp folder on each run, each one with
   `common.lua` (`LUA_COMMON`: shared helpers and the warning prefix) pasted in
@@ -356,7 +366,7 @@ Keys the program reads:
 
 | Key | Meaning |
 |---|---|
-| `IDIOMA` (alias `INTERFACE_LANGUAGE`) | Interface language: `es`/`en` (also `español`, `inglés`, `spanish`, `english`) |
+| `IDIOMA` (alias `INTERFACE_LANGUAGE`) | Interface language: `es`/`en` (also `español`, `inglés`, `spanish`, `english`, and with a region: `en-US`, `es_MX`) |
 | `CARPETA_TRABAJO` (alias `INVESTIGACION_WORKSPACE`) | Work folder with `input/`, `output/`, `courses/`, `my-templates/` and `logos/`; empty or missing = the program folder |
 | `TEMA` (alias `THEME`) | Menu color theme: `classic`, `dracula`, `nord`, `gruvbox`, `catppuccin`, `tokyo-night` |
 | `LOGOS` | Folder with the logos, used when `--logos` is not given |
@@ -365,7 +375,10 @@ Keys the program reads:
   process environment is never modified.
 - The menu writes `IDIOMA="es"` or `IDIOMA="en"` with `Settings::save_value`,
   which replaces that key's line (with or without `export`) or appends it,
-  keeping every other line and comment.
+  keeping every other line and comment. If the file has a syntax error it is
+  left untouched and the save fails with the reason; the menu shows that error
+  at start and runs with the defaults.
+- A comment after a quoted value is ignored: `IDIOMA="en" # nota` reads `en`.
 - `--settings <file>` (old name `--env-file`) selects another file.
 - A missing file is not an error. An unreadable one is logged; the CLI ignores
   it when it only needs the language, but `execute()` reports it as an error.
@@ -380,7 +393,7 @@ Keys the program reads:
 | `IDIOMA`, `INTERFACE_LANGUAGE`, `CARPETA_TRABAJO`, `INVESTIGACION_WORKSPACE`, `LOGOS` | `Settings::get` | Override `settings.toml` |
 | `TEXINPUTS` | `compile::latex_search_path` | `.` (the temp folder), the Markdown folder and the image caches first; existing value preserved after them |
 | `HOME` / `USERPROFILE` | `expand_home` | `~` expansion |
-| `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_LANG`, `INVESTIGACION_DOC_LANG` | Lua filters | **Set by the program** for Pandoc; do not set by hand |
+| `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_UNSEARCHABLE`, `INVESTIGACION_MARKDOWN_FORMAT`, `INVESTIGACION_LANG`, `INVESTIGACION_DOC_LANG` | Lua filters | **Set by the program** for Pandoc; do not set by hand |
 
 ## 7. Course profiles and the wizard
 
@@ -585,7 +598,8 @@ producing the same output as before. The profile key `template` and the
   `english`), the delivery date, "Contents"/"Contenido", "Figure"/"Figura",
   "Table"/"Tabla" and the note-box titles.
 - It comes from `--doc-lang`, then the profile's `language`, then the format's
-  `language` (all three built-ins: `es`), then Spanish.
+  `language` (all three built-ins: `es`), then Spanish. All of them accept a
+  region suffix (`en-US`, `es_MX`), which is ignored.
 - The **interface language** (`--lang`, `IDIOMA`) controls menus, messages and
   help only. The two are independent.
 
@@ -593,13 +607,14 @@ producing the same output as before. The profile key `template` and the
 
 Optional: a format only needs `format.sty`. Without `format.toml` the name is
 the folder name, language `es`, no class options and no headings. Unknown keys
-are errors.
+are errors, and so is a `language` that is not Spanish or English.
 
 ```toml
 name = { es = "APA 7", en = "APA 7" }     # required; plain string or { es, en }
-language = "es"                           # default document language; default "es"
+language = "es"                           # default document language; default "es"; "en-US" works
 class_options = "12pt, letterpaper"       # inserted at %%CLASS_OPTIONS%%
 headings = ["Introducción", "Desarrollo", "Conclusión", "Referencias"]   # [] = no structure check
+headings_en = ["Introduction", "Development", "Conclusion", "References"] # for English documents; missing = no check
 ```
 
 ### `template.toml` (`DesignManifest`)
@@ -661,6 +676,12 @@ it):
   as working directory.
 - **Inside a `.sty`:** no `\makeatletter` (`@` is already a letter); load
   packages with `\RequirePackage`.
+- `\SegunIdioma{<es>}{<en>}` (base) prints the first text in Spanish documents
+  and the second in any other language; without babel it prints the Spanish one.
+  The built-in covers use it for their labels (`Alumno:`/`Student:`…). Use it
+  for any fixed text on a cover.
+- `investigacion-final.sty` also makes babel-spanish's `\%` safe in math mode:
+  `$28.9\,\%$` no longer fails with "Incompatible glue units" (text is unchanged).
 - Anything Spanish-only in a format must be guarded for English, for example
   `\@ifundefined{captionsspanish}{}{\addto\captionsspanish{...}}`.
 
@@ -771,6 +792,7 @@ Static checks (`inspect`):
 | Warning | A custom field is not described in `template.toml` |
 | Warning | `template.toml` describes a field the design does not use |
 | Warning | `optional` mentions a marker the design does not use |
+| Warning | A `%%name%%` that is not a valid marker (`%%AULA2%%`, `%%salon%%`: only capitals and `_`): it is not filled and its `%` comments out the rest of the line |
 
 If there are errors, the check stops there. Otherwise it compiles
 `examples/catalog.md` (skipped, with a warning, if the file is missing) once
@@ -884,8 +906,10 @@ format ([section 8](#built-in-formats)).
 | `####` | run-in paragraph heading, bold, ends with a period | LaTeX default | LaTeX default |
 | `#####` | run-in, bold italic | LaTeX default | LaTeX default |
 
-- **Structure warnings** come from `format.toml` `headings`. Only `apa7`
-  defines them (`Introducción`, `Desarrollo`, `Conclusión`, `Referencias`). The
+- **Structure warnings** come from `format.toml` `headings` (`headings_en` for
+  English documents). Only `apa7` defines them (`Introducción`, `Desarrollo`,
+  `Conclusión`, `Referencias`; in English `Introduction`, `Development`,
+  `Conclusion`, `References`). The
   program warns "The recommended heading "X" is missing." per missing one and
   "The recommended headings are not in the expected order: ..." when they exist
   but are out of order. Matching ignores case, accents, numbering (`2. `) and
@@ -1092,7 +1116,7 @@ Text pasted from Word, Notion, the web or an AI often contains invisible
 non-breaking spaces. Without cleanup `###` appears in the PDF and tables
 become rows of bars, with no error. See
 [section 14](#14-reading-cleaning-and-finding-the-markdown). Files may be UTF-8
-(with or without BOM) or Windows-1252.
+(with or without BOM), UTF-16 with BOM, or Windows-1252.
 
 ## 13. Lua filters
 
@@ -1103,7 +1127,7 @@ filters whose job is code blocks).
 | Order | File | Handles | Reads env |
 |---|---|---|---|
 | 1 | `inline_html.lua` | `Inlines`, `RawBlock`: HTML tags listed above | none |
-| 2 | `images.lua` | `Image`, `Figure`: web download, local check | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_LANG` |
+| 2 | `images.lua` | `Image`, `Figure`: web download, local check (a folder is not an image) | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_UNSEARCHABLE`, `INVESTIGACION_LANG` |
 | 3 | `diagrams.lua` | `CodeBlock` with class `dot`/`graphviz` | `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_LANG` |
 | 4 | `charts.lua` | `CodeBlock` with class `pgfplot`/`pgfplots`/`grafica`/`tikz` | none |
 | 5 | `blocks.lua` | `Div` note boxes; lists deeper than LaTeX allows and the references section (`Pandoc`) | `INVESTIGACION_DOC_LANG`, `INVESTIGACION_LANG` |
@@ -1139,8 +1163,11 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
 
 ### Encoding (`src/encoding.rs`)
 
-- `decode_text`: removes a UTF-8 BOM, tries UTF-8, then strict Windows-1252.
-  Otherwise: "Could not read <file>: save it as UTF-8 or Windows-1252."
+- `decode_text`: a UTF-16 BOM (`FF FE` / `FE FF`) means UTF-16. Otherwise it
+  removes a UTF-8 BOM and reads the valid UTF-8 runs as UTF-8 and only the
+  invalid bytes as strict Windows-1252, so one stray Windows byte does not turn
+  every accent of the file into `Ã³`. Otherwise: "Could not read <file>: save
+  it as UTF-8 or Windows-1252."
 - Tool output (`decode_process_output`) is UTF-8 or lossy Windows-1252.
 - The `pdflatex` log is decoded **line by line** (`decode_latex_log`): messages
   are UTF-8 but hyphenation lines are in T1; decoding the whole file as
@@ -1157,10 +1184,12 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
   no-break), U+200B (zero width).
 - It trims disguised spaces and tabs at line ends and repairs markers (`#`
   to `######`, bullets `-*+`, numbered `1.`/`1)`, `>`) separated from the
-  text by a disguised space.
+  text by a disguised space. A disguised space **before** a marker or a fence
+  (` # Introducción`) is removed too; before plain text (` -5 grados`) it stays.
 - Trailing double spaces are both garbage and syntax (a hard line break).
-  `has_disguised_spaces()` decides: if any line ends in a disguised space, normal
-  trailing spaces are trimmed too; otherwise line breaks are preserved.
+  `has_disguised_spaces()` decides: if any line outside fenced code ends in a
+  disguised space, normal trailing spaces are trimmed too; otherwise line
+  breaks are preserved.
 - It never touches hard spaces inside text or the inside of fenced ` ``` ` /
   `~~~` blocks. Line endings `\r\n` are normalized.
 
@@ -1449,11 +1478,14 @@ Behavior details:
   (`summarize_latex_errors`: lines `file:line:` and `!`, up to three blocks;
   package paths are dropped; if none are found, the last ~2000 characters of the
   log). `last-error.tex` and `last-error.log` are saved **next to the PDF** (in
-  the output folder) and the message ends with "Full log: <path>".
+  the output folder) and the message ends with "Full log: <path>". The next
+  successful build into that folder deletes them.
 - **Warnings from the log:** `unsupported_character_warnings` turns each
   "Caracter Unicode sin definir" entry into one warning per distinct symbol.
-- **Result:** the PDF is copied from the temp folder to the output path; a copy
-  failure is a write error mentioning permissions or an open PDF viewer.
+- **Result:** the LaTeX state is saved first, then the PDF is copied from the
+  temp folder to the output path. If the copy fails (permissions, or the PDF is
+  open in a viewer on Windows), the new PDF is kept in the state folder
+  (`cache/latex/<pdf-stem>-<16 hex>/<name>.pdf`) and the error says where.
 - **Output location of the temp folder** is the system temp directory
   (`investigacion-<random>`), removed at the end.
 

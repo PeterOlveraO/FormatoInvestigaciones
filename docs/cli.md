@@ -63,8 +63,8 @@ as a **hidden alias**: it is not shown in `--help`, and it is kept on purpose.
 | `--check-template` | | `--revisar-plantilla` | design name | none | no |
 
 `--lang` and `--doc-lang` also accept the full names (`español`, `spanish`,
-`english`, `inglés`, `ingles`, `espanol`), in any case. Any other value is an
-argument error.
+`english`, `inglés`, `ingles`, `espanol`), in any case, with or without a
+region (`en-US`, `es_MX`). Any other value is an argument error.
 
 ### What each option does
 
@@ -77,7 +77,9 @@ argument error.
 **`--file-name`**: name of the PDF, with or without `.pdf`. Accents, spaces
 and symbols are simplified to lowercase words joined by hyphens
 (`Entrega Álgebra.pdf` becomes `entrega-algebra.pdf`). Without it the PDF
-takes the Markdown's name (`Tarea2-3.md` becomes `tarea2-3.pdf`).
+takes the Markdown's name (`Tarea2-3.md` becomes `tarea2-3.pdf`). The name is
+cut to 100 characters, and Windows reserved names get a prefix (`con.md`
+becomes `investigacion-con.pdf`).
 
 **`--course`**: course name for the cover. Overrides the profile's `name`.
 

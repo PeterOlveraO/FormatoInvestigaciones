@@ -13,6 +13,38 @@ are in `INSTALL.md`.
 
 ### Fixed
 
+- A Spanish paper with `\,\%` (or `\;\%`, `\!\%`) inside math, such as
+  `$28.9\,\%$`, no longer fails with "Incompatible glue units".
+- English documents (`--doc-lang en`) no longer get Spanish heading warnings
+  («Introducción»…) or Spanish cover labels (Alumno, Materia, Fecha de entrega).
+- A language with a region (`en-US`, `es_MX`) now works in profiles,
+  `--doc-lang`, `--lang`, `settings.toml` and `format.toml`; an unknown
+  `language` in `format.toml` is an error instead of silently becoming Spanish.
+- A heading or list pasted with an invisible space in front (from Word) is no
+  longer printed as plain text with a literal `#`.
+- One invisible space inside a code block no longer removes the two-space line
+  breaks of the whole document.
+- A file that is mostly UTF-8 with one Windows-1252 character no longer turns
+  every accent into `Ã³`; UTF-16 files (Notepad "Unicode") are read.
+- Raw LaTeX in a diagram or chart caption no longer breaks the build (it is
+  only allowed with `--allow-latex`, as in the body).
+- An image path that points to a folder gives the "image not found" warning
+  instead of a LaTeX error.
+- A project in a folder whose name contains `:` (Linux/macOS) builds; its
+  images are copied to the cache.
+- When the PDF cannot be written (open in a viewer, permissions), the new PDF
+  is kept in the cache and the error says where.
+- `last-error.tex`/`last-error.log` are removed after a later successful build.
+- PDF names: Windows reserved names (`con`, `aux`…) get a prefix and very long
+  names are shortened.
+- `install.ps1` reports a failed `cargo clean`.
+- `--check-template` warns about malformed markers (`%%AULA2%%`, `%%salon%%`),
+  and `%%CONTENIDO_MARKDOWN%%` in a comment no longer receives the paper.
+- Menu: `v` no longer opens the previous PDF after a failed generation; a
+  broken `settings.toml` is reported at start and never appended to;
+  `IDIOMA="en" # nota` reads `en`; Ctrl+letter no longer acts as the letter
+  (Ctrl+G does not generate); Ctrl+C during a generation asks before leaving; a
+  panic while collecting a result no longer closes the menu.
 - Choosing the Markdown again in the menu opens the folder of the file already
   chosen instead of the project folder.
 - `~` in the menu's output and copy folders now means the home folder.
