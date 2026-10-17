@@ -94,7 +94,7 @@ fn fenced_lines(text: &str) -> Vec<(&str, bool, bool)> {
 /// normal del final, que en un documento limpio es un salto de línea deliberado.
 /// Los bloques de código no cuentan: ahí un espacio duro es parte del código.
 pub fn has_disguised_spaces(markdown: &str) -> bool {
-    fenced_lines(markdown).into_iter().filter(|(_, code)| !code).any(|(line, _)| {
+    fenced_lines(markdown).into_iter().filter(|(_, code, _)| !code).any(|(line, _, _)| {
         line.trim_end_matches([' ', '\t']).chars().last().is_some_and(|c| DISGUISED_SPACES.contains(&c))
     })
 }
