@@ -196,3 +196,25 @@ fn boxes_and_references_follow_the_document_language() {
     let Some((cited, _)) = convert_in("# Obras citadas\n\nAutor, A. *Título*.\n", Lang::Es) else { return };
     assert!(cited.contains(r"\begin{ReferenceList}"), "{cited}");
 }
+
+#[test]
+fn a_folder_with_the_path_separator_does_not_stop_the_conversion() {
+    // El separador depende del sistema; donde no se puede crear la carpeta, no hay nada que probar.
+    if !has_tool("pandoc") {
+        eprintln!("skipped: pandoc is not installed");
+        return;
+    }
+    let separator = std::env::join_paths(["a", "b"]).unwrap().to_string_lossy().chars().nth(1).unwrap();
+    let directory = tempfile::tempdir().unwrap();
+    let folder = directory.path().join(format!("car{separator}peta"));
+    if std::fs::create_dir(&folder).is_err() {
+        return;
+    }
+    let markdown = "# Introducción\n\n![foto](foto.png)\n";
+    let source = write(&folder, "trabajo.md", markdown);
+    let mut warnings = Vec::new();
+    let latex =
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+    assert!(latex.contains("Introducción"), "{latex}");
+    assert!(warnings.iter().any(|w| w.contains("separador")), "{warnings:?}");
+}

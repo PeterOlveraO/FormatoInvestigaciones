@@ -54,6 +54,25 @@ fn join_search_path(paths: &[PathBuf]) -> Result<OsString> {
     })
 }
 
+/// Quita las carpetas cuya ruta lleva el separador del sistema (`:` en Linux):
+/// no caben en la lista de búsqueda. Se avisa y se sigue sin ellas.
+fn usable_resource_dirs(dirs: Vec<PathBuf>, on_warning: &mut dyn FnMut(String)) -> Vec<PathBuf> {
+    dirs.into_iter()
+        .filter(|dir| {
+            if std::env::join_paths([dir]).is_ok() {
+                return true;
+            }
+            logging::warn(format_args!("resource folder skipped, its path has the path separator: {}", dir.display()));
+            on_warning(tr!(
+                es: "Se omite la carpeta {} al buscar imágenes: su ruta lleva el separador de rutas del sistema.",
+                en: "The folder {} is skipped when looking for images: its path has the system path separator.",
+                dir.display()
+            ));
+            false
+        })
+        .collect()
+}
+
 /// Dónde se buscan las imágenes: junto al Markdown y en la caché del proyecto.
 /// Pandoc las comprueba ahí y pdflatex las busca ahí por TEXINPUTS.
 pub fn resource_dirs(project: &Project, markdown_path: &Path) -> Result<Vec<PathBuf>> {
@@ -76,7 +95,7 @@ pub fn pandoc_to_latex(
 ) -> Result<String> {
     let (remote, diagrams) = project.media_directories()?;
     let base_dir = markdown_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-    let resources = resource_dirs(project, markdown_path)?;
+    let resources = usable_resource_dirs(resource_dirs(project, markdown_path)?, on_warning);
 
     let filters_dir = tempfile::Builder::new().prefix("investigacion-filters-").tempdir()?;
     let mut format = String::from(if allow_raw_latex { "markdown" } else { "markdown-raw_tex" });
@@ -206,5 +225,17 @@ mod tests {
             "[WARNING] Deprecated syntax\n[investigacion] No se pudo descargar la imagen x.png\notra linea\n";
         assert_eq!(filter_warnings(stderr), ["No se pudo descargar la imagen x.png"]);
         assert!(filter_warnings("").is_empty());
+    }
+
+    #[test]
+    fn a_folder_with_the_path_separator_is_skipped_with_a_warning() {
+        // El separador depende del sistema: se calcula en vez de escribirlo.
+        let separator = std::env::join_paths(["a", "b"]).unwrap().to_string_lossy().chars().nth(1).unwrap();
+        let dirs =
+            vec![PathBuf::from("/proyecto/figuras"), PathBuf::from(format!("/proyecto/car{separator}peta"))];
+        let mut warnings = Vec::new();
+        let kept = usable_resource_dirs(dirs, &mut |w| warnings.push(w));
+        assert_eq!(kept, [PathBuf::from("/proyecto/figuras")]);
+        assert_eq!(warnings.len(), 1);
     }
 }
