@@ -112,9 +112,15 @@ pub struct Format {
     pub manifest: FormatManifest,
 }
 
+/// Idioma de `format.toml`: `es`, `en` o con región (`en-US`, `es_MX`).
+fn parse_document_language(value: &str) -> Option<Lang> {
+    i18n::parse(value.trim().split(['-', '_']).next().unwrap_or_default())
+}
+
 impl Format {
+    /// `load_format` ya rechazó los valores no válidos.
     pub fn language(&self) -> Lang {
-        i18n::parse(&self.manifest.language).unwrap_or(Lang::Es)
+        parse_document_language(&self.manifest.language).unwrap_or(Lang::Es)
     }
 }
 
@@ -229,6 +235,13 @@ pub fn load_format(project: &Project, key: &str) -> Result<Format> {
             headings: Vec::new(),
         }
     };
+    if parse_document_language(&manifest.language).is_none() {
+        let value = manifest.language.as_str();
+        return Err(GenerationError::new(tr!(
+            es: "El formato {key} tiene un idioma no válido en format.toml: «{value}». Usa es o en.",
+            en: "The format {key} has an invalid language in format.toml: \"{value}\". Use es or en."
+        )));
+    }
     Ok(Format { key: key.to_owned(), sty: dir.join(FORMAT_FILE), manifest })
 }
 
@@ -394,6 +407,23 @@ mod tests {
         assert_eq!(mla.document_language(None), Lang::En);
         assert_eq!(mla.document_language(Some(Lang::Es)), Lang::Es);
         assert!(mla.format_block(Lang::En).contains("[english]{babel}"));
+    }
+
+    #[test]
+    fn format_languages_accept_regions_and_reject_unknown_ones() {
+        assert_eq!(parse_document_language("en-US"), Some(Lang::En));
+        assert_eq!(parse_document_language(" es_MX "), Some(Lang::Es));
+        assert_eq!(parse_document_language("fr"), None);
+        let (_dir, project) = sample();
+        write(&project.templates_dir().join("formats/xx/format.sty"), "x");
+        write(&project.templates_dir().join("formats/xx/format.toml"), "name = \"XX\"\nlanguage = \"fr\"\n");
+        let error = load_format(&project, "xx").unwrap_err().to_string();
+        assert!(error.contains("«fr»") && error.contains("xx"), "{error}");
+        write(
+            &project.templates_dir().join("formats/xx/format.toml"),
+            "name = \"XX\"\nlanguage = \"en-US\"\n",
+        );
+        assert_eq!(load_format(&project, "xx").unwrap().language(), Lang::En);
     }
 
     #[test]
