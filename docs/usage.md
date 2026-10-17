@@ -40,7 +40,9 @@ investigacion
    - the data that design shows (a `*` marks what is required);
    - the folder inside `input/` where that course's papers live (optional).
 
-   Enter goes on, Shift+Tab goes back, Esc cancels. The profile is saved in
+   Enter goes on, Shift+Tab goes back. From the second step, Esc asks you to
+   press it again to leave without saving; from the first step it cancels at
+   once. The profile is saved in
    `courses/<name>.toml` and chosen for you in the form.
 
 ### Home view
@@ -73,8 +75,8 @@ Choose **Generate a PDF**. The fields are:
 | University, Faculty, Student, Course, Teacher, Team members, Group, Semester | Cover data. Empty means "use the profile's". Marked `*` when the design needs it. |
 | Format | `apa7`, `harvard`, `mla`… Empty: the first one the design accepts. |
 | Design | The cover and look. Empty: `geometric-cover`. |
-| Output folder | Browse to the folder and choose `./`. Empty: `output/` (or the profile's). |
-| Extra copies | Browse and choose `./`; each folder is added to the list (Del clears it). |
+| Output folder | Browse to the folder and choose `./`. Empty: `output/` (or the profile's). Type a new name to create a folder. |
+| Extra copies | Browse and choose `./`; each folder is added to the list (Del clears it). Type a new name to create a folder. |
 
 If the chosen design has its own fields (for example, a classroom), they
 appear at the end. Whether Course is required depends on the design. A field
@@ -95,7 +97,8 @@ Keys in the form:
 
 While you type a value: Enter saves, Esc cancels, Ctrl+U clears. In a list:
 ↑↓ move, Enter or → opens or chooses, ← or Backspace goes up a folder, and
-Esc cancels.
+Esc cancels. In a folder list, typing a new name shows `+ <name>/  create and
+open`; Enter creates the folder and enters it.
 
 ### Options
 

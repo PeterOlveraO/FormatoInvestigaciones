@@ -12,6 +12,7 @@ use regex::Regex;
 use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
 use crate::logging;
+use crate::project::replace_file;
 
 #[derive(Debug, Default, Clone)]
 pub struct Settings {
@@ -112,7 +113,7 @@ impl Settings {
         if !found {
             lines.push(new_line);
         }
-        std::fs::write(path, lines.join("\n") + "\n")?;
+        replace_file(path, |temporary| std::fs::write(temporary, lines.join("\n") + "\n"))?;
         logging::info(format_args!("settings: {key} saved in {}", path.display()));
         Ok(())
     }

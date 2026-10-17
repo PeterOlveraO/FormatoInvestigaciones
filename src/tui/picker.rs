@@ -2,10 +2,11 @@
 //! Markdown y muestra los perfiles, las plantillas y las carpetas del proyecto.
 //! Escribir filtra la lista; así no hace falta teclear rutas.
 
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 use ratatui::crossterm::event::KeyCode;
 
+use crate::logging;
 use crate::project::Project;
 use crate::template::{list_designs, list_formats, load_design, load_format};
 
@@ -20,6 +21,8 @@ pub enum PickValue {
     File(PathBuf),
     /// La carpeta que se está viendo, en un selector de carpetas.
     Here(PathBuf),
+    /// Una carpeta que todavía no existe, con el nombre escrito en el filtro.
+    New(PathBuf),
     /// Opción de una lista fija (clave de perfil, nombre de plantilla...).
     Choice(String),
 }
@@ -58,6 +61,8 @@ pub struct Picker {
     pub items: Vec<Item>,
     pub filter: String,
     pub selected: usize,
+    /// «+ nombre/» para crear la carpeta escrita; va al final de la lista.
+    new_folder: Option<Item>,
 }
 
 /// Resultado de una tecla dentro del selector.
@@ -71,7 +76,15 @@ pub enum PickOutcome {
 impl Picker {
     /// Lista fija de opciones.
     pub fn choices(purpose: PickerPurpose, title: impl Into<String>, items: Vec<Item>) -> Self {
-        Self { purpose, title: title.into(), dir: None, items, filter: String::new(), selected: 0 }
+        Self {
+            purpose,
+            title: title.into(),
+            dir: None,
+            items,
+            filter: String::new(),
+            selected: 0,
+            new_folder: None,
+        }
     }
 
     /// Navegador de carpetas. El del Markdown muestra también los `.md`; los
@@ -129,10 +142,25 @@ impl Picker {
                 value: PickValue::Here(dir.to_path_buf()),
             });
         }
+        // shortcut: en la raíz se prueban las letras A: a Z: para llegar a otra unidad o
+        // a una USB (Windows; en Linux y macOS no existen). Sin probar en Windows.
+        if dir.parent().is_none() {
+            for letter in 'A'..='Z' {
+                let drive = PathBuf::from(format!("{letter}:{}", std::path::MAIN_SEPARATOR));
+                if drive != dir && drive.is_dir() {
+                    self.items.push(Item {
+                        label: drive.display().to_string(),
+                        detail: crate::i18n::Text::new("unidad", "drive").get().into(),
+                        value: PickValue::Dir(drive),
+                    });
+                }
+            }
+        }
         self.items.extend(dirs);
         self.items.extend(files);
         self.dir = Some(dir.to_path_buf());
         self.filter.clear();
+        self.new_folder = None;
         self.selected = 0;
     }
 
@@ -167,7 +195,7 @@ impl Picker {
         let mut ranked: Vec<(u8, &Item)> =
             self.items.iter().filter_map(|item| rank(item).map(|r| (r, item))).collect();
         ranked.sort_by_key(|(r, _)| *r);
-        ranked.into_iter().map(|(_, item)| item).collect()
+        ranked.into_iter().map(|(_, item)| item).chain(&self.new_folder).collect()
     }
 
     pub fn move_by(&mut self, delta: isize) {
@@ -182,13 +210,62 @@ impl Picker {
 
     pub fn push_filter(&mut self, c: char) {
         self.filter.push(c);
+        self.refresh_new_folder();
         self.select_first_match();
     }
 
     pub fn pop_filter(&mut self) -> bool {
         let popped = self.filter.pop().is_some();
+        self.refresh_new_folder();
         self.select_first_match();
         popped
+    }
+
+    /// En un selector de carpetas, un nombre escrito que no existe se ofrece
+    /// para crearlo: solo un nombre simple, sin rutas ni carpetas ocultas.
+    fn refresh_new_folder(&mut self) {
+        let name = self.filter.trim();
+        let mut parts = Path::new(name).components();
+        let simple = matches!((parts.next(), parts.next()), (Some(Component::Normal(_)), None))
+            && !name.starts_with('.');
+        let taken = self.items.iter().any(|item| {
+            matches!(item.value, PickValue::Dir(_))
+                && item.label.trim_end_matches('/').eq_ignore_ascii_case(name)
+        });
+        self.new_folder = match &self.dir {
+            Some(dir) if self.extension().is_empty() && simple && !taken && !dir.join(name).exists() => {
+                Some(Item {
+                    label: format!("+ {name}/"),
+                    detail: crate::i18n::Text::new("crear y entrar", "create and open").get().into(),
+                    value: PickValue::New(dir.join(name)),
+                })
+            }
+            _ => None,
+        };
+    }
+
+    /// Crea la carpeta nueva y entra en ella con `./` marcado; si no se puede,
+    /// el motivo queda en su fila.
+    fn create_folder(&mut self, path: &Path) {
+        let created = if may_write(path) {
+            std::fs::create_dir_all(path)
+        } else {
+            Err(std::io::ErrorKind::PermissionDenied.into())
+        };
+        match created {
+            Ok(()) => {
+                logging::info(format_args!("tui: created folder {}", path.display()));
+                self.open_dir(path);
+                self.selected =
+                    self.items.iter().position(|i| matches!(i.value, PickValue::Here(_))).unwrap_or(0);
+            }
+            Err(error) => {
+                logging::warn(format_args!("tui: could not create {}: {error}", path.display()));
+                if let Some(item) = &mut self.new_folder {
+                    item.detail = tr!(es: "no se pudo crear: {error}", en: "could not create it: {error}");
+                }
+            }
+        }
     }
 
     // Tras filtrar se salta el `..` para que Enter elija la primera coincidencia.
@@ -208,6 +285,10 @@ impl Picker {
             return PickOutcome::Stay;
         };
         match item {
+            PickValue::New(path) => {
+                self.create_folder(&path);
+                PickOutcome::Stay
+            }
             PickValue::Up(dir) | PickValue::Dir(dir) if self.purpose != PickerPurpose::Folder => {
                 self.open_dir(&dir);
                 PickOutcome::Stay
@@ -253,6 +334,17 @@ impl Picker {
         }
         PickOutcome::Stay
     }
+}
+
+/// Las pruebas solo escriben dentro de sus carpetas temporales (`.tmp…`): la de
+/// teclas al azar recorre todo el disco con los selectores.
+pub fn may_write(path: &Path) -> bool {
+    !cfg!(test)
+        || path
+            .strip_prefix(std::env::temp_dir())
+            .ok()
+            .and_then(|inside| inside.components().next())
+            .is_some_and(|first| first.as_os_str().to_string_lossy().starts_with(".tmp"))
 }
 
 /// Los formatos, con el nombre de su norma.
@@ -329,6 +421,53 @@ mod tests {
         picker.go_up();
         assert_eq!(picker.dir.as_deref(), Some(root));
         assert_eq!(picker.visible()[picker.selected].label, "IA/");
+    }
+
+    fn type_filter(picker: &mut Picker, text: &str) {
+        picker.filter.clear();
+        for c in text.chars() {
+            picker.push_filter(c);
+        }
+    }
+
+    fn offers_to_create(picker: &Picker) -> bool {
+        picker.visible().iter().any(|i| matches!(i.value, PickValue::New(_)))
+    }
+
+    #[test]
+    fn a_typed_folder_name_can_be_created_and_chosen() {
+        let directory = tempfile::tempdir().unwrap();
+        let root = directory.path();
+        std::fs::create_dir(root.join("IA")).unwrap();
+        let mut picker = Picker::files(PickerPurpose::Copies, "x", root);
+        // Lo que ya existe (sin importar mayúsculas), rutas y ocultas no se ofrecen.
+        for text in ["ia", "a/b", ".oculta", ".."] {
+            type_filter(&mut picker, text);
+            assert!(!offers_to_create(&picker), "{text}");
+        }
+        type_filter(&mut picker, "Redes");
+        assert_eq!(picker.visible()[picker.selected].label, "+ Redes/");
+        assert_eq!(picker.activate(), PickOutcome::Stay);
+        assert!(root.join("Redes").is_dir());
+        assert_eq!(picker.dir.as_deref(), Some(root.join("Redes").as_path()));
+        // Dentro queda marcado ./: Enter elige la carpeta recién creada.
+        assert_eq!(picker.activate(), PickOutcome::Chosen(PickValue::Here(root.join("Redes"))));
+        // El selector del Markdown no crea carpetas.
+        let mut markdown = Picker::files(PickerPurpose::Markdown, "x", root);
+        type_filter(&mut markdown, "nueva");
+        assert!(!offers_to_create(&markdown));
+    }
+
+    #[test]
+    fn a_filesystem_root_only_offers_drives_that_exist() {
+        let root = Path::new(std::path::MAIN_SEPARATOR_STR);
+        let picker = Picker::files(PickerPurpose::Copies, "x", root);
+        let drives: Vec<&Item> = picker.items.iter().filter(|i| i.label.contains(':')).collect();
+        assert!(drives.iter().all(|i| matches!(&i.value, PickValue::Dir(d) if d.is_dir())));
+        // En Linux y macOS no hay unidades con letra.
+        if std::path::MAIN_SEPARATOR == '/' {
+            assert!(drives.is_empty());
+        }
     }
 
     #[test]

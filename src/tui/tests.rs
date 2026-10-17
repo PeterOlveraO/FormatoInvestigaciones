@@ -244,6 +244,26 @@ fn switching_profiles_does_not_keep_the_data_of_the_previous_one() {
 }
 
 #[test]
+fn a_profile_output_outside_the_work_folder_is_kept() {
+    let (_dir, mut project) = sample_project();
+    let root = project.root.clone();
+    // Carpeta de trabajo dentro del programa (como `entrada/`) y una salida fuera de ella.
+    project.work = root.join("entrada");
+    let profile = crate::courses::CourseProfile {
+        name: "Redes".into(),
+        output: root.join("output").join("Redes").display().to_string(),
+        ..Default::default()
+    };
+    crate::courses::save_profile(&project, "redes", &profile).unwrap();
+    let mut app = App::new(project);
+    select(&mut app, FieldKey::Profile);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "redes");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.build_args().output, Some(root.join("output").join("Redes")));
+}
+
+#[test]
 fn the_picker_browses_folders_without_typing_paths() {
     let (_dir, project) = sample_project();
     let root = project.root.clone();
@@ -443,21 +463,24 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     // Con apa7 se ofrecen los dos diseños; se elige el que tiene campo propio.
     type_text(&mut app, "geometric");
     press(&mut app, KeyCode::Enter);
-    // Pasos: universidad*, materia*, docente, salón*, carpeta, salida y copias.
+    // Pasos: universidad*, materia*, docente, salón*, carpeta y copias.
     press(&mut app, KeyCode::Enter);
     let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
     assert!(wizard.error.is_some(), "la universidad es obligatoria");
-    for answer in ["Universidad Norte", "Bases de datos", "", "B-204", "BD"] {
+    for answer in ["Universidad Norte", "Bases de datos", "", "B-204"] {
         type_text(&mut app, answer);
         press(&mut app, KeyCode::Enter);
     }
-    // Salida: el selector de carpetas empieza en la raíz; se entra en input/ y se elige ./.
+    // Carpeta de trabajos: el selector empieza en input/; «BD» no existe, Enter la
+    // crea y entra, y Enter en ./ la elige.
+    assert!(render(&app).contains("Elegido:"));
+    type_text(&mut app, "BD");
+    assert!(render(&app).contains("+ BD/"));
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Enter);
+    assert!(project.input_dir().join("BD").is_dir());
+    // Copias: el selector empieza en la raíz; cada ./ se suma (repetida no) y Tab termina.
     assert!(render(&app).contains("usar esta carpeta"));
-    type_text(&mut app, "input");
-    press(&mut app, KeyCode::Enter);
-    press(&mut app, KeyCode::Down);
-    press(&mut app, KeyCode::Enter);
-    // Copias: cada ./ se suma (repetida no) y Tab termina.
     type_text(&mut app, "input");
     press(&mut app, KeyCode::Enter);
     type_text(&mut app, "IA");
@@ -482,7 +505,7 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     }
     assert!(!saved.contains("teacher"), "lo vacío no se guarda");
     let profile = crate::courses::find_course(&project, "bases-de-datos").unwrap().profile;
-    assert_eq!(Path::new(&profile.output), Path::new("input"));
+    assert!(profile.output.is_empty(), "el asistente ya no pide la salida");
     assert_eq!(profile.copies.len(), 1);
     assert_eq!(Path::new(&profile.copies[0]), Path::new("input").join("IA"));
     // Se aplica al formulario, con el campo propio lleno.
@@ -755,15 +778,98 @@ fn renaming_a_profile_in_the_wizard_does_not_leave_the_old_one() {
     let mut app = App::new(project);
     app.open_wizard(Some("ia"));
     type_text(&mut app, "2");
-    // Nombre, formato, diseño y carpeta con Enter; salida y copias con Tab.
-    for _ in 0..4 {
+    // Nombre, formato y diseño con Enter; la carpeta (sin cambiarla) y las copias con Tab.
+    for _ in 0..3 {
         press(&mut app, KeyCode::Enter);
     }
     press(&mut app, KeyCode::Tab);
     press(&mut app, KeyCode::Tab);
     assert!(matches!(app.mode, Mode::Form), "el asistente terminó");
+    assert!(std::fs::read_to_string(courses.join("ia2.toml")).unwrap().contains("folder = \"IA\""));
     assert!(courses.join("ia2.toml").is_file() && !courses.join("ia.toml").exists());
     assert_eq!(app.value(FieldKey::Profile), "ia2");
+}
+
+#[test]
+fn escape_in_the_wizard_asks_before_dropping_the_answers() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let courses = project.courses_dir();
+    let mut app = App::new(project);
+    app.open_wizard(None);
+    type_text(&mut app, "nuevo");
+    press(&mut app, KeyCode::Enter);
+    // Ya hay una respuesta: el primer Esc solo avisa.
+    press(&mut app, KeyCode::Esc);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el primer Esc cerró el asistente") };
+    assert!(wizard.error.as_deref().is_some_and(|e| e.contains("Esc otra vez")), "{:?}", wizard.error);
+    // Otra tecla sigue en el asistente y vuelve a hacer falta el doble Esc.
+    press(&mut app, KeyCode::Down);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert!(wizard.error.is_none() && wizard.key == "nuevo");
+    press(&mut app, KeyCode::Esc);
+    assert!(matches!(app.mode, Mode::Wizard(_)));
+    press(&mut app, KeyCode::Esc);
+    assert!(matches!(app.mode, Mode::Form), "el segundo Esc sale sin guardar");
+    assert!(!courses.join("nuevo.toml").exists());
+}
+
+#[test]
+fn a_profile_that_cannot_be_saved_keeps_the_wizard_open() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let courses = project.courses_dir();
+    // Un archivo donde va `courses/`: no se puede guardar ahí.
+    std::fs::remove_dir_all(&courses).unwrap();
+    std::fs::write(&courses, "").unwrap();
+    let mut app = App::new(project);
+    app.open_wizard(None);
+    for answer in ["nuevo", "apa7", "classic"] {
+        type_text(&mut app, answer);
+        press(&mut app, KeyCode::Enter);
+    }
+    // classic-cover no pide datos: la carpeta y las copias se pasan con Tab.
+    press(&mut app, KeyCode::Tab);
+    press(&mut app, KeyCode::Tab);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró sin guardar") };
+    assert!(wizard.error.is_some() && wizard.index == wizard.steps.len() - 1);
+    assert_eq!(wizard.key, "nuevo");
+    // Arreglado el problema, Tab en el último paso guarda.
+    std::fs::remove_file(&courses).unwrap();
+    press(&mut app, KeyCode::Tab);
+    assert!(matches!(app.mode, Mode::Form));
+    assert!(courses.join("nuevo.toml").is_file());
+}
+
+#[test]
+fn the_papers_folder_must_be_inside_input() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    app.open_wizard(Some("ia"));
+    for _ in 0..3 {
+        press(&mut app, KeyCode::Enter);
+    }
+    // Empieza en input/IA, la carpeta del perfil; al subir dos veces se sale de input/.
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    let picker = wizard.picker.as_ref().expect("la carpeta se elige con el selector");
+    assert_eq!(picker.dir.as_deref(), Some(app.project.input_dir().join("IA").as_path()));
+    press(&mut app, KeyCode::Left);
+    press(&mut app, KeyCode::Left);
+    // En la raíz del proyecto, «.» marca ./ y Enter intenta elegirla.
+    type_text(&mut app, ".");
+    press(&mut app, KeyCode::Enter);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert!(wizard.error.as_deref().is_some_and(|e| e.contains("input/")), "{:?}", wizard.error);
+    assert_eq!(wizard.profile.folder, "IA", "no cambió");
+    // ./ en input/ deja la materia sin carpeta.
+    press(&mut app, KeyCode::Backspace);
+    type_text(&mut app, "input");
+    press(&mut app, KeyCode::Enter);
+    press(&mut app, KeyCode::Down);
+    press(&mut app, KeyCode::Enter);
+    let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró") };
+    assert!(wizard.profile.folder.is_empty() && wizard.error.is_none());
 }
 
 #[test]

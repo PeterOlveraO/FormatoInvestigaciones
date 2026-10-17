@@ -541,7 +541,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     let pdf =
         generate_pdf(project, &markdown_path, &output_dir, &data, &options, &mut |w| reporter.warning(w))?;
     reporter.info(tr!(es: "PDF generado: {}", en: "PDF generated: {}", pdf.display()));
-    for copy in copy_pdf_to(&pdf, &copies)? {
+    for copy in copy_pdf_to(&pdf, &copies, &mut |w| reporter.warning(w)) {
         reporter.info(tr!(es: "Copia guardada: {}", en: "Copy saved: {}", copy.display()));
     }
     Ok(pdf)

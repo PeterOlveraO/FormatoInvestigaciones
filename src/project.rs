@@ -39,6 +39,23 @@ pub fn absolute(path: &Path) -> PathBuf {
     std::path::absolute(path).unwrap_or_else(|_| path.to_path_buf())
 }
 
+/// Reemplaza un archivo de forma segura: escribe en un temporal oculto de la
+/// misma carpeta y lo renombra encima, para que un corte no deje el archivo a
+/// medias. Si algo falla, borra el temporal y devuelve el error.
+// shortcut: si `path` es un enlace simbólico, queda un archivo normal en su lugar;
+// si alguien enlaza sus perfiles o ajustes, escribir en el destino del enlace.
+pub fn replace_file(path: &Path, write: impl FnOnce(&Path) -> std::io::Result<()>) -> std::io::Result<()> {
+    let temporary =
+        path.with_file_name(format!(".{}.tmp", path.file_name().unwrap_or_default().to_string_lossy()));
+    match write(&temporary).and_then(|()| std::fs::rename(&temporary, path)) {
+        Ok(()) => Ok(()),
+        Err(error) => {
+            let _ = std::fs::remove_file(&temporary);
+            Err(error)
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct Project {
     /// La carpeta del programa: plantillas, ejemplos, caché y `settings.toml`.
@@ -51,10 +68,12 @@ pub struct Project {
 fn copy_missing(from: &Path, to: &Path) -> std::io::Result<()> {
     for entry in std::fs::read_dir(from)?.flatten() {
         let target = to.join(entry.file_name());
-        if entry.path().is_dir() {
+        // `file_type` no sigue enlaces: un enlace a carpeta se salta (no es
+        // archivo ni carpeta) y un archivo enlazado se copia igual.
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
             std::fs::create_dir_all(&target)?;
             copy_missing(&entry.path(), &target)?;
-        } else if !target.exists() {
+        } else if !target.exists() && entry.path().is_file() {
             std::fs::copy(entry.path(), &target)?;
         }
     }
@@ -77,21 +96,30 @@ impl Project {
     }
 
     /// Prepara `dir` como carpeta de trabajo: crea sus carpetas, copia lo que
-    /// ya había en el programa (trabajos, perfiles, diseños propios, logos) sin
-    /// pisar nada, la guarda en `settings.toml` y la usa desde ahora.
+    /// había en la carpeta de trabajo actual (trabajos, perfiles, diseños
+    /// propios, logos) sin pisar nada, la guarda en `settings.toml` y la usa
+    /// desde ahora.
     pub fn create_workspace(&mut self, dir: &Path) -> Result<()> {
         let dir = absolute(dir);
         for sub in WORKSPACE_DIRS {
             std::fs::create_dir_all(dir.join(sub))?;
         }
-        if dir != self.root {
+        if dir != self.work {
+            // Los datos salen de la carpeta de trabajo actual, no del programa,
+            // y los logos compartidos de `templates/logos/` siguen sumándose.
             let previous = [
-                (self.root.join("input"), "input"),
-                (self.root.join("courses"), "courses"),
-                (self.root.join("my-templates"), "my-templates"),
+                (self.work.join("input"), "input"),
+                (self.work.join("courses"), "courses"),
+                (self.work.join("my-templates"), "my-templates"),
+                (self.work.join(LOGOS_DIRECTORY), LOGOS_DIRECTORY),
                 (self.templates_dir().join(LOGOS_DIRECTORY), LOGOS_DIRECTORY),
             ];
+            // No copiar un origen que contiene a la carpeta nueva: sería copiarse
+            // a sí misma sin fin.
             for (from, to) in previous.iter().filter(|(from, _)| from.is_dir()) {
+                if dir.starts_with(from) {
+                    continue;
+                }
                 copy_missing(from, &dir.join(to))?;
             }
         }
@@ -252,5 +280,72 @@ mod tests {
         assert!(work.path().join("courses/fisica.toml").is_file() && work.path().join("logos").is_dir());
         assert_eq!(project.courses_dir(), absolute(work.path()).join("courses"));
         assert_eq!(project.saved_workspace(), Some(absolute(work.path())));
+    }
+
+    #[test]
+    fn a_workspace_inside_input_does_not_copy_itself() {
+        let program = tempfile::tempdir().unwrap();
+        let mut project = Project::at(program.path());
+        let paper = program.path().join("input").join("IA").join("Tarea.md");
+        std::fs::create_dir_all(paper.parent().unwrap()).unwrap();
+        std::fs::write(&paper, "# Introducción\n").unwrap();
+        let workspace = program.path().join("input");
+        project.create_workspace(&workspace).unwrap();
+        assert!(!workspace.join("input").join("input").exists());
+    }
+
+    #[test]
+    fn a_new_folder_gets_the_profiles_of_the_current_one() {
+        let program = tempfile::tempdir().unwrap();
+        let first = tempfile::tempdir().unwrap();
+        let second = tempfile::tempdir().unwrap();
+        let mut project = Project::at(program.path());
+        project.create_workspace(first.path()).unwrap();
+        let profile = first.path().join("courses").join("ia.toml");
+        std::fs::write(&profile, "perfil").unwrap();
+        project.create_workspace(second.path()).unwrap();
+        assert_eq!(std::fs::read_to_string(second.path().join("courses/ia.toml")).unwrap(), "perfil");
+        assert_eq!(std::fs::read_to_string(&profile).unwrap(), "perfil");
+        assert_eq!(project.work, absolute(second.path()));
+    }
+
+    #[test]
+    fn replace_file_swaps_the_content_without_leaving_temporaries() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("datos.toml");
+        std::fs::write(&path, "viejo").unwrap();
+        replace_file(&path, |temporary| std::fs::write(temporary, "nuevo")).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "nuevo");
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    #[test]
+    fn a_failing_write_keeps_the_original_file() {
+        let directory = tempfile::tempdir().unwrap();
+        let path = directory.path().join("datos.toml");
+        std::fs::write(&path, "viejo").unwrap();
+        let error = replace_file(&path, |_| Err(std::io::Error::other("sin espacio"))).unwrap_err();
+        assert_eq!(error.kind(), std::io::ErrorKind::Other);
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "viejo");
+        assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 1);
+    }
+
+    // Crear enlaces simbólicos en Windows pide permisos especiales.
+    #[cfg(unix)]
+    #[test]
+    fn a_folder_link_is_skipped_and_a_file_link_is_copied() {
+        let program = tempfile::tempdir().unwrap();
+        let work = tempfile::tempdir().unwrap();
+        let mut project = Project::at(program.path());
+        let input = program.path().join("input");
+        std::fs::create_dir_all(input.join("IA")).unwrap();
+        std::fs::write(input.join("IA/Tarea.md"), "x").unwrap();
+        // Un enlace a su propia carpeta padre: seguirlo sería un ciclo sin fin.
+        std::os::unix::fs::symlink(&input, input.join("IA/atajo")).unwrap();
+        std::os::unix::fs::symlink(input.join("IA/Tarea.md"), input.join("enlace.md")).unwrap();
+        project.create_workspace(work.path()).unwrap();
+        assert!(work.path().join("input/IA/Tarea.md").is_file());
+        assert!(!work.path().join("input/IA/atajo").exists());
+        assert_eq!(std::fs::read_to_string(work.path().join("input/enlace.md")).unwrap(), "x");
     }
 }

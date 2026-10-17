@@ -5,6 +5,12 @@
 **Windows is supported** (tested on Windows 11 with MiKTeX). Installation steps
 are in `INSTALL.md`.
 
+### Changed
+
+- The profile wizard no longer asks for an output folder: the PDF goes to
+  `output/<folder>` of the profile. The `output` key still works in profiles
+  that have it, and the menu still lets you choose the folder.
+
 ### Fixed
 
 - Choosing the Markdown again in the menu opens the folder of the file already
@@ -46,6 +52,28 @@ are in `INSTALL.md`.
   of showing a Lua error. `INSTALL.md` says so too.
 - An image path with spaces written as `%20` (`img/mi%20foto.png`, as many
   editors save it) is found instead of being reported as missing.
+- In the profile wizard, Esc leaves from the first step at once; from the
+  second step it first warns "Press Esc again to leave without saving.", so a
+  stray key does not lose what you typed.
+- If a profile cannot be saved (no permission, full disk, a removed USB), the
+  wizard stays open on its last step with the error and keeps what you typed.
+- Picking a profile in the form now uses its output folder as written, even
+  outside the work folder, so the menu and the command line save the PDF in
+  the same place.
+- A failed extra copy (a file in the way, no permission, a disconnected USB) is
+  a warning: the PDF is generated, the other copies are made and the command
+  ends with exit code 0.
+- Changing the work folder (Options → `w`) copies `input/`, `courses/`,
+  `my-templates/` and `logos/` from the current work folder, not from the
+  program folder, so profiles no longer seem to disappear.
+- A new work folder inside `input/`, `courses/` or `my-templates/` is no longer
+  copied into itself without end.
+- Profiles, `settings.toml`, the PDF and its copies are written to a hidden
+  `.<name>.tmp` in the same folder and then renamed, so a power cut or a full
+  disk no longer leaves an empty or half-written file.
+- Searching the Markdown by name in `input/` and copying to a new work folder
+  no longer follow symbolic links to folders (a link to a parent folder
+  crashed the program); linked files are still found and copied.
 
 ### Changed
 
@@ -75,6 +103,13 @@ are in `INSTALL.md`.
   `settings.toml`.
 - CI on GitHub Actions: format, lint and tests on Linux (with real PDFs) and
   Windows.
+- The profile wizard's "Papers folder" step is now a folder picker inside
+  `input/`: `./` chooses the folder and it is saved relative to `input/`.
+- Every folder picker (output folder, extra copies, work folder and the
+  wizard's papers folder) can create a folder: type a new name and choose
+  `+ <name>/  create and open`.
+- On the root of a drive, the folder pickers list the other drives that exist,
+  so you can switch to a USB drive without typing its path.
 
 ## 2.0.0 (2026-10-04)
 

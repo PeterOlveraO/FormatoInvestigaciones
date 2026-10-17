@@ -12,7 +12,7 @@ use crate::latex::render_template;
 use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::{pandoc_to_latex, resource_dirs};
-use crate::project::{Project, absolute};
+use crate::project::{Project, absolute, replace_file};
 use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 
 /// Opciones de la generación que no son datos de la portada.
@@ -184,8 +184,9 @@ pub fn cannot_write(path: &Path, error: &std::io::Error) -> GenerationError {
 }
 
 /// Deja una copia del PDF en cada carpeta extra, sin repetir ni copiar sobre
-/// la propia carpeta de salida.
-pub fn copy_pdf_to(pdf: &Path, directories: &[PathBuf]) -> Result<Vec<PathBuf>> {
+/// la propia carpeta de salida. Un destino que falla es un aviso, no un error:
+/// se avisa y se sigue con los demás.
+pub fn copy_pdf_to(pdf: &Path, directories: &[PathBuf], on_warning: &mut dyn FnMut(String)) -> Vec<PathBuf> {
     let mut seen: HashSet<PathBuf> = HashSet::new();
     if let Some(parent) = pdf.parent() {
         seen.insert(absolute(parent));
@@ -197,18 +198,26 @@ pub fn copy_pdf_to(pdf: &Path, directories: &[PathBuf]) -> Result<Vec<PathBuf>> 
             continue;
         }
         if destination.exists() && !destination.is_dir() {
-            return Err(GenerationError::new(tr!(
+            on_warning(tr!(
                 es: "El destino de la copia no es una carpeta: {}",
                 en: "The copy destination is not a folder: {}",
                 destination.display()
-            )));
+            ));
+            continue;
         }
-        std::fs::create_dir_all(&destination).map_err(|e| cannot_write(&destination, &e))?;
         let copy = destination.join(pdf.file_name().unwrap_or_default());
-        std::fs::copy(pdf, &copy).map_err(|e| cannot_write(&copy, &e))?;
-        copies.push(copy);
+        let result = std::fs::create_dir_all(&destination)
+            .map_err(|e| cannot_write(&destination, &e))
+            .and_then(|()| {
+                replace_file(&copy, |temporary| std::fs::copy(pdf, temporary).map(drop))
+                    .map_err(|e| cannot_write(&copy, &e))
+            });
+        match result {
+            Ok(()) => copies.push(copy),
+            Err(error) => on_warning(error.0),
+        }
     }
-    Ok(copies)
+    copies
 }
 
 #[cfg(test)]
@@ -222,8 +231,12 @@ mod tests {
         let pdf = base.join("salida").join("trabajo.pdf");
         std::fs::create_dir(pdf.parent().unwrap()).unwrap();
         std::fs::write(&pdf, b"%PDF-1.5 contenido").unwrap();
-        let copies = copy_pdf_to(&pdf, &[base.join("usb"), base.join("nube").join("materia")]).unwrap();
+        let mut warnings = Vec::new();
+        let copies = copy_pdf_to(&pdf, &[base.join("usb"), base.join("nube").join("materia")], &mut |w| {
+            warnings.push(w)
+        });
         assert_eq!(copies.len(), 2);
+        assert!(warnings.is_empty());
         for copy in copies {
             assert_eq!(copy.file_name().unwrap(), "trabajo.pdf");
             assert_eq!(std::fs::read(copy).unwrap(), b"%PDF-1.5 contenido");
@@ -236,7 +249,8 @@ mod tests {
         let base = directory.path();
         let pdf = base.join("trabajo.pdf");
         std::fs::write(&pdf, b"pdf").unwrap();
-        let copies = copy_pdf_to(&pdf, &[base.to_path_buf(), base.join("usb"), base.join("usb")]).unwrap();
+        let copies =
+            copy_pdf_to(&pdf, &[base.to_path_buf(), base.join("usb"), base.join("usb")], &mut |_| {});
         assert_eq!(copies.len(), 1);
     }
 
@@ -247,7 +261,13 @@ mod tests {
         std::fs::write(&pdf, b"pdf").unwrap();
         let busy = directory.path().join("ocupado.txt");
         std::fs::write(&busy, "x").unwrap();
-        assert!(copy_pdf_to(&pdf, &[busy]).is_err());
+        let good = directory.path().join("buena");
+        let mut warnings = Vec::new();
+        let copies = copy_pdf_to(&pdf, &[busy.clone(), good.clone()], &mut |w| warnings.push(w));
+        assert_eq!(copies.len(), 1);
+        assert_eq!(copies[0], good.join("trabajo.pdf"));
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains(&busy.display().to_string()));
     }
 
     #[test]

@@ -617,7 +617,7 @@ fn draw_wizard(frame: &mut Frame, wizard: &Wizard) {
     // En los pasos de carpetas: lo elegido hasta ahora y dónde se está.
     if wizard.is_folder_step() {
         let chosen = match step.target {
-            Target::Output => wizard.profile.output.clone(),
+            Target::Folder => wizard.profile.folder.clone(),
             _ => wizard.profile.copies.join("; "),
         };
         let chosen =
