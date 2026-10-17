@@ -125,6 +125,14 @@ fn backslashes_in_the_text_do_not_break_the_build() {
     assert!(pdf.is_file());
 }
 
+// babel-spanish redefinía \% y fallaba tras un espacio de math (`\,`).
+#[test]
+fn percent_after_a_math_spacing_compiles_in_spanish() {
+    let markdown = "# Introducción\n\nCrece $28.9\\,\\%$, $x\\;\\%$ y $28\\%$ en texto 28.9\\%.\n";
+    let Some((pdf, _, _dir)) = build(markdown, "Porcentaje") else { return };
+    assert!(pdf.is_file());
+}
+
 #[test]
 fn images_with_dot_relative_or_percent_encoded_paths_are_found() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
