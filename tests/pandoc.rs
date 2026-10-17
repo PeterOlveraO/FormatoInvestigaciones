@@ -3,7 +3,7 @@
 
 mod common;
 
-use common::{has_tool, project, write};
+use common::{has_tool, isolated_project, project, write};
 use investigacion::i18n::Lang;
 use investigacion::pandoc::pandoc_to_latex;
 
@@ -198,7 +198,7 @@ fn boxes_and_references_follow_the_document_language() {
 }
 
 #[test]
-fn a_folder_with_the_path_separator_does_not_stop_the_conversion() {
+fn an_image_in_a_folder_with_the_path_separator_is_copied_to_the_cache() {
     // El separador depende del sistema; donde no se puede crear la carpeta, no hay nada que probar.
     if !has_tool("pandoc") {
         eprintln!("skipped: pandoc is not installed");
@@ -210,11 +210,19 @@ fn a_folder_with_the_path_separator_does_not_stop_the_conversion() {
     if std::fs::create_dir(&folder).is_err() {
         return;
     }
+    std::fs::write(folder.join("foto.png"), b"\x89PNG\r\n\x1a\nfalso").unwrap();
+    let project = isolated_project(directory.path());
     let markdown = "# Introducción\n\n![foto](foto.png)\n";
     let source = write(&folder, "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project, &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
     assert!(latex.contains("Introducción"), "{latex}");
     assert!(warnings.iter().any(|w| w.contains("separador")), "{warnings:?}");
+    // LaTeX no ve la carpeta: la imagen tiene que llegar por la caché, con su nombre.
+    let line = latex.lines().find(|l| l.contains("includegraphics")).unwrap_or_default();
+    let name = line.rsplit_once('{').map(|(_, rest)| rest.trim_end_matches('}')).unwrap_or_default();
+    assert!(!name.is_empty() && name != "foto.png" && !name.contains('/'), "{latex}");
+    let (cache, _) = project.media_directories().unwrap();
+    assert!(cache.join(name).is_file(), "{name} not in {}", cache.display());
 }
