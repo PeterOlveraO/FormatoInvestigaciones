@@ -22,10 +22,14 @@ local function avisar(mensaje)
   io.stderr:write("[investigacion] " .. mensaje .. "\n")
 end
 
+-- Un archivo existe si se puede leer. En Linux `io.open` también abre las
+-- carpetas, pero leerlas da error: por eso se comprueba la lectura.
 local function existe(ruta)
   local archivo = io.open(ruta, "rb")
-  if archivo then archivo:close() end
-  return archivo ~= nil
+  if not archivo then return false end
+  local _, error_de_lectura = archivo:read(1)
+  archivo:close()
+  return error_de_lectura == nil
 end
 
 local function escribir(ruta, contenido)

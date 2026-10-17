@@ -214,3 +214,22 @@ fn raw_latex_in_a_caption_follows_the_body_setting() {
     assert!(without.contains(r"\textbackslash noexiste"), "{without}");
     assert!(convert(true).contains(r"\noexiste{x}"));
 }
+
+#[test]
+fn a_folder_named_like_an_image_is_not_an_image() {
+    // Una carpeta llamada «figuras» no es una imagen: se avisa y se sustituye.
+    if !has_tool("pandoc") {
+        eprintln!("skipped: pandoc is not installed");
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::create_dir(directory.path().join("figuras")).unwrap();
+    let markdown = "![x](figuras)\n";
+    let source = write(directory.path(), "trabajo.md", markdown);
+    let mut warnings = Vec::new();
+    let latex =
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+    assert!(!latex.contains("includegraphics"), "{latex}");
+    assert!(latex.contains(r"\emph{x}"), "{latex}");
+    assert!(!warnings.is_empty());
+}
