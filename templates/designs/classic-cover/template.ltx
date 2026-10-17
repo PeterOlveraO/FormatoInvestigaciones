@@ -54,17 +54,17 @@
     % Cada línea lleva su propio salto dentro del condicional, para no dejar
     % un renglón vacío cuando el dato falta.
     \ifdefempty{\ListaIntegrantes}{%
-        \ifdefempty{\NombreAlumno}{}{\textbf{Alumno:} \NombreAlumno\par\vspace{0.25cm}}%
+        \ifdefempty{\NombreAlumno}{}{\textbf{\SegunIdioma{Alumno:}{Student:}} \NombreAlumno\par\vspace{0.25cm}}%
     }{%
-        \textbf{Integrantes:}\par
+        \textbf{\SegunIdioma{Integrantes:}{Members:}}\par
         \begin{tabular}{c}\ListaIntegrantes\end{tabular}\par\vspace{0.25cm}%
     }%
-    \textbf{Materia:} \NombreMateria\par\vspace{0.25cm}
-    \ifdefempty{\NombreMaestro}{}{\textbf{Docente:} \NombreMaestro\par\vspace{0.25cm}}%
-    \textbf{Semestre:} \SemestreActual\par
-    \ifdefempty{\GrupoMateria}{}{\vspace{0.25cm}\textbf{Grupo:} \GrupoMateria\par}%
+    \textbf{\SegunIdioma{Materia:}{Course:}} \NombreMateria\par\vspace{0.25cm}
+    \ifdefempty{\NombreMaestro}{}{\textbf{\SegunIdioma{Docente:}{Teacher:}} \NombreMaestro\par\vspace{0.25cm}}%
+    \textbf{\SegunIdioma{Semestre:}{Semester:}} \SemestreActual\par
+    \ifdefempty{\GrupoMateria}{}{\vspace{0.25cm}\textbf{\SegunIdioma{Grupo:}{Group:}} \GrupoMateria\par}%
     \vfill
-    {\bfseries Fecha de entrega: \FechaEntrega\par}
+    {\bfseries \SegunIdioma{Fecha de entrega:}{Due date:} \FechaEntrega\par}
 \end{titlepage}
 
 % El entorno titlepage reinicia el contador; APA cuenta la portada como página 1.

@@ -380,4 +380,8 @@
   }%
 }
 
+% Texto según el idioma del documento (babel): el primero en español y el
+% segundo en los demás. Sin babel (diseño autocontenido) sale en español.
+\newcommand{\SegunIdioma}[2]{\@ifundefined{bbl@main@language}{#1}{\ifdefstring{\languagename}{spanish}{#1}{#2}}}
+
 \endinput

@@ -171,25 +171,25 @@
               % ALUMNO siga puesto en el .env. Sin integrantes se muestra el
               % alumno, y si tampoco lo hay no aparece ninguna de las dos.
               \ifdefempty{\ListaIntegrantes}{%
-                  \ifdefempty{\NombreAlumno}{}{\textbf{ALUMNO:} \NombreAlumno\\[0.25cm]}%
+                  \ifdefempty{\NombreAlumno}{}{\textbf{\SegunIdioma{ALUMNO:}{STUDENT:}} \NombreAlumno\\[0.25cm]}%
               }{%
-                  \textbf{INTEGRANTES:} %
+                  \textbf{\SegunIdioma{INTEGRANTES:}{MEMBERS:}} %
                   \raisebox{0pt}[0pt][\depth]{\begin{tabular}[t]{@{}l@{}}%
                       \ListaIntegrantes\end{tabular}}\\[0.25cm]%
               }%
               % El orden de estas líneas es fijo y no depende del orden en que
               % se hayan escrito las opciones del comando:
               %   alumno (o integrantes), materia, docente, semestre y grupo.
-              \textbf{MATERIA:} \NombreMateria\\[0.25cm]
+              \textbf{\SegunIdioma{MATERIA:}{COURSE:}} \NombreMateria\\[0.25cm]
               % El docente tambien es opcional: la materia y el semestre son los
               % unicos datos que siempre aparecen.
-              \ifdefempty{\NombreMaestro}{}{\textbf{DOCENTE:} \NombreMaestro\\[0.25cm]}%
-              \textbf{SEMESTRE:} \SemestreActual%
+              \ifdefempty{\NombreMaestro}{}{\textbf{\SegunIdioma{DOCENTE:}{TEACHER:}} \NombreMaestro\\[0.25cm]}%
+              \textbf{\SegunIdioma{SEMESTRE:}{SEMESTER:}} \SemestreActual%
               % El grupo es opcional y cierra el bloque. El salto va DENTRO del
               % condicional para no dejar un renglón vacío cuando no se indica.
-              \ifdefempty{\GrupoMateria}{}{\\[0.25cm]\textbf{GRUPO:} \GrupoMateria}};
+              \ifdefempty{\GrupoMateria}{}{\\[0.25cm]\textbf{\SegunIdioma{GRUPO:}{GROUP:}} \GrupoMateria}};
         
-        \node[anchor=south east, font=\sffamily\bfseries, align=right] at ([xshift=-3.5cm, yshift=3.5cm]current page.south east) {FECHA DE ENTREGA: \FechaEntrega};
+        \node[anchor=south east, font=\sffamily\bfseries, align=right] at ([xshift=-3.5cm, yshift=3.5cm]current page.south east) {\SegunIdioma{FECHA DE ENTREGA:}{DUE DATE:} \FechaEntrega};
 
     \end{tikzpicture}
 \end{titlepage}
