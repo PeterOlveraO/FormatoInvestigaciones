@@ -65,6 +65,26 @@ fn join_search_path(paths: &[PathBuf]) -> Result<OsString> {
     })
 }
 
+/// Separa las carpetas cuya ruta lleva el separador del sistema (`:` en Linux)
+/// de las que sí caben en la lista de búsqueda de Pandoc y de LaTeX. Las
+/// primeras se avisan: los filtros copian sus imágenes a la caché.
+fn split_resource_dirs(dirs: &[PathBuf], on_warning: &mut dyn FnMut(String)) -> (Vec<PathBuf>, Vec<PathBuf>) {
+    let (kept, dropped): (Vec<PathBuf>, Vec<PathBuf>) =
+        dirs.iter().cloned().partition(|dir| std::env::join_paths([dir]).is_ok());
+    for dir in &dropped {
+        logging::warn(format_args!(
+            "resource folder has the path separator, images are copied to the cache: {}",
+            dir.display()
+        ));
+        on_warning(tr!(
+            es: "La carpeta {} lleva el separador de rutas del sistema: sus imágenes se copian a la caché.",
+            en: "The folder {} has the system path separator: its images are copied to the cache.",
+            dir.display()
+        ));
+    }
+    (kept, dropped)
+}
+
 /// Dónde se buscan las imágenes: junto al Markdown y en la caché del proyecto.
 /// Pandoc las comprueba ahí y pdflatex las busca ahí por TEXINPUTS.
 pub fn resource_dirs(project: &Project, markdown_path: &Path) -> Result<Vec<PathBuf>> {
@@ -88,6 +108,7 @@ pub fn pandoc_to_latex(
     let (remote, diagrams) = project.media_directories()?;
     let base_dir = markdown_path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let resources = resource_dirs(project, markdown_path)?;
+    let (searchable, unsearchable) = split_resource_dirs(&resources, on_warning);
 
     let filters_dir = tempfile::Builder::new().prefix("investigacion-filters-").tempdir()?;
     let format = markdown_format(allow_raw_latex);
@@ -100,7 +121,7 @@ pub fn pandoc_to_latex(
         .arg("--wrap=none")
         .arg({
             let mut arg = OsString::from("--resource-path=");
-            arg.push(join_search_path(&resources)?);
+            arg.push(join_search_path(&searchable)?);
             arg
         })
         .arg(format!("--request-header=User-Agent:{USER_AGENT}"));
@@ -118,6 +139,11 @@ pub fn pandoc_to_latex(
         .env("INVESTIGACION_MARKDOWN_FORMAT", &format)
         // Una carpeta por línea: así una ruta puede llevar espacios.
         .env("INVESTIGACION_RESOURCES", resources.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"))
+        // Carpetas que LaTeX no puede buscar: sus imágenes se copian a la caché.
+        .env(
+            "INVESTIGACION_UNSEARCHABLE",
+            unsearchable.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"),
+        )
         // Los filtros redactan sus avisos en el idioma de la interfaz.
         .env("INVESTIGACION_LANG", crate::i18n::current().code())
         // Y el texto que va dentro del PDF (títulos de las cajas), en el del documento.
@@ -214,5 +240,18 @@ mod tests {
             "[WARNING] Deprecated syntax\n[investigacion] No se pudo descargar la imagen x.png\notra linea\n";
         assert_eq!(filter_warnings(stderr), ["No se pudo descargar la imagen x.png"]);
         assert!(filter_warnings("").is_empty());
+    }
+
+    #[test]
+    fn a_folder_with_the_path_separator_is_split_off_with_a_warning() {
+        // El separador depende del sistema: se calcula en vez de escribirlo.
+        let separator = std::env::join_paths(["a", "b"]).unwrap().to_string_lossy().chars().nth(1).unwrap();
+        let dirs =
+            vec![PathBuf::from("/proyecto/figuras"), PathBuf::from(format!("/proyecto/car{separator}peta"))];
+        let mut warnings = Vec::new();
+        let (kept, dropped) = split_resource_dirs(&dirs, &mut |w| warnings.push(w));
+        assert_eq!(kept, [PathBuf::from("/proyecto/figuras")]);
+        assert_eq!(dropped, [PathBuf::from(format!("/proyecto/car{separator}peta"))]);
+        assert_eq!(warnings.len(), 1);
     }
 }
