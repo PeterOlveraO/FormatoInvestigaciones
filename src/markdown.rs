@@ -15,8 +15,8 @@ use crate::project::absolute;
 // ancho cero. Word, Notion y las IA los sueltan a menudo.
 const DISGUISED_SPACES: [char; 4] = ['\u{00A0}', '\u{2007}', '\u{202F}', '\u{200B}'];
 
-// Los espacios invisibles cuentan como sangría para el cerco, como en Pandoc
-// no: por eso se quitan antes (ver `strip_leading_disguised`).
+// Acepta espacios invisibles en la sangría para que `fenced_lines` coincida con
+// lo que `normalize_markdown` produce después de quitarlos.
 static FENCE: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!("^[ \\t{DISGUISED_CLASS}]{{0,3}}(`{{3,}}|~{{3,}})(.*)$")).unwrap());
 // Marcador de Markdown (encabezado, viñeta, lista numerada o cita) separado del
@@ -26,8 +26,14 @@ static MARKER_SEPARATOR: LazyLock<Regex> = LazyLock::new(|| {
 });
 // Un marcador al principio de la línea (también un cerco), para decidir si el
 // espacio invisible de delante es de Markdown y debe quitarse.
-static MARKER_START: LazyLock<Regex> =
-    LazyLock::new(|| Regex::new(r"^[ \t]{0,3}(#{1,6}|[-*+]|\d+[.)]|>|`{3,}|~{3,})").unwrap());
+// Una viñeta, número, almohadilla o cita solo cuenta si va seguida de espacio o
+// del final de la línea; así «-5 grados» o «2020.Texto» no cambian.
+static MARKER_START: LazyLock<Regex> = LazyLock::new(|| {
+    Regex::new(&format!(
+        "^[ \\t]{{0,3}}(?:(?:#{{1,6}}|[-*+]|\\d+[.)]|>)(?:[ \\t{DISGUISED_CLASS}]|$)|`{{3,}}|~{{3,}})"
+    ))
+    .unwrap()
+});
 static ATX_HEADING: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(r"^[ \t]{0,3}#{1,6}[ \t]+(.+?)[ \t]*$").unwrap());
 
@@ -384,6 +390,17 @@ mod tests {
     #[test]
     fn a_leading_hard_space_in_plain_text_is_kept() {
         assert_eq!(normalize_markdown(&format!("{NBSP}Texto\n")), format!("{NBSP}Texto\n"));
+        // Números y signos que empiezan la línea, pero no son marcadores.
+        for text in ["-5 grados", "2020.Texto", "+3"] {
+            let markdown = format!("{NBSP}{text}\n");
+            assert_eq!(normalize_markdown(&markdown), markdown);
+        }
+    }
+
+    #[test]
+    fn a_leading_hard_space_before_a_marker_followed_by_a_space_is_removed() {
+        assert_eq!(normalize_markdown(&format!("{NBSP}- uno\n")), "- uno\n");
+        assert_eq!(normalize_markdown(&format!("{NBSP}1. uno\n")), "1. uno\n");
     }
 
     #[test]
