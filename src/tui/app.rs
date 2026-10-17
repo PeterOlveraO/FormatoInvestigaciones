@@ -1365,6 +1365,15 @@ impl App {
         }
     }
 
+    /// Si al recoger el hilo hay un pánico, la generación se da por perdida:
+    /// al soltar el receptor, el hilo solo falla al enviar y no pasa nada.
+    pub fn abandon_generation(&mut self) {
+        if matches!(self.mode, Mode::Generating(_)) {
+            logging::error("tui: generation abandoned after a panic while collecting its result");
+            self.mode = Mode::Form;
+        }
+    }
+
     /// Recoge los mensajes del hilo de generación; se llama en cada ciclo.
     pub fn poll_worker(&mut self) {
         let Mode::Generating(receiver) = &self.mode else { return };

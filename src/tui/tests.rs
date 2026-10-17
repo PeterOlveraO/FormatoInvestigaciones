@@ -1200,3 +1200,20 @@ fn the_general_cover_data_is_in_the_form() {
     }
     assert!(render(&app).contains("Universidad"));
 }
+
+#[test]
+fn a_panic_while_collecting_the_result_leaves_a_usable_menu() {
+    let (_dir, project) = sample_project();
+    let mut app = App::new(project);
+    i18n::set(Lang::Es);
+    let (_sender, receiver) = std::sync::mpsc::channel();
+    app.mode = Mode::Generating(receiver);
+    // Lo que hace event_loop tras un pánico en poll_worker.
+    app.abandon_generation();
+    app.recover("boom".into());
+    assert!(!matches!(app.mode, Mode::Generating(_)));
+    assert!(matches!(app.log.last(), Some(LogLine::Error(error)) if error.contains("boom")));
+    // El menú sigue respondiendo.
+    press(&mut app, KeyCode::Char('o'));
+    assert!(matches!(app.mode, Mode::Options(_)));
+}
