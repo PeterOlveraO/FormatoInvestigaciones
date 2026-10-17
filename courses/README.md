@@ -18,6 +18,10 @@ the menu, or automatically the first time). You can also edit them by hand:
 | `copies` | Extra folders for a copy of the PDF, e.g. `["~/Drive/IA"]` |
 | `[fields]` | The design's own fields, e.g. `SALON = "B-204"` |
 
+The wizard rewrites the whole file when it saves, so its comments and
+commented-out lines are lost. To keep them, edit the file by hand instead of
+with the wizard.
+
 The file name is the profile's key: `ia.toml` is used with `-p ia`.
 
 Precedence: command-line option > profile. Every cover datum the design shows

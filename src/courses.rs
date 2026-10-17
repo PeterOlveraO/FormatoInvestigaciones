@@ -9,7 +9,7 @@ use serde::Deserialize;
 use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
 use crate::logging;
-use crate::project::Project;
+use crate::project::{Project, replace_file};
 
 /// Contenido de un perfil. Todos los campos son opcionales salvo `name`.
 #[derive(Debug, Clone, Default, Deserialize, PartialEq, Eq)]
@@ -50,7 +50,7 @@ pub struct CourseProfile {
     /// guarda en la misma subcarpeta de `output/`.
     #[serde(default)]
     pub folder: String,
-    /// Carpeta del PDF; gana sobre `output/<folder>`. Relativa a la raíz del proyecto.
+    /// Carpeta del PDF; gana sobre `output/<folder>`. Relativa a la carpeta de trabajo.
     #[serde(default)]
     pub output: String,
     /// Carpetas extra para una copia del PDF.
@@ -233,7 +233,7 @@ pub fn save_profile(project: &Project, key: &str, profile: &CourseProfile) -> Re
     }
     std::fs::create_dir_all(project.courses_dir())?;
     let path = project.courses_dir().join(format!("{key}.toml"));
-    std::fs::write(&path, text)?;
+    replace_file(&path, |temporary| std::fs::write(temporary, &text))?;
     logging::info(format_args!("course profile saved: {}", path.display()));
     Ok(path)
 }

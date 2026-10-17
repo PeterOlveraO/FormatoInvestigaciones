@@ -158,7 +158,8 @@ pub fn compile_pdf(
     for warning in unsupported_character_warnings(&log) {
         on_warning(warning);
     }
-    std::fs::copy(&generated, output_pdf).map_err(|e| crate::generate::cannot_write(output_pdf, &e))?;
+    crate::project::replace_file(output_pdf, |temporary| std::fs::copy(&generated, temporary).map(drop))
+        .map_err(|e| crate::generate::cannot_write(output_pdf, &e))?;
     if let Some(dir) = state_dir {
         // La caché es una ayuda: si no se puede guardar, no es un error.
         match save_state(dir, tex_path) {

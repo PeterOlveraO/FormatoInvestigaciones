@@ -96,7 +96,9 @@ design that shows members replaces the student with them.
 
 **`--copy`**: extra folder that receives a copy of the PDF. Repeat the option
 for several folders. Without `--copy`, the profile's `copies` are used. A folder equal to the output folder, or repeated, is
-skipped. Folders are created if missing; `~` is expanded.
+skipped. Folders are created if missing; `~` is expanded. A folder that fails
+(it is a file, cannot be created, or the copy fails) is reported as a warning
+and skipped: the PDF is still generated and the exit code stays 0.
 
 **`--settings`**: use another settings file instead of the project's
 `settings.toml` ([format](#settingstoml)). A missing file is not an error; an
@@ -276,7 +278,7 @@ found), `2` no design name after the option.
 
 | Code | When |
 |---|---|
-| `0` | The PDF was generated; `--help`/`--version` shown; `--check-template` passed; the menu closed normally. |
+| `0` | The PDF was generated (a skipped extra copy is only a warning); `--help`/`--version` shown; `--check-template` passed; the menu closed normally. |
 | `1` | A generation error (missing data, file not found, Pandoc/pdflatex failure, unwritable folder, bad profile or settings file); `--check-template` found errors or a build failed; the menu closed because of an internal error. |
 | `2` | An argument error (missing `--title`, unknown option, invalid value such as `--lang fr`, no design after `--check-template`). The message is in the interface language and ends with `Use --help to see the options.` |
 

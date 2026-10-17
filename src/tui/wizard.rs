@@ -98,6 +98,8 @@ pub struct Wizard {
     /// La clave del perfil que se edita (`None` al crear uno).
     pub original: Option<String>,
     pub error: Option<String>,
+    /// Ya se pulsó Esc una vez: otro Esc sale sin guardar.
+    confirm_exit: bool,
 }
 
 impl Wizard {
@@ -146,6 +148,7 @@ impl Wizard {
             picker: None,
             original: existing.map(|c| c.key.clone()),
             error: None,
+            confirm_exit: false,
         };
         // Al editar se conservan formato y diseño, así que ya se conocen sus datos.
         if !wizard.profile.design.trim().is_empty() {
@@ -190,6 +193,13 @@ impl Wizard {
                 self.step().title.clone(),
                 design_items(project, &self.profile.format),
             )),
+            // La carpeta de trabajos se elige dentro de input/, donde ya está o desde su raíz
+            // (con cualquier selector de carpetas: la elección la atiende el asistente).
+            Target::Folder => {
+                let input = project.input_dir();
+                let start = Some(input.join(&current)).filter(|d| !current.is_empty() && d.is_dir());
+                Some(Picker::files(PickerPurpose::Output, self.step().title.clone(), &start.unwrap_or(input)))
+            }
             Target::Copies => {
                 // Empieza en la última copia guardada o en la raíz.
                 let last = current.rsplit(';').next().unwrap_or_default().trim();
@@ -237,8 +247,8 @@ impl Wizard {
             target: Target::Folder,
             title: Text::new("Carpeta de trabajos", "Papers folder").get().into(),
             help: Text::new(
-                "Subcarpeta de input/ con los trabajos de esta materia (y de output/ para los PDF). Puede quedar vacía.",
-                "Subfolder of input/ with this course's papers (and of output/ for the PDFs). May be empty.",
+                "Subcarpeta de input/ con los trabajos de esta materia (y de output/ para los PDF). Entra en ella y elige ./, o escribe un nombre nuevo para crearla; Tab sigue sin cambiarla.",
+                "Subfolder of input/ with this course's papers (and of output/ for the PDFs). Go into it and choose ./, or type a new name to create it; Tab moves on without changing it.",
             )
             .get()
             .into(),
@@ -259,7 +269,7 @@ impl Wizard {
 
     /// Paso que se llena con el selector de carpetas.
     pub fn is_folder_step(&self) -> bool {
-        self.step().target == Target::Copies
+        matches!(self.step().target, Target::Folder | Target::Copies)
     }
 
     /// Guarda la respuesta del paso actual y avanza.
@@ -325,7 +335,27 @@ impl Wizard {
     }
 
     pub fn handle_key(&mut self, key: KeyEvent, project: &Project) -> Outcome {
+        // El aviso del primer Esc dura una tecla.
+        if std::mem::take(&mut self.confirm_exit) {
+            if key.code == KeyCode::Esc {
+                return Outcome::Cancel;
+            }
+            self.error = None;
+        }
         match key.code {
+            // Desde el segundo paso hay respuestas que se perderían: se pide otro Esc.
+            KeyCode::Esc if self.index > 0 => {
+                self.confirm_exit = true;
+                self.error = Some(
+                    Text::new(
+                        "Pulsa Esc otra vez para salir sin guardar.",
+                        "Press Esc again to leave without saving.",
+                    )
+                    .get()
+                    .into(),
+                );
+                return Outcome::Continue;
+            }
             KeyCode::Esc => return Outcome::Cancel,
             // Shift+Tab vuelve al paso anterior.
             KeyCode::BackTab => {
@@ -341,7 +371,10 @@ impl Wizard {
                 return self.commit(value, project);
             }
             KeyCode::Delete if self.is_folder_step() => {
-                self.profile.copies.clear();
+                match self.step().target {
+                    Target::Folder => self.profile.folder.clear(),
+                    _ => self.profile.copies.clear(),
+                }
                 return Outcome::Continue;
             }
             _ => {}
@@ -349,6 +382,23 @@ impl Wizard {
         if let Some(picker) = &mut self.picker {
             return match picker.handle_key(key.code) {
                 PickOutcome::Chosen(PickValue::Choice(value)) => self.commit(value, project),
+                // La carpeta de trabajos se guarda relativa a input/ («./» en input/ = ninguna).
+                PickOutcome::Chosen(PickValue::Here(dir)) if self.step().target == Target::Folder => {
+                    match dir.strip_prefix(project.input_dir()) {
+                        Ok(relative) => self.commit(relative.display().to_string(), project),
+                        Err(_) => {
+                            self.error = Some(
+                                Text::new(
+                                    "Elige una carpeta dentro de input/.",
+                                    "Choose a folder inside input/.",
+                                )
+                                .get()
+                                .into(),
+                            );
+                            Outcome::Continue
+                        }
+                    }
+                }
                 // Las copias se suman y el paso sigue abierto.
                 PickOutcome::Chosen(PickValue::Here(dir)) => {
                     let path = short_path(&project.work, &dir);
@@ -374,6 +424,13 @@ impl Wizard {
             _ => {}
         }
         Outcome::Continue
+    }
+
+    /// Guardar falló: se vuelve al último paso con el error, sin perder lo escrito.
+    pub fn show_save_error(&mut self, project: &Project, error: String) {
+        self.index = self.steps.len() - 1;
+        self.enter_step(project);
+        self.error = Some(error);
     }
 
     /// Perfil listo para guardar: si el diseño no usa la materia, el nombre

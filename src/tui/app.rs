@@ -6,7 +6,9 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose, design_items, format_items};
+use super::picker::{
+    Item, PickOutcome, PickValue, Picker, PickerPurpose, design_items, format_items, may_write,
+};
 use crate::cli::{Args, Reporter, execute};
 use std::collections::BTreeMap;
 
@@ -593,6 +595,9 @@ impl App {
 
     /// Usa `dir` como carpeta de trabajo y relee los perfiles que tenga.
     fn set_workspace(&mut self, dir: &Path) {
+        if !may_write(dir) {
+            return;
+        }
         match self.project.create_workspace(dir) {
             Ok(()) => {
                 let shown = self.project.work.display();
@@ -678,9 +683,9 @@ impl App {
             WizardOutcome::Continue => self.mode = Mode::Wizard(wizard),
             WizardOutcome::Cancel => self.back(),
             WizardOutcome::Done => {
-                self.back();
                 match save_profile(&self.project, &wizard.key, &wizard.finished_profile()) {
                     Ok(path) => {
+                        self.back();
                         // Renombrar: el archivo con la clave vieja se quita.
                         let renamed =
                             wizard.original.as_ref().filter(|old| path.file_stem() != Some(old.as_ref()));
@@ -703,7 +708,11 @@ impl App {
                             tr!(es: "Perfil guardado: {shown}", en: "Profile saved: {shown}"),
                         ));
                     }
-                    Err(error) => self.log.push(LogLine::Error(error.0)),
+                    // Sin guardar, el asistente sigue abierto con todo lo escrito.
+                    Err(error) => {
+                        wizard.show_save_error(&self.project, error.0);
+                        self.mode = Mode::Wizard(wizard);
+                    }
                 }
             }
         }
@@ -1305,8 +1314,9 @@ impl App {
         for extra in &mut self.extras {
             extra.value = profile.fields.get(&extra.name).cloned().unwrap_or_default();
         }
-        let output = course.output_dir(&self.project);
-        self.set(FieldKey::Output, self.display_path(&output.display().to_string()));
+        // Relativa a la carpeta de trabajo, que es desde donde `build_args` la resuelve.
+        let output = short_path(&self.project.work, &course.output_dir(&self.project));
+        self.set(FieldKey::Output, output);
         self.set(FieldKey::Copies, profile.copies.join("; "));
     }
 

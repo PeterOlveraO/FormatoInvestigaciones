@@ -205,11 +205,15 @@ logos.
   `--file-name "Entrega Final.pdf"` produces `entrega-final.pdf`. The title never
   affects the file name. Generating again replaces the PDF.
 - **Copies:** `--copy <folder>` (repeatable) copies the PDF to each folder,
-  skipping duplicates and the PDF's own folder. A destination that exists as a
-  file is an error.
+  skipping duplicates and the PDF's own folder. A destination that fails (it is
+  a file, cannot be created, or the copy fails) is a warning: that copy is
+  skipped and the rest continue, and the PDF is still generated.
 - **Write probe:** before compiling, the program creates and removes
   `.investigacion-write-test` in the output folder, so a permissions problem
-  fails early and names the folder.
+  fails early and names the folder. The PDF is written to a hidden
+  `.<name>.tmp` in the same folder and then renamed over the final file, so an
+  interrupted write never leaves an empty PDF. Profiles, `settings.toml` and
+  the copies are written the same way.
 
 ## 4. Pipeline
 
@@ -404,7 +408,7 @@ All keys are strings except `fields`. Unknown keys are an error
 | `design` (alias `template`) | no | `geometric-cover`, `classic-cover`, `report`, `starter` or one of yours; legacy `apa`/`apa-simple` still work | n/a |
 | `language` | no | Document language `es` or `en`; default is the format's | n/a |
 | `folder` | no | Subfolder of `input/` (lookup) and `output/` (PDFs) | n/a |
-| `output` | no | Folder for the PDFs; wins over `output/<folder>`. Relative to the project root, `~` expanded | n/a |
+| `output` | no | Folder for the PDFs; wins over `output/<folder>`. Relative to the work folder, `~` expanded | n/a |
 | `copies` | no | Array of extra folders for a copy of the PDF; `--copy` replaces them | n/a |
 | `[fields]` | no | Table of the design's own fields, for example `SALON = "B-204"` | custom markers |
 
@@ -469,14 +473,17 @@ answer with "This field is required."
 | 3 | Design | list, only designs that accept the format (or self-contained) | yes |
 | 4+ | One step per **standard marker the design uses**, in this order: `UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO`, `SEMESTRE` | text | `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `MATERIA` unless the design lists them in `optional`; others never |
 | ... | One step per **custom field** of the design (label and help from `template.toml`) | text | only if `required = true` |
-| ... | Papers folder (`folder`) | text | no |
+| ... | Papers folder (`folder`) | folder picker that starts in `input/<folder>` (or `input/`); `./` saves the folder relative to `input/` (`./` in `input/` itself = none); a folder outside `input/` is refused | no |
 | last | Extra copies (`copies`) | folder picker: each `./` is added and the step stays | no |
 
-Keys: Enter accepts and moves on, Shift+Tab goes back one step, Esc cancels,
-Backspace/Delete/Left/Right/Home/End edit text, Up/Down/typing work in lists.
-In the folder steps, Tab moves on keeping what was chosen, Del clears it, and
-Left or Backspace (empty filter) goes up. Chosen folders inside the project
-are saved relative to its root (the root itself is `.`).
+Keys: Enter accepts and moves on, Shift+Tab goes back one step. From the
+second step, Esc first warns "Press Esc again to leave without saving." and any
+other key clears it; a second Esc leaves. From the first step Esc cancels at
+once. Backspace/Delete/Left/Right/Home/End edit text, Up/Down/typing work in
+lists. In the folder steps, Tab moves on keeping what was chosen, Del clears
+it, and Left or Backspace (empty filter) goes up. Folders chosen inside the
+work folder are saved relative to it (the work folder itself is `.`), and the
+papers folder is saved relative to `input/`.
 
 Details:
 
@@ -492,6 +499,8 @@ Details:
   falls back to the key, which then appears as the course name.
 - On finish: `courses::save_profile` writes the file, the profile list is
   reloaded and the new profile is selected in the form ("Profile saved: ...").
+- If the profile cannot be saved (no permission, full disk, a removed USB), the
+  wizard stays on its last step and shows the error; what you typed is kept.
 
 ## 8. Formats and designs
 
@@ -1166,7 +1175,10 @@ In order:
 
 With a profile that has `folder`, `locate_markdown` first searches
 `input/<folder>` (only when the path as given does not exist), so two courses
-can each have a `Tarea1.md`. An existing path always wins. Two files with the
+can each have a `Tarea1.md`. An existing path always wins. The recursive search
+does not follow symbolic links to folders (a link to a parent folder would
+loop), though linked files are found; copying to a new work folder behaves the
+same way. Two files with the
 same name are an error listing their subfolders ("There are several files
 named X in input: ... Say which one with its subfolder."), never an arbitrary
 pick. The result must exist, be a file and have the `.md` extension (case
@@ -1289,7 +1301,7 @@ list. Both languages' letters work in either language.
 | `n` | New profile (empty wizard) |
 | `c` / `f` | Open a project folder with the system's program: `input`, `output`, `courses`, `templates`, `cache`, or the project root `.` (a missing folder is created) |
 | `l` | Switch Spanish/English; saved as `IDIOMA` in `settings.toml`. The row starts with the *other* language's name |
-| `w` | Work folder: the same folder picker as the first run; `./` creates `input/`, `output/`, `courses/`, `my-templates/` and `logos/` there and copies what the program folder had (without overwriting), Esc cancels |
+| `w` | Work folder: the same folder picker as the first run; `./` creates `input/`, `output/`, `courses/`, `my-templates/` and `logos/` there and copies `input/`, `courses/`, `my-templates/` and `logos/` from the current work folder, plus `templates/logos/` from the program (without overwriting). A source that contains the new folder is skipped. Esc cancels |
 | `t` | Color theme: Classic (the terminal's colors), Dracula, Nord, Gruvbox, Catppuccin Mocha, Tokyo Night; saved as `TEMA` in `settings.toml`. The themes other than Classic paint their own background (they need a true-color terminal) |
 | `r` | Open the log file (a warning if it is off or does not exist) |
 | `i` / `h` | Back to the home view |
@@ -1308,10 +1320,15 @@ folders.
   group alphabetical ignoring case, hidden entries (starting with `.`) excluded.
   Enter or Right opens a folder or chooses a file; Left, or Backspace with an
   empty filter, goes up and keeps the folder you left selected.
-- Folder picker (output folder, extra copies; the wizard uses it for the copies): the same
-  browser without files, plus `./` (use this folder) after `../`. It starts in
-  the folder already chosen (the last copy), or the nearest existing parent,
-  else the project root.
+- Folder picker (output folder, extra copies, work folder; the wizard uses it
+  for the papers folder and the copies): the same browser without files, plus
+  `./` (use this folder) after `../`. It starts in the folder already chosen
+  (the last copy), or the nearest existing parent, else the project root.
+  Typing a new simple name adds `+ <name>/  create and open` at the end: Enter
+  creates it and opens it with `./` already chosen (Enter again chooses it).
+  Only simple names work (no `/`, no `..`, no leading `.`); the Markdown browser
+  does not offer it. At the root of a drive, the other existing drives are
+  listed so you can switch (Windows only).
 - Other keys: Up/Down, PageUp/PageDown (10 rows), Esc cancels.
 - The design list shows only designs that accept the chosen format (and
   self-contained designs), with their `description`.

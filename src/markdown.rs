@@ -188,7 +188,9 @@ fn collect_named(directory: &Path, name: &std::ffi::OsStr, found: &mut Vec<PathB
     let Ok(entries) = std::fs::read_dir(directory) else { return };
     for entry in entries.flatten() {
         let path = entry.path();
-        if path.is_dir() {
+        // `file_type` no sigue enlaces: un enlace a carpeta se salta para no
+        // recorrerlo en círculo y un archivo enlazado se encuentra igual.
+        if entry.file_type().is_ok_and(|kind| kind.is_dir()) {
             collect_named(&path, name, found);
         } else if path.file_name() == Some(name) && path.is_file() {
             found.push(path);

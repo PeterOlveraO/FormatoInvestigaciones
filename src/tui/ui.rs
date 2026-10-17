@@ -11,7 +11,7 @@ use super::app::{
 };
 use super::picker::{Picker, PickerPurpose};
 use super::theme::{self, Theme};
-use super::wizard::Wizard;
+use super::wizard::{Target, Wizard};
 use crate::i18n::{Lang, Text};
 
 fn theme() -> &'static Theme {
@@ -616,7 +616,10 @@ fn draw_wizard(frame: &mut Frame, wizard: &Wizard) {
     }
     // En los pasos de carpetas: lo elegido hasta ahora y dónde se está.
     if wizard.is_folder_step() {
-        let chosen = wizard.profile.copies.join("; ");
+        let chosen = match step.target {
+            Target::Folder => wizard.profile.folder.clone(),
+            _ => wizard.profile.copies.join("; "),
+        };
         let chosen =
             if chosen.is_empty() { Text::new("(ninguna)", "(none)").get().to_owned() } else { chosen };
         lines.push(Line::from(vec![
