@@ -45,9 +45,11 @@ local function tiene_clase(bloque, clases)
   return false
 end
 
--- El pie se escribe en Markdown, así que puede llevar formato.
+-- El pie se escribe en Markdown, así que puede llevar formato. Se lee con el
+-- mismo lector que el cuerpo (sin LaTeX crudo salvo con --allow-latex).
+local FORMATO_MARKDOWN = os.getenv("INVESTIGACION_MARKDOWN_FORMAT") or "markdown"
 local function pie_de_figura(markdown)
   if not markdown or markdown == "" then return nil end
-  return utils.blocks_to_inlines(pandoc.read(markdown, "markdown").blocks)
+  return utils.blocks_to_inlines(pandoc.read(markdown, FORMATO_MARKDOWN).blocks)
 end
 

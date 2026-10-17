@@ -196,3 +196,21 @@ fn boxes_and_references_follow_the_document_language() {
     let Some((cited, _)) = convert_in("# Obras citadas\n\nAutor, A. *Título*.\n", Lang::Es) else { return };
     assert!(cited.contains(r"\begin{ReferenceList}"), "{cited}");
 }
+
+#[test]
+fn raw_latex_in_a_caption_follows_the_body_setting() {
+    // Un pie con LaTeX crudo no debe colarse cuando el cuerpo tampoco lo admite.
+    if !has_tool("pandoc") {
+        eprintln!("skipped: pandoc is not installed");
+        return;
+    }
+    let markdown = "```{.pgfplot caption=\"Figura \\noexiste{x}\"}\n\\draw (0,0);\n```\n";
+    let directory = tempfile::tempdir().unwrap();
+    let source = write(directory.path(), "trabajo.md", markdown);
+    let convert =
+        |allow_raw| pandoc_to_latex(&project(), &source, markdown, allow_raw, Lang::Es, &mut |_| {}).unwrap();
+    let without = convert(false);
+    assert!(!without.contains(r"\noexiste{x}"), "{without}");
+    assert!(without.contains(r"\textbackslash noexiste"), "{without}");
+    assert!(convert(true).contains(r"\noexiste{x}"));
+}

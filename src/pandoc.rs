@@ -14,6 +14,17 @@ use crate::project::Project;
 /// `==resaltado==`, `:emoji:` y URL sueltas convertidas en enlace.
 pub const MARKDOWN_EXTENSIONS: [&str; 3] = ["mark", "emoji", "autolink_bare_uris"];
 
+/// Lector de Markdown del documento. Los filtros leen los pies de figura con el
+/// mismo lector (`INVESTIGACION_MARKDOWN_FORMAT`), para que no difieran.
+pub fn markdown_format(allow_raw_latex: bool) -> String {
+    let mut format = String::from(if allow_raw_latex { "markdown" } else { "markdown-raw_tex" });
+    for extension in MARKDOWN_EXTENSIONS {
+        format.push('+');
+        format.push_str(extension);
+    }
+    format
+}
+
 /// Filtros Lua, en el orden en que se aplican. Van embebidos en el binario
 /// para no depender de dónde se instale; se escriben a un temporal al usarse.
 /// Funciones comunes que se pegan al principio de cada filtro.
@@ -79,11 +90,7 @@ pub fn pandoc_to_latex(
     let resources = resource_dirs(project, markdown_path)?;
 
     let filters_dir = tempfile::Builder::new().prefix("investigacion-filters-").tempdir()?;
-    let mut format = String::from(if allow_raw_latex { "markdown" } else { "markdown-raw_tex" });
-    for extension in MARKDOWN_EXTENSIONS {
-        format.push('+');
-        format.push_str(extension);
-    }
+    let format = markdown_format(allow_raw_latex);
 
     let mut command = Command::new("pandoc");
     command
@@ -108,6 +115,7 @@ pub fn pandoc_to_latex(
         .current_dir(&base_dir)
         .env("INVESTIGACION_REMOTE_IMAGES", posix(&remote))
         .env("INVESTIGACION_DIAGRAMS", posix(&diagrams))
+        .env("INVESTIGACION_MARKDOWN_FORMAT", &format)
         // Una carpeta por línea: así una ruta puede llevar espacios.
         .env("INVESTIGACION_RESOURCES", resources.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"))
         // Los filtros redactan sus avisos en el idioma de la interfaz.
