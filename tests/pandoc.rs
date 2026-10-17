@@ -196,3 +196,22 @@ fn boxes_and_references_follow_the_document_language() {
     let Some((cited, _)) = convert_in("# Obras citadas\n\nAutor, A. *Título*.\n", Lang::Es) else { return };
     assert!(cited.contains(r"\begin{ReferenceList}"), "{cited}");
 }
+
+#[test]
+fn a_folder_named_like_an_image_is_not_an_image() {
+    // Una carpeta llamada «figuras» no es una imagen: se avisa y se sustituye.
+    if !has_tool("pandoc") {
+        eprintln!("skipped: pandoc is not installed");
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::create_dir(directory.path().join("figuras")).unwrap();
+    let markdown = "![x](figuras)\n";
+    let source = write(directory.path(), "trabajo.md", markdown);
+    let mut warnings = Vec::new();
+    let latex =
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+    assert!(!latex.contains("includegraphics"), "{latex}");
+    assert!(latex.contains(r"\emph{x}"), "{latex}");
+    assert!(!warnings.is_empty());
+}
