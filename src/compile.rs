@@ -1,6 +1,6 @@
 //! Compilación del .tex con pdflatex.
 
-use std::ffi::OsString;
+use std::ffi::{OsStr, OsString};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -52,8 +52,25 @@ pub fn copy_template_assets(
 /// TEXINPUTS que busca primero en `directories`, en orden. El separador final
 /// (entrada vacía) significa «y además las rutas por omisión»; sin él pdflatex
 /// no encontraría ni sus propios paquetes.
-pub fn latex_search_path(directories: &[PathBuf]) -> Result<OsString> {
-    let mut paths = directories.to_vec();
+pub fn latex_search_path(directories: &[PathBuf], on_warning: &mut dyn FnMut(String)) -> Result<OsString> {
+    let mut paths = Vec::new();
+    for directory in directories {
+        // Con el separador del sistema en el nombre, la carpeta no cabe en TEXINPUTS:
+        // se omite y el resto de la búsqueda sigue.
+        if std::env::join_paths([directory]).is_err() {
+            logging::warn(format_args!(
+                "TEXINPUTS: skipped {} (its name has the path separator)",
+                directory.display()
+            ));
+            on_warning(tr!(
+                es: "Se omite la carpeta {} al buscar imágenes: su nombre contiene el separador de rutas del sistema.",
+                en: "The folder {} is skipped when looking for images: its name contains the system path separator.",
+                directory.display()
+            ));
+            continue;
+        }
+        paths.push(directory.clone());
+    }
     if let Some(previous) = std::env::var_os("TEXINPUTS") {
         paths.extend(std::env::split_paths(&previous).filter(|p| !p.as_os_str().is_empty()));
     }
@@ -127,6 +144,10 @@ pub fn compile_pdf(
     state_dir: Option<&Path>,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<()> {
+    // Se calcula una sola vez para las dos ejecuciones posibles: así un aviso no se repite.
+    let mut directories = vec![PathBuf::from(".")];
+    directories.extend(search_dirs.iter().map(|d| crate::project::absolute(d)));
+    let texinputs = latex_search_path(&directories, on_warning)?;
     let restored = state_dir.and_then(|dir| restore_state(dir, tex_path));
     match (state_dir, &restored) {
         (Some(dir), Some(_)) => logging::info(format_args!("latex state: cache hit ({})", dir.display())),
@@ -135,7 +156,7 @@ pub fn compile_pdf(
     }
     // El intento con estado previo no deja `last-error.*`: si falla se repite
     // desde cero, y solo un fallo de ese segundo intento es un error real.
-    let log = match run_passes(tex_path, output_pdf, search_dirs, restored.clone(), restored.is_none()) {
+    let log = match run_passes(tex_path, output_pdf, &texinputs, restored.clone(), restored.is_none()) {
         Err(error) if restored.is_some() => {
             logging::warn(format_args!(
                 "build with the cached latex state failed; retrying from scratch:\n{error}"
@@ -143,7 +164,7 @@ pub fn compile_pdf(
             for extension in STATE_EXTENSIONS {
                 let _ = std::fs::remove_file(tex_path.with_extension(extension));
             }
-            run_passes(tex_path, output_pdf, search_dirs, None, true)?
+            run_passes(tex_path, output_pdf, &texinputs, None, true)?
         }
         other => other?,
     };
@@ -206,7 +227,7 @@ fn save_state(state_dir: &Path, tex_path: &Path) -> std::io::Result<()> {
 fn run_passes(
     tex_path: &Path,
     output_pdf: &Path,
-    search_dirs: &[PathBuf],
+    texinputs: &OsStr,
     restored_toc: Option<String>,
     keep_artifacts: bool,
 ) -> Result<String> {
@@ -216,9 +237,6 @@ fn run_passes(
     // de las rutas cortas de Windows (`C:\Users\USUARI~1\...`), que TeX lee
     // como carácter activo. Las imágenes y diagramas se buscan por TEXINPUTS.
     let tex_name = tex_path.file_name().unwrap_or(tex_path.as_os_str());
-    let mut directories = vec![PathBuf::from(".")];
-    directories.extend(search_dirs.iter().map(|d| crate::project::absolute(d)));
-    let texinputs = latex_search_path(&directories)?;
     let log_path = tex_path.with_extension("log");
     let toc_path = tex_path.with_extension("toc");
     let output_dir = output_pdf.parent().unwrap_or(Path::new("."));
@@ -244,7 +262,7 @@ fn run_passes(
             command.arg("-draftmode");
         }
         logging::info(format_args!("pdflatex pass {run}{}", if draft { " (draft mode)" } else { "" }));
-        command.arg(tex_name).current_dir(temp_dir).env("TEXINPUTS", &texinputs);
+        command.arg(tex_name).current_dir(temp_dir).env("TEXINPUTS", texinputs);
 
         let started = std::time::Instant::now();
         let result = run_with_timeout(command, None, TOOL_TIMEOUT).map_err(|e| match e {
@@ -305,4 +323,27 @@ fn run_passes(
         }
     }
     Ok(log)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Lleva `:` y `;`, así es inválida tanto en Linux como en Windows.
+    #[test]
+    fn a_folder_with_the_path_separator_is_skipped_with_a_warning() {
+        let bad = PathBuf::from("carpeta:con;separador");
+        let mut warnings = Vec::new();
+        let path =
+            latex_search_path(&[PathBuf::from("."), bad.clone(), PathBuf::from("buena")], &mut |warning| {
+                warnings.push(warning)
+            })
+            .unwrap();
+
+        let entries: Vec<PathBuf> = std::env::split_paths(&path).collect();
+        assert!(!entries.contains(&bad));
+        assert!(entries.contains(&PathBuf::from("buena")));
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].contains("carpeta:con;separador"));
+    }
 }
