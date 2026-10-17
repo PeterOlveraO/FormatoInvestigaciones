@@ -25,19 +25,52 @@ pub fn decode_cp1252(raw: &[u8], strict: bool) -> Option<String> {
         .collect()
 }
 
-/// Lee archivos de texto en UTF-8 (con o sin BOM) o Windows-1252.
+/// Lee archivos de texto en UTF-8 (con o sin BOM), UTF-16 (con BOM) o
+/// Windows-1252. Un byte suelto en cp1252 no convierte el resto del archivo
+/// UTF-8 en mojibake: cada trozo se decodifica según sea válido o no.
 pub fn decode_text(raw: &[u8], path: &Path) -> Result<String> {
-    let raw = raw.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(raw);
-    if let Ok(text) = std::str::from_utf8(raw) {
-        return Ok(text.to_owned());
-    }
-    decode_cp1252(raw, true).ok_or_else(|| {
+    let unreadable = || {
         GenerationError::new(tr!(
             es: "No se pudo leer {}: guárdalo en UTF-8 o Windows-1252.",
             en: "Could not read {}: save it as UTF-8 or Windows-1252.",
             path.display()
         ))
-    })
+    };
+    if let Some(text) = decode_utf16_bom(raw) {
+        return text.ok_or_else(unreadable);
+    }
+    let raw = raw.strip_prefix(b"\xEF\xBB\xBF").unwrap_or(raw);
+    decode_utf8_or_cp1252(raw).ok_or_else(unreadable)
+}
+
+/// Lo válido en UTF-8 se lee como UTF-8 y cada byte suelto, en Windows-1252
+/// estricto. `None` si aparece un byte que cp1252 no define.
+fn decode_utf8_or_cp1252(raw: &[u8]) -> Option<String> {
+    let mut text = String::with_capacity(raw.len());
+    for chunk in raw.utf8_chunks() {
+        text.push_str(chunk.valid());
+        text.push_str(&decode_cp1252(chunk.invalid(), true)?);
+    }
+    Some(text)
+}
+
+/// UTF-16 con BOM (little o big endian). `None` si no empieza por BOM;
+/// `Some(Err)` si lo tiene pero el contenido no es UTF-16 válido.
+fn decode_utf16_bom(raw: &[u8]) -> Option<Option<String>> {
+    let (body, big_endian) = match raw {
+        [0xFF, 0xFE, body @ ..] => (body, false),
+        [0xFE, 0xFF, body @ ..] => (body, true),
+        _ => return None,
+    };
+    if body.len() % 2 != 0 {
+        return Some(None);
+    }
+    let units = body.chunks_exact(2).map(|pair| match big_endian {
+        true => u16::from_be_bytes([pair[0], pair[1]]),
+        false => u16::from_le_bytes([pair[0], pair[1]]),
+    });
+    let units: Vec<u16> = units.collect();
+    Some(String::from_utf16(&units).ok())
 }
 
 /// Salida de una herramienta externa, que puede seguir la configuración regional.
@@ -67,6 +100,37 @@ mod tests {
         assert_eq!(decode_cp1252(&[0x93, b'a', 0x94, 0x96], true).unwrap(), "“a”–");
         assert_eq!(decode_cp1252(&[0x81], true), None);
         assert_eq!(decode_cp1252(&[0x81], false).unwrap(), "\u{FFFD}");
+    }
+
+    #[test]
+    fn one_windows_line_does_not_break_the_utf8_lines() {
+        let mut raw = "Información: año\n".as_bytes().to_vec();
+        raw.extend_from_slice(b"Compilaci\xf3n\n");
+        raw.extend_from_slice("Fin: ñandú\n".as_bytes());
+        // Una misma línea con UTF-8 y un byte cp1252 suelto (el caso de mixed.md).
+        raw.extend_from_slice(b"Informaci\xc3\xb3n y caf\xe9\n");
+        assert_eq!(
+            decode_text(&raw, Path::new("x.md")).unwrap(),
+            "Información: año\nCompilación\nFin: ñandú\nInformación y café\n"
+        );
+    }
+
+    #[test]
+    fn utf16_with_bom_is_decoded_in_both_byte_orders() {
+        let units: Vec<u16> = "Hola ñ\n".encode_utf16().collect();
+        let little: Vec<u8> =
+            [0xFF, 0xFE].into_iter().chain(units.iter().flat_map(|u| u.to_le_bytes())).collect();
+        let big: Vec<u8> =
+            [0xFE, 0xFF].into_iter().chain(units.iter().flat_map(|u| u.to_be_bytes())).collect();
+        assert_eq!(decode_text(&little, Path::new("x.md")).unwrap(), "Hola ñ\n");
+        assert_eq!(decode_text(&big, Path::new("x.md")).unwrap(), "Hola ñ\n");
+    }
+
+    #[test]
+    fn broken_utf16_is_an_error_not_garbage() {
+        // Longitud impar y un sustituto suelto: ninguno es texto válido.
+        assert!(decode_text(&[0xFF, 0xFE, 0x41], Path::new("x.md")).is_err());
+        assert!(decode_text(&[0xFF, 0xFE, 0x00, 0xD8], Path::new("x.md")).is_err());
     }
 
     #[test]
