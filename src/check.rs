@@ -99,7 +99,12 @@ pub fn inspect(design: &Design) -> CheckReport {
     }
 
     for name in design.custom_fields() {
-        if let Some(standard) = similar_marker(name) {
+        if name == "SEMESTRE" {
+            report.warnings.push(tr!(
+                es: "%%SEMESTRE%% ya no es un dato estándar: queda vacío salvo con --set SEMESTRE=… o [fields] del perfil. Usa %%GRUPO%%.",
+                en: "%%SEMESTRE%% is no longer a standard field: it stays empty unless given with --set SEMESTRE=… or the profile's [fields]. Use %%GRUPO%%."
+            ));
+        } else if let Some(standard) = similar_marker(name) {
             report.warnings.push(tr!(
                 es: "%%{name}%% no es un dato estándar: ¿quisiste decir %%{standard}%%? Si no, es un campo propio.",
                 en: "%%{name}%% is not a standard field: did you mean %%{standard}%%? Otherwise it is a custom field."
@@ -154,7 +159,6 @@ fn sample_data(design: &Design) -> DocumentData {
         university: "Universidad".into(),
         faculty: "Facultad".into(),
         student: "Alumno".into(),
-        semester: "2026-2".into(),
         title: "Prueba del diseño".into(),
         course: "Materia".into(),
         teacher: "Docente".into(),
@@ -313,5 +317,15 @@ mod tests {
         );
         let report = inspect(&good);
         assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
+
+        // Un diseño viejo con %%SEMESTRE%% recibe un aviso, no un error.
+        let old = design(
+            &project,
+            "\\documentclass[%%CLASS_OPTIONS%%]{article}\n\\usepackage{investigacion-base}\n%%FORMAT%%\n\\usepackage{investigacion-final}\n%%SEMESTRE%%\n%%CONTENIDO_MARKDOWN%%\n",
+            "",
+        );
+        let report = inspect(&old);
+        assert!(report.errors.is_empty(), "{report:?}");
+        assert!(report.warnings.len() == 1 && report.warnings[0].contains("%%GRUPO%%"), "{report:?}");
     }
 }

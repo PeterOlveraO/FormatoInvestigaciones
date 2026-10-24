@@ -26,7 +26,7 @@ fn run(dir: &std::path::Path, data: &str, extra: &[&str]) -> String {
 fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
     let directory = tempfile::tempdir().unwrap();
     // Sin perfil, todo llega por --set; la materia también.
-    let error = run(directory.path(), "MATERIA=M\nUNIVERSIDAD=U\nFACULTAD=F\nSEMESTRE=7", &[]);
+    let error = run(directory.path(), "MATERIA=M\nUNIVERSIDAD=U\nFACULTAD=F", &[]);
     assert!(!error.contains("Faltan datos") && !error.contains("Missing data"), "{error}");
     assert!(error.contains("no-existe.md"));
 }
@@ -37,7 +37,7 @@ fn only_the_data_the_design_uses_is_required() {
     let directory = tempfile::tempdir().unwrap();
     let dir = directory.path();
     // APA (portada geométrica) usa UNIVERSIDAD: sin ella, falta un dato.
-    let apa = run(dir, "FACULTAD=F\nSEMESTRE=7\n", &[]);
+    let apa = run(dir, "FACULTAD=F\n", &[]);
     assert!(apa.contains("Faltan datos") && apa.contains("UNIVERSIDAD"), "{apa}");
     // Un diseño propio que no la usa, pero con un campo obligatorio.
     let mine = dir.join("my-templates/designs/simple");
@@ -116,4 +116,16 @@ fn retired_designs_are_redirected_with_a_warning() {
     }
     let option = warnings_with("template = \"apa-simple\"\n", &["--design", "starter"]);
     assert!(option.len() == 1 && option[0].contains("«starter»"), "{option:?}");
+}
+
+#[test]
+fn an_old_semester_is_read_and_ignored_with_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    let profile = warnings_with("semester = \"2026-2\"\n", &[]);
+    assert!(
+        profile.len() == 1 && profile[0].contains("semester") && profile[0].contains("group"),
+        "{profile:?}"
+    );
+    let option = warnings_with("", &["--set", "SEMESTRE=7"]);
+    assert!(option.len() == 1 && option[0].contains("--set SEMESTRE"), "{option:?}");
 }

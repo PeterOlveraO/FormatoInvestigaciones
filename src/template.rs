@@ -18,7 +18,7 @@ use crate::project::{DEFAULT_FORMAT, DEFAULT_TEMPLATE, FORMAT_FILE, Project, TEM
 
 /// Marcadores que el programa llena por su cuenta. Cualquier otro `%%NOMBRE%%`
 /// de un diseño es un campo propio (como `%%SALON%%`).
-pub const STANDARD_MARKERS: [&str; 13] = [
+pub const STANDARD_MARKERS: [&str; 12] = [
     "TITULO",
     "UNIVERSIDAD",
     "FACULTAD",
@@ -27,7 +27,6 @@ pub const STANDARD_MARKERS: [&str; 13] = [
     "MATERIA",
     "DOCENTE",
     "GRUPO",
-    "SEMESTRE",
     "FECHA_ENTREGA",
     "CONTENIDO_MARKDOWN",
     "FORMAT",
@@ -35,7 +34,7 @@ pub const STANDARD_MARKERS: [&str; 13] = [
 ];
 
 /// Marcadores estándar que se exigen si el diseño los usa y no los marca opcionales.
-pub const REQUIRED_MARKERS: [&str; 5] = ["TITULO", "UNIVERSIDAD", "FACULTAD", "SEMESTRE", "MATERIA"];
+pub const REQUIRED_MARKERS: [&str; 4] = ["TITULO", "UNIVERSIDAD", "FACULTAD", "MATERIA"];
 
 /// Texto de una ficha: uno solo (`"APA 7"`) o en los dos idiomas
 /// (`{ es = "…", en = "…" }`).

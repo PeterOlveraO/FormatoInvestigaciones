@@ -24,7 +24,6 @@
 \newcommand{\NombreMateria}{%%MATERIA%%}
 \newcommand{\GrupoMateria}{%%GRUPO%%}
 \newcommand{\NombreMaestro}{%%DOCENTE%%}
-\newcommand{\SemestreActual}{%%SEMESTRE%%}
 \newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
 
 % hyperref, footnotehyper y los metadatos del PDF: van al final del preámbulo.
@@ -179,14 +178,12 @@
               }%
               % El orden de estas líneas es fijo y no depende del orden en que
               % se hayan escrito las opciones del comando:
-              %   alumno (o integrantes), materia, docente, semestre y grupo.
-              \textbf{\SegunIdioma{MATERIA:}{COURSE:}} \NombreMateria\\[0.25cm]
-              % El docente tambien es opcional: la materia y el semestre son los
-              % unicos datos que siempre aparecen.
-              \ifdefempty{\NombreMaestro}{}{\textbf{\SegunIdioma{DOCENTE:}{TEACHER:}} \NombreMaestro\\[0.25cm]}%
-              \textbf{\SegunIdioma{SEMESTRE:}{SEMESTER:}} \SemestreActual%
-              % El grupo es opcional y cierra el bloque. El salto va DENTRO del
-              % condicional para no dejar un renglón vacío cuando no se indica.
+              %   alumno (o integrantes), materia, docente y grupo.
+              \textbf{\SegunIdioma{MATERIA:}{COURSE:}} \NombreMateria%
+              % El docente y el grupo son opcionales; la materia es el único dato
+              % que siempre aparece. El salto va DENTRO de cada condicional para
+              % no dejar un renglón vacío cuando el dato no se indica.
+              \ifdefempty{\NombreMaestro}{}{\\[0.25cm]\textbf{\SegunIdioma{DOCENTE:}{TEACHER:}} \NombreMaestro}%
               \ifdefempty{\GrupoMateria}{}{\\[0.25cm]\textbf{\SegunIdioma{GRUPO:}{GROUP:}} \GrupoMateria}};
         
         \node[anchor=south east, font=\sffamily\bfseries, align=right] at ([xshift=-3.5cm, yshift=3.5cm]current page.south east) {\SegunIdioma{FECHA DE ENTREGA:}{DUE DATE:} \FechaEntrega};

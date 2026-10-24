@@ -1154,7 +1154,7 @@ fn random_keys_never_panic_at_any_size() {
     }
 }
 
-/// Universidad, facultad, alumno y semestre: se llenan con el perfil, se
+/// Universidad, facultad y alumno: se llenan con el perfil, se
 /// exigen solo si el diseño los usa y viajan al CLI como `--set`.
 #[test]
 fn the_general_cover_data_is_in_the_form() {
@@ -1176,7 +1176,6 @@ fn the_general_cover_data_is_in_the_form() {
     type_text(&mut app, "ia");
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.value(FieldKey::University), "U");
-    assert_eq!(app.value(FieldKey::Semester), "7");
     assert!(!app.missing_fields().contains(&"Universidad".to_owned()));
 
     select(&mut app, FieldKey::Faculty);
@@ -1184,10 +1183,12 @@ fn the_general_cover_data_is_in_the_form() {
     type_text(&mut app, "Ingeniería");
     press(&mut app, KeyCode::Enter);
     let fields = app.build_args().fields;
-    for pair in [("UNIVERSIDAD", "U"), ("FACULTAD", "Ingeniería"), ("ALUMNO", "Ana"), ("SEMESTRE", "7")] {
+    for pair in [("UNIVERSIDAD", "U"), ("FACULTAD", "Ingeniería"), ("ALUMNO", "Ana")] {
         assert!(fields.contains(&(pair.0.to_owned(), pair.1.to_owned())), "{pair:?} in {fields:?}");
     }
     assert!(render(&app).contains("Universidad"));
+    // El semestre del perfil viejo ya no viaja.
+    assert!(!fields.iter().any(|(name, _)| name == "SEMESTRE"), "{fields:?}");
 }
 
 #[test]

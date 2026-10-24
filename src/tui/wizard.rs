@@ -42,7 +42,7 @@ pub enum Outcome {
 }
 
 // Datos estándar, en el orden en que se piden: (marcador, etiqueta, ayuda).
-const STANDARD_STEPS: [(&str, Text, Text); 8] = [
+const STANDARD_STEPS: [(&str, Text, Text); 7] = [
     (
         "UNIVERSIDAD",
         Text::new("Universidad", "University"),
@@ -64,11 +64,10 @@ const STANDARD_STEPS: [(&str, Text, Text); 8] = [
     ),
     ("MATERIA", Text::new("Materia", "Course"), Text::new("Nombre de la materia.", "Name of the course.")),
     ("DOCENTE", Text::new("Docente", "Teacher"), Text::new("Nombre del docente.", "Name of the teacher.")),
-    ("GRUPO", Text::new("Grupo", "Group"), Text::new("Grupo de la materia.", "Group of the course.")),
     (
-        "SEMESTRE",
-        Text::new("Semestre", "Semester"),
-        Text::new("Semestre o periodo, p. ej. 2026-2.", "Term, e.g. 2026-2."),
+        "GRUPO",
+        Text::new("Grupo", "Group"),
+        Text::new("Grupo o periodo, p. ej. 7-A.", "Group or term, e.g. 7-A."),
     ),
 ];
 
@@ -82,7 +81,6 @@ pub fn standard_field<'a>(profile: &'a mut CourseProfile, marker: &str) -> Optio
         "MATERIA" => &mut profile.name,
         "DOCENTE" => &mut profile.teacher,
         "GRUPO" => &mut profile.group,
-        "SEMESTRE" => &mut profile.semester,
         _ => return None,
     })
 }

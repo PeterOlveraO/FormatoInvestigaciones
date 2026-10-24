@@ -35,7 +35,6 @@ pub enum FieldKey {
     Teacher,
     Members,
     Group,
-    Semester,
     Template,
     Output,
     Copies,
@@ -48,7 +47,6 @@ impl FieldKey {
             FieldKey::University => "UNIVERSIDAD",
             FieldKey::Faculty => "FACULTAD",
             FieldKey::Course => "MATERIA",
-            FieldKey::Semester => "SEMESTRE",
             _ => return None,
         })
     }
@@ -78,7 +76,7 @@ const NOTHING: Text = Text::new("", "");
 /// El formulario. No incluye el archivo de ajustes, «permitir LaTeX», la
 /// plantilla por ruta ni la carpeta de logos (las opciones 9 a 12 del menú
 /// anterior): siguen disponibles en el CLI para quien las necesite.
-pub const FIELDS: [Field; 15] = [
+pub const FIELDS: [Field; 14] = [
     Field {
         key: FieldKey::Profile,
         label: Text::new("Perfil de materia", "Course profile"),
@@ -200,17 +198,8 @@ pub const FIELDS: [Field; 15] = [
         label: Text::new("Grupo", "Group"),
         kind: FieldKind::Text,
         required: false,
-        help: Text::new("Grupo de la materia.", "Group of the course."),
+        help: Text::new("Grupo o periodo, p. ej. 7-A.", "Group or term, e.g. 7-A."),
         example: Text::new("7-A", "7-A"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
-    },
-    Field {
-        key: FieldKey::Semester,
-        label: Text::new("Semestre", "Semester"),
-        kind: FieldKind::Text,
-        required: false,
-        help: Text::new("Semestre o periodo escolar.", "Semester or term."),
-        example: Text::new("7", "7"),
         empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
     },
     Field {
@@ -841,7 +830,6 @@ impl App {
                 ("UNIVERSIDAD", FieldKey::University),
                 ("FACULTAD", FieldKey::Faculty),
                 ("ALUMNO", FieldKey::Student),
-                ("SEMESTRE", FieldKey::Semester),
             ]
             .into_iter()
             .map(|(name, key)| (name.to_owned(), self.value(key).to_owned()))
@@ -1287,7 +1275,6 @@ impl App {
             (FieldKey::University, &profile.university),
             (FieldKey::Faculty, &profile.faculty),
             (FieldKey::Student, &profile.student),
-            (FieldKey::Semester, &profile.semester),
             (FieldKey::Teacher, &profile.teacher),
             (FieldKey::Members, &profile.members),
             (FieldKey::Group, &profile.group),

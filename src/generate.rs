@@ -145,7 +145,7 @@ fn latex_state_dir(project: &Project, output_pdf: &Path, template: &str) -> Path
 /// tiene su marcador, y los campos propios que su ficha marca como obligatorios.
 pub fn missing_data(layout: &Layout, data: &DocumentData) -> Vec<String> {
     let design = &layout.design;
-    let values = [&data.title, &data.university, &data.faculty, &data.semester, &data.course];
+    let values = [&data.title, &data.university, &data.faculty, &data.course];
     let mut missing: Vec<String> = REQUIRED_MARKERS
         .into_iter()
         .zip(values)

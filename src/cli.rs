@@ -153,8 +153,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 17] = [
     (
         "group",
         Text::new(
-            "Grupo, p. ej. \"7-A\". Si se omite, el del perfil; si no hay, la línea no sale",
-            "Group, e.g. \"7-A\". Falls back to the profile's; if none, the line is omitted",
+            "Grupo o periodo, p. ej. \"7-A\". Si se omite, el del perfil; si no hay, la línea no sale",
+            "Group or term, e.g. \"7-A\". Falls back to the profile's; if none, the line is omitted",
         ),
         Some(Text::new("GRUPO", "GROUP")),
     ),
@@ -461,6 +461,20 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     if let Some(warning) = design.and_then(|d| retired_design_warning(d, &layout.design)) {
         reporter.warning(warning);
     }
+    // El semestre ya no es un dato: el grupo cumple su función. Solo un diseño
+    // propio con %%SEMESTRE%% lo usa, como campo propio.
+    if profile.is_some_and(|p| !p.semester.trim().is_empty()) {
+        reporter.warning(tr!(
+            es: "El perfil tiene semester, que ya no se usa y se ignora: pon el periodo en group (p. ej. 7-A).",
+            en: "The profile has semester, which is no longer used and is ignored: put the term in group (e.g. 7-A)."
+        ));
+    }
+    if !layout.design.uses("SEMESTRE") && args.fields.iter().any(|(name, _)| name == "SEMESTRE") {
+        reporter.warning(tr!(
+            es: "--set SEMESTRE ya no se usa y se ignora: usa --group (p. ej. 7-A).",
+            en: "--set SEMESTRE is no longer used and is ignored: use --group (e.g. 7-A)."
+        ));
+    }
     let doc_lang =
         layout.document_language(args.doc_lang.or(from_profile(|p| &p.language).and_then(i18n::parse)));
     logging::info(format_args!(
@@ -482,7 +496,6 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         university: pick(set("UNIVERSIDAD"), from_profile(|p| &p.university)),
         faculty: pick(set("FACULTAD"), from_profile(|p| &p.faculty)),
         student: pick(set("ALUMNO"), from_profile(|p| &p.student)),
-        semester: pick(set("SEMESTRE"), from_profile(|p| &p.semester)),
         title: args.title.trim().to_owned(),
         course: pick(args.course.as_deref().or(set("MATERIA")), from_profile(|p| &p.name)),
         teacher: pick(args.teacher.as_deref().or(set("DOCENTE")), from_profile(|p| &p.teacher)),
