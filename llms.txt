@@ -33,6 +33,5 @@ Facts that are easy to get wrong:
 ## Optional
 
 - [examples/catalog.md](examples/catalog.md): every supported element (rendered: examples/catalog.pdf)
-- [examples/syntax.md](examples/syntax.md): syntax reference paper
 - [courses/example.toml](courses/example.toml): profile schema with placeholder data
 - [docs/changelog.md](docs/changelog.md): user-visible changes

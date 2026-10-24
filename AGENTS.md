@@ -105,6 +105,8 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
   - `settings.toml`, `.env` (old), `input/`, `output/`, `cache/`,
     `my-templates/`, `courses/*.toml` (except `example.toml`) and
     `templates/logos/*` are git-ignored on purpose.
+  - `local/` is git-ignored: everything that is not versioned (notes, loose
+    PDFs, scratch tests) goes there.
   - Generated files in git (`examples/catalog.pdf`, `docs/images/*.png`) use
     the placeholders of `courses/example.toml` (`-p example`) and no logos (`/regenerate-catalog`).
 

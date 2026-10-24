@@ -22,7 +22,7 @@ the code wins. Related files:
 | [`prompts/design.md`](prompts/design.md) | Prompt that tells an AI how to make a compatible design |
 | [`changelog.md`](changelog.md) | User-visible changes |
 | [`../courses/README.md`](../courses/README.md), [`../courses/example.toml`](../courses/example.toml) | Profile file reference and an example |
-| [`../examples/catalog.md`](../examples/catalog.md), [`../examples/syntax.md`](../examples/syntax.md) | Papers that exercise every supported element |
+| [`../examples/catalog.md`](../examples/catalog.md) | Paper that exercises every supported element |
 
 ## Table of contents
 
@@ -184,6 +184,7 @@ Personal data never goes into the repository (`.gitignore`):
 | `/templates/logos/*` except `README.md`, and `/templates/*/logos/` | Institutional logos are rarely redistributable |
 | `/my-templates/` | Your own formats and designs |
 | `/cache/` | Regenerable; the log contains paths and titles |
+| `/local/` | Everything that is not versioned goes here (notes, loose PDFs, scratch tests) |
 | `last-error.tex`, `last-error.log` | Leftovers of failed builds |
 | `/target/`, editor and OS files | Build output and noise |
 
@@ -949,8 +950,7 @@ format ([section 8](#built-in-formats)).
 
 Elements that are written as in any Markdown guide (tables, footnotes,
 lists, quotes, code, math) are covered by Pandoc itself. For a rendered
-version of every element see [`../examples/syntax.md`](../examples/syntax.md) and
-[`../examples/catalog.md`](../examples/catalog.md)
+version of every element see [`../examples/catalog.md`](../examples/catalog.md)
 ([PDF](../examples/catalog.pdf)).
 
 ### Tables
