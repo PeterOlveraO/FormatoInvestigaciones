@@ -4,7 +4,7 @@
 //! el PNG en la caché; los logos de la portada pueden usar `convert_to_png`.
 
 use std::ffi::OsString;
-use std::io::{BufWriter, Cursor};
+use std::io::{BufWriter, Cursor, Write};
 use std::path::Path;
 
 use crate::error::{GenerationError, Result};
@@ -164,7 +164,10 @@ pub fn run_cli(args: &[OsString]) -> i32 {
 fn exit_after(limit: std::time::Duration) {
     std::thread::spawn(move || {
         std::thread::sleep(limit);
-        eprintln!(
+        // Sin `eprintln!`: si Pandoc ya murió, stderr es una tubería rota y
+        // `eprintln!` entraría en pánico en este hilo sin llegar a salir.
+        let _ = writeln!(
+            std::io::stderr(),
             "{}",
             tr!(
                 es: "la conversión tardó más de {} s y se detuvo.",
@@ -191,13 +194,16 @@ mod tests {
             return;
         }
         let started = std::time::Instant::now();
-        let status = std::process::Command::new(std::env::current_exe().unwrap())
+        // stderr es una tubería que nadie lee, como cuando a Pandoc lo cortó su límite.
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "image::tests::a_conversion_that_does_not_end_is_stopped", "--nocapture"])
             .env("INVESTIGACION_TEST_EXIT_AFTER", "1")
             .stdout(std::process::Stdio::null())
-            .stderr(std::process::Stdio::null())
-            .status()
+            .stderr(std::process::Stdio::piped())
+            .spawn()
             .unwrap();
+        drop(child.stderr.take());
+        let status = child.wait().unwrap();
         assert_eq!(status.code(), Some(124));
         assert!(started.elapsed() < std::time::Duration::from_secs(10));
     }
