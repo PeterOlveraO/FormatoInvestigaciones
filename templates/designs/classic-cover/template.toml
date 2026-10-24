@@ -1,2 +1,1 @@
 description = { es = "Portada clásica centrada, sin adornos", en = "Classic centered cover, no decoration" }
-formats = ["apa7", "harvard", "mla"]

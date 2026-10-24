@@ -6,9 +6,7 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::picker::{
-    Item, PickOutcome, PickValue, Picker, PickerPurpose, design_items, format_items, may_write,
-};
+use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose, design_items, may_write};
 use crate::cli::{Args, Reporter, execute};
 use std::collections::BTreeMap;
 
@@ -38,7 +36,6 @@ pub enum FieldKey {
     Members,
     Group,
     Semester,
-    Format,
     Template,
     Output,
     Copies,
@@ -81,7 +78,7 @@ const NOTHING: Text = Text::new("", "");
 /// El formulario. No incluye el archivo de ajustes, «permitir LaTeX», la
 /// plantilla por ruta ni la carpeta de logos (las opciones 9 a 12 del menú
 /// anterior): siguen disponibles en el CLI para quien las necesite.
-pub const FIELDS: [Field; 16] = [
+pub const FIELDS: [Field; 15] = [
     Field {
         key: FieldKey::Profile,
         label: Text::new("Perfil de materia", "Course profile"),
@@ -215,18 +212,6 @@ pub const FIELDS: [Field; 16] = [
         help: Text::new("Semestre o periodo escolar.", "Semester or term."),
         example: Text::new("7", "7"),
         empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
-    },
-    Field {
-        key: FieldKey::Format,
-        label: Text::new("Formato", "Format"),
-        kind: FieldKind::Pick(PickerPurpose::Format),
-        required: false,
-        help: Text::new(
-            "La norma: APA 7, Harvard, MLA… Decide letra, interlineado, encabezados y referencias.",
-            "The norm: APA 7, Harvard, MLA… It sets font, spacing, headings and references.",
-        ),
-        example: Text::new("harvard", "harvard"),
-        empty: Text::new("el primero que acepta el diseño", "the first one the design accepts"),
     },
     Field {
         key: FieldKey::Template,
@@ -850,7 +835,7 @@ impl App {
             settings: None,
             allow_latex: false,
             design: optional(FieldKey::Template),
-            format: optional(FieldKey::Format),
+            format: None,
             // Los datos generales sin opción propia viajan como `--set`, igual que en el CLI.
             fields: [
                 ("UNIVERSIDAD", FieldKey::University),
@@ -1093,16 +1078,10 @@ impl App {
                     items,
                 )
             }
-            PickerPurpose::Format => Picker::choices(
-                purpose,
-                Text::new("Elige un formato", "Choose a format").get(),
-                format_items(&self.project),
-            ),
-            // Solo los diseños que combinan con el formato elegido.
             PickerPurpose::Template => Picker::choices(
                 purpose,
                 Text::new("Elige un diseño", "Choose a design").get(),
-                design_items(&self.project, self.value(FieldKey::Format)),
+                design_items(&self.project),
             ),
             PickerPurpose::Output | PickerPurpose::Copies => {
                 // Empieza en la carpeta ya elegida (la última copia) o en la raíz.
@@ -1162,11 +1141,7 @@ impl App {
                         project.courses_dir(),
                         Text::new("perfiles de materia (*.toml)", "course profiles (*.toml)"),
                     ),
-                    (
-                        "my-templates",
-                        project.user_templates_dir(),
-                        Text::new("tus formatos y diseños", "your formats and designs"),
-                    ),
+                    ("my-templates", project.user_templates_dir(), Text::new("tus diseños", "your designs")),
                     (
                         "logos",
                         project.work.join("logos"),
@@ -1179,7 +1154,7 @@ impl App {
                     (
                         "templates",
                         project.templates_dir(),
-                        Text::new("formatos y diseños incluidos", "built-in formats and designs"),
+                        Text::new("el formato y los diseños incluidos", "the built-in format and designs"),
                     ),
                     (
                         "cache",
@@ -1266,16 +1241,6 @@ impl App {
                 self.set(FieldKey::Markdown, path.display().to_string());
             }
             (PickerPurpose::Profile, PickValue::Choice(key)) => self.apply_profile(&key),
-            (PickerPurpose::Format, PickValue::Choice(name)) => {
-                // Un diseño que no combina con el formato nuevo se quita.
-                if self.design.as_ref().is_some_and(|d| !d.is_self_contained() && !d.accepts(&name))
-                    && !self.value(FieldKey::Template).is_empty()
-                {
-                    self.set(FieldKey::Template, "");
-                    self.refresh_design();
-                }
-                self.set(FieldKey::Format, name);
-            }
             (PickerPurpose::Template, PickValue::Choice(name)) => {
                 self.set(FieldKey::Template, name);
                 self.refresh_design();
@@ -1326,7 +1291,6 @@ impl App {
             (FieldKey::Teacher, &profile.teacher),
             (FieldKey::Members, &profile.members),
             (FieldKey::Group, &profile.group),
-            (FieldKey::Format, &profile.format),
             (FieldKey::Template, &profile.design),
         ] {
             // También los vacíos: si no, quedaría el dato del perfil anterior.

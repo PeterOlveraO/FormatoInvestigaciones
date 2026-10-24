@@ -34,13 +34,14 @@ pub struct CourseProfile {
     pub student: String,
     #[serde(default)]
     pub semester: String,
-    /// Formato (`apa7`, `harvard`, `mla`…) y diseño (`geometric-cover`…).
-    /// `template` es el nombre antiguo del diseño.
+    /// Ya no se usa (solo hay APA 7); se lee para no romper perfiles viejos y
+    /// no se guarda.
     #[serde(default)]
     pub format: String,
+    /// Diseño (`geometric-cover`…); `template` es su nombre antiguo.
     #[serde(default, alias = "template")]
     pub design: String,
-    /// Idioma del documento (`es` o `en`); vacío = el del formato.
+    /// Idioma del documento (`es` o `en`); vacío = el del formato (español).
     #[serde(default)]
     pub language: String,
     /// Campos propios del diseño (`SALON = "B-204"`).
@@ -208,7 +209,6 @@ pub fn save_profile(project: &Project, key: &str, profile: &CourseProfile) -> Re
         ("teacher", &profile.teacher),
         ("group", &profile.group),
         ("semester", &profile.semester),
-        ("format", &profile.format),
         ("design", &profile.design),
         ("language", &profile.language),
         ("folder", &profile.folder),
@@ -296,7 +296,6 @@ mod tests {
             name: "Inteligencia \"artificial\"".into(),
             university: "Universidad \\ Norte".into(),
             semester: "7".into(),
-            format: "apa7".into(),
             design: "report".into(),
             folder: "IA".into(),
             output: "salida/IA".into(),

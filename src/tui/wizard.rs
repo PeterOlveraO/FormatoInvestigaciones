@@ -1,11 +1,11 @@
-//! Asistente de perfiles: pide paso a paso el nombre, el formato, el diseño y
+//! Asistente de perfiles: pide paso a paso el nombre, el diseño y
 //! todos los datos que ese diseño usa, y guarda `courses/<clave>.toml`. Cada
 //! perfil lleva sus propios datos, así que el asistente los pide completos.
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent};
 
 use super::app::{TextInput, existing_dir, short_path};
-use super::picker::{PickOutcome, PickValue, Picker, PickerPurpose, design_items, format_items};
+use super::picker::{PickOutcome, PickValue, Picker, PickerPurpose, design_items};
 use crate::courses::{Course, CourseProfile};
 use crate::i18n::Text;
 use crate::project::Project;
@@ -15,7 +15,6 @@ use crate::template::load_design;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Target {
     Key,
-    Format,
     Design,
     /// Un dato estándar de la portada, por su marcador (`UNIVERSIDAD`…).
     Standard(&'static str),
@@ -117,22 +116,11 @@ impl Wizard {
                 required: true,
             },
             Step {
-                target: Target::Format,
-                title: Text::new("Formato", "Format").get().into(),
-                help: Text::new(
-                    "La norma: letra, interlineado, encabezados, referencias.",
-                    "The norm: font, spacing, headings, references.",
-                )
-                .get()
-                .into(),
-                required: true,
-            },
-            Step {
                 target: Target::Design,
                 title: Text::new("Diseño", "Design").get().into(),
                 help: Text::new(
-                    "La portada y el aspecto; solo se muestran los que sirven para el formato.",
-                    "The cover and look; only the ones that work with the format are shown.",
+                    "La portada y el aspecto del documento.",
+                    "The cover and look of the document.",
                 )
                 .get()
                 .into(),
@@ -150,7 +138,7 @@ impl Wizard {
             error: None,
             confirm_exit: false,
         };
-        // Al editar se conservan formato y diseño, así que ya se conocen sus datos.
+        // Al editar se conserva el diseño, así que ya se conocen sus datos.
         if !wizard.profile.design.trim().is_empty() {
             wizard.add_data_steps(project);
         }
@@ -170,7 +158,6 @@ impl Wizard {
     fn current_value(&mut self) -> String {
         match self.step().target.clone() {
             Target::Key => self.key.clone(),
-            Target::Format => self.profile.format.clone(),
             Target::Design => self.profile.design.clone(),
             Target::Standard(marker) => {
                 standard_field(&mut self.profile, marker).cloned().unwrap_or_default()
@@ -185,13 +172,10 @@ impl Wizard {
         self.error = None;
         let current = self.current_value();
         self.picker = match self.step().target {
-            Target::Format => {
-                Some(Picker::choices(PickerPurpose::Format, self.step().title.clone(), format_items(project)))
-            }
             Target::Design => Some(Picker::choices(
                 PickerPurpose::Template,
                 self.step().title.clone(),
-                design_items(project, &self.profile.format),
+                design_items(project),
             )),
             // La carpeta de trabajos se elige dentro de input/, donde ya está o desde su raíz
             // (con cualquier selector de carpetas: la elección la atiende el asistente).
@@ -222,7 +206,7 @@ impl Wizard {
 
     /// Pasos de los datos que usa el diseño elegido, más la carpeta.
     fn add_data_steps(&mut self, project: &Project) {
-        self.steps.truncate(3);
+        self.steps.truncate(2);
         let Ok(design) = load_design(project, Some(&self.profile.design)) else { return };
         for (marker, label, help) in STANDARD_STEPS {
             if design.uses(marker) {
@@ -292,17 +276,6 @@ impl Wizard {
                     return Outcome::Continue;
                 }
                 self.key = key;
-            }
-            Target::Format => {
-                // Si el diseño elegido no combina con el formato nuevo, se vuelve a pedir.
-                let fits = load_design(project, Some(&self.profile.design))
-                    .map(|d| d.accepts(&value))
-                    .unwrap_or(false);
-                if !fits {
-                    self.profile.design.clear();
-                    self.steps.truncate(3);
-                }
-                self.profile.format = value;
             }
             Target::Design => {
                 self.profile.design = value;

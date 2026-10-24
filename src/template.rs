@@ -1,8 +1,7 @@
-//! Formatos (las normas: APA 7, Harvard, MLA…) y diseños (la portada y el
-//! aspecto). Un formato es `templates/formats/<f>/format.sty` + `format.toml`;
-//! un diseño es `templates/designs/<d>/template.ltx` + `template.toml`
-//! (opcional). Los propios de cada quien van en `my-templates/`, con la misma
-//! estructura.
+//! El formato (APA 7, la única norma) y los diseños (la portada y el aspecto).
+//! El formato es `templates/formats/apa7/format.sty` + `format.toml`; un
+//! diseño es `templates/designs/<d>/template.ltx` + `template.toml` (opcional).
+//! Los diseños propios van en `my-templates/designs/`, con la misma estructura.
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
@@ -93,12 +92,12 @@ pub struct FieldSpec {
     pub required: bool,
 }
 
-/// `template.toml`: opcional. Sin él, el diseño sirve con cualquier formato.
+/// `template.toml`: opcional.
 #[derive(Debug, Clone, Default, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct DesignManifest {
     pub description: Option<Localized>,
-    /// Formatos con los que combina; vacío = con todos. El primero es el de omisión.
+    /// Ya no se usa (solo hay APA 7); se acepta para no romper diseños viejos.
     #[serde(default)]
     pub formats: Vec<String>,
     #[serde(default)]
@@ -157,10 +156,6 @@ impl Design {
     pub fn field_spec(&self, name: &str) -> FieldSpec {
         self.manifest.fields.get(name).cloned().unwrap_or_default()
     }
-
-    pub fn accepts(&self, format: &str) -> bool {
-        self.manifest.formats.is_empty() || self.manifest.formats.iter().any(|f| f == format)
-    }
 }
 
 /// Los `%%NOMBRE%%` de un texto, sin los `%%`. Las líneas de comentario de
@@ -186,16 +181,16 @@ fn read_toml<T: for<'de> Deserialize<'de>>(path: &Path) -> Result<T> {
     })
 }
 
-/// Carpetas donde buscar, en orden: las incluidas y luego las de cada quien.
-fn roots(project: &Project, kind: &str) -> [PathBuf; 2] {
-    [project.templates_dir().join(kind), project.user_templates_dir().join(kind)]
+/// Carpetas de diseños, en orden: los incluidos y luego los de cada quien.
+fn roots(project: &Project) -> [PathBuf; 2] {
+    [project.templates_dir().join("designs"), project.user_templates_dir().join("designs")]
 }
 
-fn list_keys(project: &Project, kind: &str, file: &str) -> Vec<String> {
-    let mut keys: Vec<String> = roots(project, kind)
+pub fn list_designs(project: &Project) -> Vec<String> {
+    let mut keys: Vec<String> = roots(project)
         .iter()
         .flat_map(|root| std::fs::read_dir(root).into_iter().flatten().flatten())
-        .filter(|entry| entry.path().join(file).is_file())
+        .filter(|entry| entry.path().join(TEMPLATE_FILE).is_file())
         .map(|entry| entry.file_name().to_string_lossy().into_owned())
         .collect();
     keys.sort();
@@ -203,45 +198,18 @@ fn list_keys(project: &Project, kind: &str, file: &str) -> Vec<String> {
     keys
 }
 
-pub fn list_formats(project: &Project) -> Vec<String> {
-    list_keys(project, "formats", FORMAT_FILE)
-}
-
-pub fn list_designs(project: &Project) -> Vec<String> {
-    list_keys(project, "designs", TEMPLATE_FILE)
-}
-
-pub fn load_format(project: &Project, key: &str) -> Result<Format> {
-    let key = key.trim();
-    let Some(dir) =
-        roots(project, "formats").into_iter().map(|r| r.join(key)).find(|d| d.join(FORMAT_FILE).is_file())
-    else {
-        let available = list_formats(project).join(", ");
-        return Err(GenerationError::new(tr!(
-            es: "No se encontró el formato {key}. Formatos disponibles: {available}.",
-            en: "Format {key} not found. Available formats: {available}."
-        )));
-    };
-    let manifest_path = dir.join("format.toml");
-    let manifest = if manifest_path.is_file() {
-        read_toml(&manifest_path)?
-    } else {
-        FormatManifest {
-            name: Localized::Plain(key.to_owned()),
-            language: default_language(),
-            class_options: String::new(),
-            headings: Vec::new(),
-            headings_en: Vec::new(),
-        }
-    };
+/// El formato incluido (APA 7).
+pub fn load_format(project: &Project) -> Result<Format> {
+    let dir = project.templates_dir().join("formats").join(DEFAULT_FORMAT);
+    let manifest: FormatManifest = read_toml(&dir.join("format.toml"))?;
     if i18n::parse(&manifest.language).is_none() {
         let value = manifest.language.as_str();
         return Err(GenerationError::new(tr!(
-            es: "El formato {key} tiene un idioma no válido en format.toml: «{value}». Usa es o en.",
-            en: "The format {key} has an invalid language in format.toml: \"{value}\". Use es or en."
+            es: "El formato tiene un idioma no válido en format.toml: «{value}». Usa es o en.",
+            en: "The format has an invalid language in format.toml: \"{value}\". Use es or en."
         )));
     }
-    Ok(Format { key: key.to_owned(), sty: dir.join(FORMAT_FILE), manifest })
+    Ok(Format { key: DEFAULT_FORMAT.to_owned(), sty: dir.join(FORMAT_FILE), manifest })
 }
 
 /// Un diseño por nombre (los antiguos `apa`/`apa-simple` también valen), por
@@ -249,8 +217,7 @@ pub fn load_format(project: &Project, key: &str) -> Result<Format> {
 pub fn load_design(project: &Project, choice: Option<&str>) -> Result<Design> {
     let choice = choice.map(str::trim).filter(|c| !c.is_empty()).unwrap_or(DEFAULT_TEMPLATE);
     let name = legacy_design(choice);
-    let by_name =
-        roots(project, "designs").into_iter().map(|r| r.join(name).join(TEMPLATE_FILE)).find(|f| f.is_file());
+    let by_name = roots(project).into_iter().map(|r| r.join(name).join(TEMPLATE_FILE)).find(|f| f.is_file());
     let path = absolute(&expand_home(Path::new(choice)));
     let file = by_name
         .or_else(|| path.is_file().then(|| path.clone()))
@@ -281,29 +248,11 @@ pub struct Layout {
     pub format: Option<Format>,
 }
 
-/// Resuelve la pareja diseño/formato. Sin formato indicado se usa el primero
-/// que el diseño declara (o APA 7); uno que el diseño no acepta es un error.
-pub fn resolve_layout(project: &Project, design: Option<&str>, format: Option<&str>) -> Result<Layout> {
+/// Carga el diseño y, si no es autocontenido, el formato APA 7.
+pub fn resolve_layout(project: &Project, design: Option<&str>) -> Result<Layout> {
     let design = load_design(project, design)?;
-    if design.is_self_contained() {
-        return Ok(Layout { design, format: None });
-    }
-    let chosen = format
-        .map(str::trim)
-        .filter(|f| !f.is_empty())
-        .map(str::to_owned)
-        .or_else(|| design.manifest.formats.first().cloned())
-        .unwrap_or_else(|| DEFAULT_FORMAT.to_owned());
-    if !design.accepts(&chosen) {
-        let compatible = design.manifest.formats.join(", ");
-        let key = &design.key;
-        return Err(GenerationError::new(tr!(
-            es: "El diseño {key} no combina con el formato {chosen}. Formatos compatibles: {compatible}.",
-            en: "The design {key} does not work with the format {chosen}. Compatible formats: {compatible}."
-        )));
-    }
-    let format = load_format(project, &chosen)?;
-    Ok(Layout { design, format: Some(format) })
+    let format = if design.is_self_contained() { None } else { Some(load_format(project)?) };
+    Ok(Layout { design, format })
 }
 
 impl Layout {
@@ -361,18 +310,13 @@ mod tests {
             &t.join("formats/apa7/format.toml"),
             "name = \"APA 7\"\nclass_options = \"12pt\"\nheadings = [\"Introducción\"]\nheadings_en = [\"Introduction\"]\n",
         );
-        write(&t.join("formats/mla/format.sty"), "x");
-        write(
-            &t.join("formats/mla/format.toml"),
-            "name = { es = \"MLA\", en = \"MLA\" }\nlanguage = \"en\"\n",
-        );
         write(
             &t.join("designs/cover/template.ltx"),
             "\\documentclass[%%CLASS_OPTIONS%%]{article}\n% comentario con %%IGNORADO%%\n%%FORMAT%%\n%%TITULO%% %%SALON%%\n%%CONTENIDO_MARKDOWN%%\n",
         );
         write(
             &t.join("designs/cover/template.toml"),
-            "formats = [\"apa7\"]\n[fields.SALON]\nlabel = { es = \"Salón\", en = \"Room\" }\nrequired = true\n",
+            "[fields.SALON]\nlabel = { es = \"Salón\", en = \"Room\" }\nrequired = true\n",
         );
         write(&project.root.join("my-templates/designs/mine/template.ltx"), "%%CONTENIDO_MARKDOWN%%\n");
         (directory, project)
@@ -390,45 +334,32 @@ mod tests {
     }
 
     #[test]
-    fn layouts_check_compatibility_and_defaults() {
+    fn layouts_load_apa7_unless_the_design_is_self_contained() {
         let (_dir, project) = sample();
-        let layout = resolve_layout(&project, Some("cover"), None).unwrap();
+        let layout = resolve_layout(&project, Some("cover")).unwrap();
         assert_eq!(layout.format.as_ref().unwrap().key, "apa7");
         assert_eq!(layout.class_options(), "12pt");
         assert_eq!(layout.headings_for(Lang::Es), ["Introducción"]);
         assert_eq!(layout.headings_for(Lang::En), ["Introduction"]);
-        assert!(resolve_layout(&project, Some("cover"), Some("mla")).is_err());
-        assert!(resolve_layout(&project, Some("cover"), Some("nope")).is_err());
+        assert_eq!(layout.document_language(None), Lang::Es);
+        assert_eq!(layout.document_language(Some(Lang::En)), Lang::En);
+        assert!(layout.format_block(Lang::En).contains("[english]{babel}"));
         // Diseño propio en my-templates/ y autocontenido (sin %%FORMAT%%).
-        let mine = resolve_layout(&project, Some("mine"), Some("mla")).unwrap();
+        let mine = resolve_layout(&project, Some("mine")).unwrap();
         assert!(mine.format.is_none() && mine.design.is_self_contained());
         assert_eq!(list_designs(&project), ["cover", "mine"]);
-        assert_eq!(list_formats(&project), ["apa7", "mla"]);
-    }
-
-    #[test]
-    fn document_language_and_babel() {
-        let (_dir, project) = sample();
-        let design = load_design(&project, Some("cover")).unwrap();
-        let mla = Layout { design, format: Some(load_format(&project, "mla").unwrap()) };
-        assert_eq!(mla.document_language(None), Lang::En);
-        assert_eq!(mla.document_language(Some(Lang::Es)), Lang::Es);
-        assert!(mla.format_block(Lang::En).contains("[english]{babel}"));
     }
 
     #[test]
     fn format_languages_accept_regions_and_reject_unknown_ones() {
         assert_eq!(i18n::parse("fr"), None);
         let (_dir, project) = sample();
-        write(&project.templates_dir().join("formats/xx/format.sty"), "x");
-        write(&project.templates_dir().join("formats/xx/format.toml"), "name = \"XX\"\nlanguage = \"fr\"\n");
-        let error = load_format(&project, "xx").unwrap_err().to_string();
-        assert!(error.contains("«fr»") && error.contains("xx"), "{error}");
-        write(
-            &project.templates_dir().join("formats/xx/format.toml"),
-            "name = \"XX\"\nlanguage = \"en-US\"\n",
-        );
-        assert_eq!(load_format(&project, "xx").unwrap().language(), Lang::En);
+        let manifest = project.templates_dir().join("formats/apa7/format.toml");
+        write(&manifest, "name = \"APA 7\"\nlanguage = \"fr\"\n");
+        let error = load_format(&project).unwrap_err().to_string();
+        assert!(error.contains("«fr»"), "{error}");
+        write(&manifest, "name = \"APA 7\"\nlanguage = \"en-US\"\n");
+        assert_eq!(load_format(&project).unwrap().language(), Lang::En);
     }
 
     #[test]

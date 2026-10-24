@@ -20,8 +20,6 @@ use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 pub struct GenerateOptions {
     /// Diseño: nombre de `templates/designs/` o ruta; `None` = el de omisión.
     pub design: Option<String>,
-    /// Formato (`apa7`, `harvard`…); `None` = el primero que acepta el diseño.
-    pub format: Option<String>,
     /// Idioma del documento; `None` = el del formato.
     pub doc_lang: Option<Lang>,
     /// Interpreta los comandos LaTeX escritos en el Markdown.
@@ -70,7 +68,7 @@ pub fn generate_pdf(
         ));
     }
 
-    let layout = resolve_layout(project, options.design.as_deref(), options.format.as_deref())?;
+    let layout = resolve_layout(project, options.design.as_deref())?;
     let missing = missing_data(&layout, data);
     if !missing.is_empty() {
         return Err(missing_data_error(&layout, &missing));

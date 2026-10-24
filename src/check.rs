@@ -1,5 +1,5 @@
 //! `investigacion --check-template <diseño>`: revisa que un diseño cumpla el
-//! contrato y lo compila con cada formato compatible, para encontrar los
+//! contrato y lo compila con APA 7, para encontrar los
 //! problemas antes de entregar un trabajo.
 
 use std::collections::BTreeSet;
@@ -13,11 +13,12 @@ use crate::error::Result;
 use crate::generate::{GenerateOptions, generate_pdf};
 use crate::latex::is_comment_line;
 use crate::logging;
+use crate::project::DEFAULT_FORMAT;
 use crate::project::Project;
-use crate::template::{Design, STANDARD_MARKERS, list_formats, load_design};
+use crate::template::{Design, STANDARD_MARKERS, load_design};
 
 /// Resultado de la revisión: errores (impiden usarlo), avisos y la
-/// compilación de prueba con cada formato.
+/// compilación de prueba.
 #[derive(Debug, Default)]
 pub struct CheckReport {
     pub design: String,
@@ -53,8 +54,8 @@ pub fn similar_marker(name: &str) -> Option<&'static str> {
     STANDARD_MARKERS.iter().copied().filter(|m| distance(name, m) <= 2).min_by_key(|m| distance(name, m))
 }
 
-/// Revisión estática: contrato, formatos y marcadores.
-pub fn inspect(project: &Project, design: &Design) -> CheckReport {
+/// Revisión estática: contrato y marcadores.
+pub fn inspect(design: &Design) -> CheckReport {
     let mut report = CheckReport { design: design.key.clone(), ..Default::default() };
     let text = std::fs::read(&design.file)
         .ok()
@@ -90,15 +91,11 @@ pub fn inspect(project: &Project, design: &Design) -> CheckReport {
         ));
     }
 
-    let available = list_formats(project);
-    for format in &design.manifest.formats {
-        if !available.contains(format) {
-            report.errors.push(tr!(
-                es: "El formato {format} de template.toml no existe. Disponibles: {}.",
-                en: "The format {format} in template.toml does not exist. Available: {}.",
-                available.join(", ")
-            ));
-        }
+    if !design.manifest.formats.is_empty() {
+        report.warnings.push(tr!(
+            es: "template.toml todavía tiene formats: ya no se usa, todos los diseños van con APA 7.",
+            en: "template.toml still has formats: it is no longer used, every design goes with APA 7."
+        ));
     }
 
     for name in design.custom_fields() {
@@ -173,7 +170,7 @@ fn sample_data(design: &Design) -> DocumentData {
 }
 
 /// Revisa el diseño y, si el contrato está completo, lo compila con el
-/// catálogo de ejemplo en cada formato compatible.
+/// catálogo de ejemplo.
 pub fn check_design(
     project: &Project,
     choice: &str,
@@ -181,7 +178,7 @@ pub fn check_design(
 ) -> Result<CheckReport> {
     let design = load_design(project, Some(choice))?;
     logging::info(format_args!("check design: {} ({})", design.key, design.file.display()));
-    let mut report = inspect(project, &design);
+    let mut report = inspect(&design);
     for error in &report.errors {
         logging::warn(format_args!("check error: {error}"));
     }
@@ -200,31 +197,22 @@ pub fn check_design(
         logging::warn(format_args!("check: test build skipped, {} not found", catalog.display()));
         return Ok(report);
     }
-    let formats: Vec<Option<String>> = if design.is_self_contained() {
-        vec![None]
-    } else {
-        list_formats(project).into_iter().filter(|f| design.accepts(f)).map(Some).collect()
-    };
     let output = tempfile::Builder::new().prefix("investigacion-check-").tempdir()?;
-    let data = sample_data(&design);
-    for format in formats {
-        let label = format.clone().unwrap_or_else(|| "-".into());
-        on_progress(&label);
-        let options = GenerateOptions {
-            design: Some(design.file.display().to_string()),
-            format: format.clone(),
-            file_name: Some(label.clone()),
-            ..Default::default()
-        };
-        let result = generate_pdf(project, &catalog, output.path(), &data, &options, &mut |_| {});
-        // El registro guarda el error entero; el informe, solo el principio.
-        match &result {
-            Ok(_) => logging::info(format_args!("check build with {label}: ok")),
-            Err(error) => logging::warn(format_args!("check build with {label} failed: {error}")),
-        }
-        let result = result.map(|_| ()).map_err(|e| e.0.lines().take(4).collect::<Vec<_>>().join("\n"));
-        report.builds.push((label, result));
+    let label = if design.is_self_contained() { "-" } else { DEFAULT_FORMAT };
+    on_progress(label);
+    let options = GenerateOptions {
+        design: Some(design.file.display().to_string()),
+        file_name: Some(label.to_owned()),
+        ..Default::default()
+    };
+    let result = generate_pdf(project, &catalog, output.path(), &sample_data(&design), &options, &mut |_| {});
+    // El registro guarda el error entero; el informe, solo el principio.
+    match &result {
+        Ok(_) => logging::info(format_args!("check build with {label}: ok")),
+        Err(error) => logging::warn(format_args!("check build with {label} failed: {error}")),
     }
+    let result = result.map(|_| ()).map_err(|e| e.0.lines().take(4).collect::<Vec<_>>().join("\n"));
+    report.builds.push((label.to_owned(), result));
     Ok(report)
 }
 
@@ -289,7 +277,7 @@ mod tests {
         let directory = tempfile::tempdir().unwrap();
         let project = Project::at(directory.path());
         let ltx = "%%FORMAT%%\n%%AULA2%% %%salon%%\n% %%AULA3%%\n%%CONTENIDO_MARKDOWN%%\n";
-        let report = inspect(&project, &design(&project, ltx, ""));
+        let report = inspect(&design(&project, ltx, ""));
         let all = format!("{:?}", report.warnings);
         assert!(all.contains("%%AULA2%%") && all.contains("%%salon%%"), "{all}");
         assert!(!all.contains("%%AULA3%%"), "{all}");
@@ -309,10 +297,10 @@ mod tests {
         let project = Project::at(directory.path());
         let broken =
             design(&project, "%%FORMAT%%\n%%DOCENTES%% %%SALON%%\n", "formats = [\"nope\"]\n[fields.AULA]\n");
-        let report = inspect(&project, &broken);
+        let report = inspect(&broken);
         let all = format!("{:?} {:?}", report.errors, report.warnings);
         assert!(all.contains("investigacion-base") && all.contains("investigacion-final"), "{all}");
-        assert!(all.contains("%%CONTENIDO_MARKDOWN%%") && all.contains("nope"));
+        assert!(all.contains("%%CONTENIDO_MARKDOWN%%") && all.contains("todavía tiene formats"));
         assert!(all.contains("¿quisiste decir %%DOCENTE%%?"));
         assert!(all.contains("SALON") && all.contains("AULA"));
         assert!(!report.passed());
@@ -322,7 +310,7 @@ mod tests {
             "\\documentclass[%%CLASS_OPTIONS%%]{article}\n\\usepackage{investigacion-base}\n%%FORMAT%%\n\\usepackage{investigacion-final}\n%%CONTENIDO_MARKDOWN%%\n",
             "",
         );
-        let report = inspect(&project, &good);
+        let report = inspect(&good);
         assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
     }
 }

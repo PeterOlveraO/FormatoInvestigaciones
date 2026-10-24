@@ -128,8 +128,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "profile",
         Text::new(
-            "Perfil de materia de courses/ (p. ej. ia): todos los datos de portada, formato, diseño y carpetas",
-            "Course profile from courses/ (e.g. ia): all the cover data, format, design and folders",
+            "Perfil de materia de courses/ (p. ej. ia): todos los datos de portada, diseño y carpetas",
+            "Course profile from courses/ (e.g. ia): all the cover data, design and folders",
         ),
         Some(Text::new("PERFIL", "PROFILE")),
     ),
@@ -199,10 +199,7 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     ),
     (
         "format",
-        Text::new(
-            "Formato (la norma): apa7, harvard, mla… Por omisión, el primero que acepta el diseño",
-            "Format (the norm): apa7, harvard, mla… Default: the first one the design accepts",
-        ),
+        Text::new("Formato (la norma): solo apa7", "Format (the norm): only apa7"),
         Some(Text::new("FORMATO", "FORMAT")),
     ),
     (
@@ -216,8 +213,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "doc_lang",
         Text::new(
-            "Idioma del documento (es o en). Por omisión, el del perfil o el del formato",
-            "Document language (es or en). Default: the profile's, or the format's",
+            "Idioma del documento (es o en). Por omisión, el del perfil o español",
+            "Document language (es or en). Default: the profile's, or Spanish",
         ),
         Some(Text::new("IDIOMA", "LANG")),
     ),
@@ -250,8 +247,8 @@ pub fn localized_command() -> clap::Command {
     let mut command = Args::command()
         .about(
             Text::new(
-                "Genera un trabajo académico en PDF (APA 7, Harvard o MLA 9) a partir de un archivo Markdown.",
-                "Generates an academic paper in PDF (APA 7, Harvard or MLA 9) from a Markdown file.",
+                "Genera un trabajo académico en PDF (APA 7) a partir de un archivo Markdown.",
+                "Generates an academic paper in PDF (APA 7) from a Markdown file.",
             )
             .get(),
         )
@@ -452,12 +449,8 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     let from_profile =
         |get: fn(&CourseProfile) -> &str| profile.map(get).map(str::trim).filter(|v| !v.is_empty());
 
-    // Diseño y formato: la opción gana, luego el perfil.
-    let layout = resolve_layout(
-        project,
-        args.design.as_deref().or(from_profile(|p| &p.design)),
-        args.format.as_deref().or(from_profile(|p| &p.format)),
-    )?;
+    // Diseño: la opción gana, luego el perfil.
+    let layout = resolve_layout(project, args.design.as_deref().or(from_profile(|p| &p.design)))?;
     let doc_lang =
         layout.document_language(args.doc_lang.or(from_profile(|p| &p.language).and_then(i18n::parse)));
     logging::info(format_args!(
@@ -515,7 +508,6 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     });
     let options = GenerateOptions {
         design: Some(layout.design.file.display().to_string()),
-        format: layout.format.as_ref().map(|f| f.key.clone()),
         doc_lang: Some(doc_lang),
         allow_raw_latex: args.allow_latex,
         logos,

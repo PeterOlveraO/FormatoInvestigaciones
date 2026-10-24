@@ -1,7 +1,5 @@
 # Ficha del diseño (opcional, pero recomendada).
 description = { es = "Diseño de arranque: cópialo para hacer el tuyo", en = "Starter design: copy it to make your own" }
-# Formatos con los que combina; el primero es el de omisión. Vacío = todos.
-formats = ["apa7", "harvard", "mla"]
 # Datos estándar que usa pero no exige.
 optional = ["MATERIA"]
 
