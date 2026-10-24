@@ -20,7 +20,8 @@ fn convert_in(markdown: &str, doc_lang: Lang) -> Option<(String, Vec<String>)> {
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project(), &source, markdown, false, doc_lang, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project(), &source, markdown, false, doc_lang, None, &mut |w| warnings.push(w))
+            .unwrap();
     Some((latex, warnings))
 }
 
@@ -70,6 +71,67 @@ fn boxes_and_references() {
     assert!(!references.contains(r"\begin{itemize}"));
 }
 
+// `## Libros` bajo «Referencias» no corta la sangría francesa; `# Anexos` sí.
+#[test]
+fn subheadings_inside_the_references_keep_the_list() {
+    let markdown = "# Referencias\n\n## Libros\n\nAutor, A. (2020). *Libro*.\n\n## Sitios web\n\nAutor, B. (2021). *Sitio*.\n\n# Anexos\n\nTexto del anexo.\n";
+    let Some(latex) = convert(markdown) else { return };
+    let opened = |text: &str| text.matches(r"\begin{ReferenceList}").count();
+    let closed = |text: &str| text.matches(r"\end{ReferenceList}").count();
+    let (references, annex) = latex.split_once("Anexos").unwrap();
+    assert_eq!((opened(references), closed(references)), (3, 3), "{latex}");
+    assert_eq!(opened(annex), 0, "{latex}");
+    // Cada referencia queda dentro de una lista, y los subtítulos fuera.
+    for part in references.split(r"\begin{ReferenceList}").skip(1) {
+        let inside = part.split(r"\end{ReferenceList}").next().unwrap();
+        assert!(!inside.contains(r"\subsection"), "{latex}");
+    }
+    assert!(latex.contains("Libro") && latex.contains("Sitio"));
+    assert!(!annex.split("Texto del anexo").next().unwrap().contains("ReferenceList"));
+}
+
+// Las cachés de diagramas e imágenes se escriben en un temporal y se renombran:
+// el archivo final no se toca hasta tener el contenido completo, así un corte
+// a medias no deja uno roto que las generaciones siguientes darían por bueno.
+#[test]
+fn the_filters_write_the_cache_through_a_temporary_file() {
+    if !has_tool("pandoc") {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let script = write(
+        directory.path(),
+        "prueba.lua",
+        // Con «falla», ningún temporal se puede abrir, como un disco lleno.
+        &format!(
+            "{}\nlocal abrir = io.open\nif arg[2] == \"falla\" then\n  io.open = function(r, m) if r:match(\"%.tmp$\") then return nil end return abrir(r, m) end\nend\nio.write(tostring(escribir(arg[1], \"nuevo\")))\n",
+            investigacion::pandoc::LUA_COMMON
+        ),
+    );
+    let run = |target: &std::path::Path, mode: &str| {
+        let output = std::process::Command::new("pandoc")
+            .arg("lua")
+            .arg(&script)
+            .arg(target)
+            .arg(mode)
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    };
+    // Reemplaza un archivo que ya existe y no deja temporales, aunque otra
+    // generación tenga ocupado `<ruta>.tmp`: el temporal lleva un nombre único.
+    let cached = write(directory.path(), "diagrama.pdf", "viejo");
+    std::fs::create_dir(directory.path().join("diagrama.pdf.tmp")).unwrap();
+    assert_eq!(run(&cached, ""), "true");
+    assert_eq!(std::fs::read_to_string(&cached).unwrap(), "nuevo");
+    let files = std::fs::read_dir(directory.path()).unwrap().count();
+    assert_eq!(files, 3, "prueba.lua, diagrama.pdf y la carpeta ocupada");
+    // Si el temporal no se puede escribir, el archivo final queda como estaba.
+    let other = write(directory.path(), "otro.pdf", "viejo");
+    assert_eq!(run(&other, "falla"), "false");
+    assert_eq!(std::fs::read_to_string(&other).unwrap(), "viejo");
+}
+
 #[test]
 fn images_that_cannot_be_loaded_do_not_break_the_document() {
     let Some((latex, warnings)) = convert_with_warnings("![Un logo](https://localhost:1/no-existe.png)\n")
@@ -97,7 +159,8 @@ fn local_images_in_formats_pdflatex_cannot_typeset_are_replaced() {
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, None, &mut |w| warnings.push(w))
+            .unwrap();
     assert!(!latex.contains("includesvg"), "{latex}");
     assert!(latex.contains(r"\emph{Una figura}"));
     assert!(warnings.iter().any(|w| w.contains("fig.svg") && w.contains("svg")), "{warnings:?}");
@@ -192,7 +255,7 @@ fn boxes_and_references_follow_the_document_language() {
     assert!(latex.contains(r"\begin{ReferenceList}"));
     let Some((spanish, _)) = convert_in("::: note\nOjo.\n:::\n", Lang::Es) else { return };
     assert!(spanish.contains(r"\begin{CajaMarcada}{Nota}"));
-    // MLA en español: «Obras citadas» también abre la lista con sangría.
+    // «Obras citadas» también abre la lista con sangría.
     let Some((cited, _)) = convert_in("# Obras citadas\n\nAutor, A. *Título*.\n", Lang::Es) else { return };
     assert!(cited.contains(r"\begin{ReferenceList}"), "{cited}");
 }
@@ -207,8 +270,9 @@ fn raw_latex_in_a_caption_follows_the_body_setting() {
     let markdown = "```{.pgfplot caption=\"Figura \\noexiste{x}\"}\n\\draw (0,0);\n```\n";
     let directory = tempfile::tempdir().unwrap();
     let source = write(directory.path(), "trabajo.md", markdown);
-    let convert =
-        |allow_raw| pandoc_to_latex(&project(), &source, markdown, allow_raw, Lang::Es, &mut |_| {}).unwrap();
+    let convert = |allow_raw| {
+        pandoc_to_latex(&project(), &source, markdown, allow_raw, Lang::Es, None, &mut |_| {}).unwrap()
+    };
     let without = convert(false);
     assert!(!without.contains(r"\noexiste{x}"), "{without}");
     assert!(without.contains(r"\textbackslash noexiste"), "{without}");
@@ -228,7 +292,8 @@ fn a_folder_named_like_an_image_is_not_an_image() {
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, None, &mut |w| warnings.push(w))
+            .unwrap();
     assert!(!latex.contains("includegraphics"), "{latex}");
     assert!(latex.contains(r"\emph{x}"), "{latex}");
     assert!(!warnings.is_empty());
@@ -255,7 +320,8 @@ fn an_image_in_a_folder_with_the_path_separator_is_copied_to_the_cache() {
     let source = write(&folder, "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project, &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project, &source, markdown, false, Lang::Es, None, &mut |w| warnings.push(w))
+            .unwrap();
     assert!(latex.contains("Introducción"), "{latex}");
     assert!(warnings.iter().any(|w| w.contains("separador")), "{warnings:?}");
     // LaTeX no ve la carpeta: la imagen tiene que llegar por la caché, con su nombre.

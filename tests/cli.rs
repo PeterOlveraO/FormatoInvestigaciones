@@ -26,7 +26,7 @@ fn run(dir: &std::path::Path, data: &str, extra: &[&str]) -> String {
 fn a_missing_student_is_not_an_error_but_a_missing_markdown_is() {
     let directory = tempfile::tempdir().unwrap();
     // Sin perfil, todo llega por --set; la materia también.
-    let error = run(directory.path(), "MATERIA=M\nUNIVERSIDAD=U\nFACULTAD=F\nSEMESTRE=7", &[]);
+    let error = run(directory.path(), "MATERIA=M\nUNIVERSIDAD=U\nFACULTAD=F", &[]);
     assert!(!error.contains("Faltan datos") && !error.contains("Missing data"), "{error}");
     assert!(error.contains("no-existe.md"));
 }
@@ -37,7 +37,7 @@ fn only_the_data_the_design_uses_is_required() {
     let directory = tempfile::tempdir().unwrap();
     let dir = directory.path();
     // APA (portada geométrica) usa UNIVERSIDAD: sin ella, falta un dato.
-    let apa = run(dir, "FACULTAD=F\nSEMESTRE=7\n", &[]);
+    let apa = run(dir, "FACULTAD=F\n", &[]);
     assert!(apa.contains("Faltan datos") && apa.contains("UNIVERSIDAD"), "{apa}");
     // Un diseño propio que no la usa, pero con un campo obligatorio.
     let mine = dir.join("my-templates/designs/simple");
@@ -47,9 +47,9 @@ fn only_the_data_the_design_uses_is_required() {
     std::fs::write(mine.join("template.toml"), "[fields.SALON]\nrequired = true\n").unwrap();
     let without_field = run(dir, "", &["--design", "simple"]);
     assert!(without_field.contains("SALON") && !without_field.contains("UNIVERSIDAD"), "{without_field}");
-    // El informe muestra universidad y materia si existen, pero no las exige.
+    // Un diseño retirado lleva a la portada geométrica, que sí exige la universidad.
     let report = run(dir, "", &["--design", "report"]);
-    assert!(report.contains("no-existe.md"), "{report}");
+    assert!(report.contains("UNIVERSIDAD"), "{report}");
     // Con el campo, los datos están completos y el error ya es el Markdown que no existe.
     let complete = run(dir, "", &["--design", "simple", "--set", "SALON=B-204"]);
     assert!(complete.contains("no-existe.md"), "{complete}");
@@ -65,4 +65,84 @@ fn a_missing_project_folder_is_explained() {
     let project = investigacion::project::Project::at(directory.path());
     let error = execute(&args, &project, &mut Silent).unwrap_err().0;
     assert!(error.contains("project folder") && error.contains("INVESTIGACION_HOME"), "{error}");
+}
+
+struct Collect(Vec<String>);
+impl Reporter for Collect {
+    fn warning(&mut self, message: String) {
+        self.0.push(message);
+    }
+    fn info(&mut self, _: String) {}
+}
+
+/// Avisos de una ejecución con el perfil `viejo` (su texto) y opciones extra.
+fn warnings_with(profile: &str, extra: &[&str]) -> Vec<String> {
+    let directory = tempfile::tempdir().unwrap();
+    let dir = directory.path();
+    std::fs::create_dir_all(dir.join("courses")).unwrap();
+    std::fs::write(dir.join("courses/viejo.toml"), format!("name = \"M\"\n{profile}")).unwrap();
+    let markdown = dir.join("no-existe.md");
+    let mut argv = vec!["investigacion", markdown.to_str().unwrap(), "--title", "T", "-p", "viejo"];
+    argv.extend_from_slice(extra);
+    let args: Args = clap::Parser::try_parse_from(argv).unwrap();
+    let mut reporter = Collect(Vec::new());
+    let error = execute(&args, &common::isolated_project(dir), &mut reporter).unwrap_err().0;
+    assert!(error.contains("no-existe.md") || error.contains("UNIVERSIDAD"), "{error}");
+    reporter.0
+}
+
+#[test]
+fn old_formats_are_ignored_with_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    // apa7 sigue valiendo en silencio, en el perfil y en --format.
+    assert!(warnings_with("format = \"apa7\"\n", &["--format", "apa7"]).is_empty());
+    let profile = warnings_with("format = \"mla\"\n", &[]);
+    assert!(
+        profile.len() == 1 && profile[0].contains("«mla»") && profile[0].contains("APA 7"),
+        "{profile:?}"
+    );
+    // La opción gana sobre el perfil, también al avisar.
+    let option = warnings_with("format = \"mla\"\n", &["--format", "harvard"]);
+    assert!(option.len() == 1 && option[0].contains("«harvard»"), "{option:?}");
+}
+
+#[test]
+fn retired_designs_are_redirected_with_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    assert!(warnings_with("design = \"geometric-cover\"\n", &[]).is_empty());
+    for old in ["apa", "apa-simple", "classic-cover", "report", "starter"] {
+        let warnings = warnings_with(&format!("design = \"{old}\"\n"), &[]);
+        assert!(warnings.len() == 1 && warnings[0].contains(&format!("«{old}»")), "{warnings:?}");
+    }
+    let option = warnings_with("template = \"apa-simple\"\n", &["--design", "starter"]);
+    assert!(option.len() == 1 && option[0].contains("«starter»"), "{option:?}");
+}
+
+// Una carpeta de logos que no está es un aviso que dice de dónde vino, no un error.
+#[test]
+fn a_missing_logos_folder_is_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    let missing = std::env::temp_dir().join("investigacion-no-existe-logos");
+    let data = "university = \"U\"\nfaculty = \"F\"\n";
+    let option = warnings_with(data, &["--logos", missing.to_str().unwrap()]);
+    assert!(
+        option.len() == 1 && option[0].contains("--logos") && option[0].contains("sin logos"),
+        "{option:?}"
+    );
+    let settings = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(settings.path(), format!("LOGOS={}\n", missing.display())).unwrap();
+    let saved = warnings_with(data, &["--settings", settings.path().to_str().unwrap()]);
+    assert!(saved.len() == 1 && saved[0].contains("settings.toml"), "{saved:?}");
+}
+
+#[test]
+fn an_old_semester_is_read_and_ignored_with_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    let profile = warnings_with("semester = \"2026-2\"\n", &[]);
+    assert!(
+        profile.len() == 1 && profile[0].contains("semester") && profile[0].contains("group"),
+        "{profile:?}"
+    );
+    let option = warnings_with("", &["--set", "SEMESTRE=7"]);
+    assert!(option.len() == 1 && option[0].contains("--set SEMESTRE"), "{option:?}");
 }

@@ -87,10 +87,10 @@ fn split_resource_dirs(dirs: &[PathBuf], on_warning: &mut dyn FnMut(String)) -> 
 
 /// Dónde se buscan las imágenes: junto al Markdown y en la caché del proyecto.
 /// Pandoc las comprueba ahí y pdflatex las busca ahí por TEXINPUTS.
-pub fn resource_dirs(project: &Project, markdown_path: &Path) -> Result<Vec<PathBuf>> {
+pub fn resource_dirs(project: &Project, markdown_path: &Path) -> Result<[PathBuf; 4]> {
     let (remote, diagrams) = project.media_directories()?;
     let base_dir = markdown_path.parent().unwrap_or(Path::new(".")).to_path_buf();
-    Ok(vec![base_dir, project.cache_dir(), remote, diagrams])
+    Ok([base_dir, project.cache_dir(), remote, diagrams])
 }
 
 /// Convierte el Markdown a un fragmento LaTeX (sin preámbulo).
@@ -103,11 +103,11 @@ pub fn pandoc_to_latex(
     markdown: &str,
     allow_raw_latex: bool,
     doc_lang: crate::i18n::Lang,
+    converter: Option<&Path>,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<String> {
-    let (remote, diagrams) = project.media_directories()?;
-    let base_dir = markdown_path.parent().unwrap_or(Path::new(".")).to_path_buf();
     let resources = resource_dirs(project, markdown_path)?;
+    let [base_dir, _, remote, diagrams] = &resources;
     let (searchable, unsearchable) = split_resource_dirs(&resources, on_warning);
 
     let filters_dir = tempfile::Builder::new().prefix("investigacion-filters-").tempdir()?;
@@ -133,9 +133,9 @@ pub fn pandoc_to_latex(
         command.arg(arg);
     }
     command
-        .current_dir(&base_dir)
-        .env("INVESTIGACION_REMOTE_IMAGES", posix(&remote))
-        .env("INVESTIGACION_DIAGRAMS", posix(&diagrams))
+        .current_dir(base_dir)
+        .env("INVESTIGACION_REMOTE_IMAGES", posix(remote))
+        .env("INVESTIGACION_DIAGRAMS", posix(diagrams))
         .env("INVESTIGACION_MARKDOWN_FORMAT", &format)
         // Una carpeta por línea: así una ruta puede llevar espacios.
         .env("INVESTIGACION_RESOURCES", resources.iter().map(|p| posix(p)).collect::<Vec<_>>().join("\n"))
@@ -148,6 +148,12 @@ pub fn pandoc_to_latex(
         .env("INVESTIGACION_LANG", crate::i18n::current().code())
         // Y el texto que va dentro del PDF (títulos de las cajas), en el del documento.
         .env("INVESTIGACION_DOC_LANG", doc_lang.code());
+    // Solo en el Command de Pandoc: el filtro de imágenes llama a este binario.
+    if let Some(converter) = converter {
+        command
+            .env("INVESTIGACION_CONVERTER", converter)
+            .env("INVESTIGACION_CONVERTER_VERSION", crate::image::CONVERTER_VERSION);
+    }
 
     logging::info(format_args!(
         "pandoc: converting {} ({} bytes, raw LaTeX {}, document language {})",

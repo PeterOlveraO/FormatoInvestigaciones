@@ -11,29 +11,42 @@ De paso comprueba las imágenes locales: si la ruta no existe, en vez de romper
 la compilación se avisa y queda el texto alternativo. Mismo criterio que el
 resto del proyecto: avisar sin impedir que el trabajo salga.
 
+El formato se lee del contenido. SVG y WEBP, que pdflatex no compone, se
+convierten a PNG en la caché llamando al propio programa (`--convert-image`).
+
 El generador le pasa las rutas por dos variables de entorno:
   INVESTIGACION_REMOTE_IMAGES   carpeta donde se guardan las descargas
   INVESTIGACION_RESOURCES   carpetas donde buscar una imagen local, una por línea
   INVESTIGACION_UNSEARCHABLE   carpetas de esa lista que LaTeX no puede buscar
+  INVESTIGACION_CONVERTER   el programa que convierte SVG y WEBP (si falta, no se convierten)
+  INVESTIGACION_CONVERTER_VERSION   entra en el nombre del PNG convertido
 ]]
 
 local CACHE = os.getenv("INVESTIGACION_REMOTE_IMAGES")
 local RECURSOS = os.getenv("INVESTIGACION_RESOURCES") or ""
+local CONVERSOR = os.getenv("INVESTIGACION_CONVERTER")
+local VERSION_CONVERSOR = os.getenv("INVESTIGACION_CONVERTER_VERSION") or ""
 local INACCESIBLES = {}
 for carpeta in (os.getenv("INVESTIGACION_UNSEARCHABLE") or ""):gmatch("[^\n]+") do
   INACCESIBLES[carpeta] = true
 end
 
--- pdflatex solo compone estos formatos. El resto (SVG, WEBP) necesitaría una
--- conversión previa, que este proyecto no hace.
-local FORMATOS = { png = true, jpg = true, jpeg = true, pdf = true }
+-- pdflatex compone PNG, JPG y PDF; SVG y WEBP se convierten antes a PNG.
+local FORMATOS = { png = true, jpg = true, jpeg = true, pdf = true, svg = true, webp = true }
 
--- El formato se lee de los primeros bytes: ni la extensión de la URL ni el tipo
--- que manda el servidor garantizan que lo descargado sea una imagen.
+-- El formato se lee de los primeros bytes: ni la extensión ni el tipo que manda
+-- el servidor garantizan qué es el archivo. Misma regla que `detect` en image.rs.
 local function formato_del_contenido(contenido)
   if contenido:sub(1, 8) == "\137PNG\r\n\26\n" then return "png" end
   if contenido:sub(1, 3) == "\255\216\255" then return "jpg" end
   if contenido:sub(1, 4) == "%PDF" then return "pdf" end
+  if contenido:sub(1, 4) == "RIFF" and contenido:sub(9, 12) == "WEBP" then return "webp" end
+  -- SVG: tras un BOM y espacios opcionales, `<svg` o `<?xml` con un `<svg` después.
+  local inicio = contenido:find("%S", contenido:sub(1, 3) == "\239\187\191" and 4 or 1)
+  if inicio and (contenido:sub(inicio, inicio + 3) == "<svg"
+      or (contenido:sub(inicio, inicio + 4) == "<?xml" and contenido:find("<svg", inicio, true))) then
+    return "svg"
+  end
   return nil
 end
 
@@ -56,16 +69,49 @@ local function reemplazo(imagen)
   return pandoc.Emph({ pandoc.Str("[imagen no disponible]") })
 end
 
--- Avisa si la extensión es de un formato que pdflatex no compone (SVG, WEBP,
--- GIF…); sin extensión no se puede saber y se deja pasar.
+-- Antes de descargar: avisa si la extensión es de un formato que no se puede
+-- componer ni convertir (GIF…); sin extensión no se puede saber y se deja pasar.
 local function formato_admitido(ruta, extension)
   if not extension or FORMATOS[extension] then return true end
   avisar(texto(
     "La imagen " .. ruta .. " está en formato " .. extension ..
-    ", que pdflatex no puede componer. Usa PNG, JPG o PDF.",
+    ", que pdflatex no puede componer. Usa PNG, JPG, PDF, SVG o WEBP.",
     "The image " .. ruta .. " is in " .. extension ..
-    " format, which pdflatex cannot typeset. Use PNG, JPG or PDF."))
+    " format, which pdflatex cannot typeset. Use PNG, JPG, PDF, SVG or WEBP."))
   return false
+end
+
+-- SVG o WEBP → PNG en la caché, con nombre por contenido: no se reconvierte.
+-- Devuelve el nombre para LaTeX, o nil tras avisar.
+local function convertir(origen, contenido, etiqueta, formato)
+  if not CONVERSOR then
+    avisar(texto(
+      "La imagen " .. etiqueta .. " es " .. formato:upper() .. " y no hay conversor disponible; queda el texto alternativo.",
+      "The image " .. etiqueta .. " is " .. formato:upper() .. " and no converter is available; the alt text is used."))
+    return nil
+  end
+  if not CACHE then return nil end
+  local nombre = utils.sha1(VERSION_CONVERSOR .. contenido) .. ".png"
+  local destino = CACHE .. "/" .. nombre
+  if existe(destino) then return nombre end
+  -- El motivo del fallo lo escribe el conversor en stderr (va al registro).
+  local ok, fallo = pcall(pandoc.pipe, CONVERSOR, { "--convert-image", origen, destino }, "")
+  -- 124: el conversor pasó su límite de tiempo (`CONVERTER_TIMEOUT`).
+  if not ok and type(fallo) == "table" and fallo.error_code == 124 then
+    avisar(texto(
+      "La imagen " .. etiqueta .. " (" .. formato:upper() .. ") tardó demasiado en convertirse; " ..
+      "expórtala a PNG desde el programa con que la hiciste. Queda el texto alternativo.",
+      "The image " .. etiqueta .. " (" .. formato:upper() .. ") took too long to convert; " ..
+      "export it to PNG from the program you made it with. The alt text is used."))
+    return nil
+  end
+  if not ok or not existe(destino) then
+    avisar(texto(
+      "No se pudo convertir la imagen " .. etiqueta .. " (" .. formato:upper() .. ") a PNG; queda el texto alternativo.",
+      "Could not convert the image " .. etiqueta .. " (" .. formato:upper() .. ") to PNG; the alt text is used."))
+    return nil
+  end
+  return nombre
 end
 
 local function descargar(imagen)
@@ -78,9 +124,9 @@ local function descargar(imagen)
     local ruta = CACHE .. "/" .. nombre .. "." .. posible
     local archivo = io.open(ruta, "rb")
     if archivo then
-      local inicio = archivo:read(8) or ""
+      local contenido = archivo:read("a") or ""
       archivo:close()
-      if formato_del_contenido(inicio) then return ruta end
+      if formato_del_contenido(contenido) then return ruta end
     end
   end
 
@@ -97,8 +143,8 @@ local function descargar(imagen)
   local final = formato_del_contenido(contenido)
   if not final then
     avisar(texto(
-      "La imagen " .. imagen.src .. " no es PNG, JPG ni PDF.",
-      "The image " .. imagen.src .. " is not PNG, JPG or PDF."))
+      "La imagen " .. imagen.src .. " no es PNG, JPG, PDF, SVG ni WEBP.",
+      "The image " .. imagen.src .. " is not PNG, JPG, PDF, SVG or WEBP."))
     return nil
   end
 
@@ -122,16 +168,33 @@ local function encuentra_local(ruta)
   return nil
 end
 
--- pdflatex corre en el temporal y no busca en TEXINPUTS una ruta que empieza
--- con `./` o `../`: se copia a la caché y LaTeX recibe solo el nombre.
-local function copia_a_cache(ruta)
-  if not CACHE then return nil end
-  local archivo = io.open(ruta, "rb")
-  if not archivo then return nil end
-  local contenido = archivo:read("a")
-  archivo:close()
-  local nombre = utils.sha1(ruta) .. "." .. (extension_de(ruta) or "png")
-  if not escribir(CACHE .. "/" .. nombre, contenido) then return nil end
+-- Deja lista para pdflatex la imagen que está en `encontrada`. Devuelve lo que
+-- recibe LaTeX: `src` si sirve tal cual, o un nombre en la caché; nil tras avisar.
+-- pdflatex elige el lector por la extensión, así que si no coincide con el
+-- contenido (`foto.png` que es JPG) se copia con la buena. También se copia con
+-- `copiar`: pdflatex corre en el temporal y no busca por TEXINPUTS una ruta con
+-- `./` o `../`, ni en una carpeta con el separador de rutas.
+local function preparar(encontrada, src, etiqueta, copiar)
+  local archivo = io.open(encontrada, "rb")
+  local contenido = archivo and archivo:read("a") or ""
+  if archivo then archivo:close() end
+  local formato = formato_del_contenido(contenido)
+  if not formato then
+    avisar(texto(
+      "La imagen " .. etiqueta .. " no es PNG, JPG, PDF, SVG ni WEBP; queda el texto alternativo.",
+      "The image " .. etiqueta .. " is not PNG, JPG, PDF, SVG or WEBP; the alt text is used."))
+    return nil
+  end
+  if formato == "svg" or formato == "webp" then return convertir(encontrada, contenido, etiqueta, formato) end
+  local extension = extension_de(src)
+  if extension == "jpeg" then extension = "jpg" end
+  if extension == formato and not copiar then return src end
+  local nombre = utils.sha1(encontrada) .. "." .. formato
+  if not CACHE or not escribir(CACHE .. "/" .. nombre, contenido) then
+    avisar(texto("No se pudo copiar la imagen " .. etiqueta .. " a la caché.",
+      "Could not copy the image " .. etiqueta .. " to the cache."))
+    return nil
+  end
   return nombre
 end
 
@@ -155,7 +218,9 @@ function Image(imagen)
     local ruta = descargar(imagen)
     if not ruta then return reemplazo(imagen) end
     -- Solo el nombre: pdflatex lo busca en la caché por TEXINPUTS (ver diagrams.lua).
-    imagen.src = ruta:match("[^/]+$")
+    local nombre = preparar(ruta, ruta:match("[^/]+$"), imagen.src, false)
+    if not nombre then return reemplazo(imagen) end
+    imagen.src = nombre
     return imagen
   end
 
@@ -173,17 +238,10 @@ function Image(imagen)
       "Image not found: " .. imagen.src .. "; the path is resolved from the Markdown folder."))
     return reemplazo(imagen)
   end
-  if not formato_admitido(imagen.src, extension_de(imagen.src)) then return reemplazo(imagen) end
-  -- LaTeX no busca en las carpetas con el separador de rutas: esas se copian.
-  if imagen.src:match("^%.") or (carpeta and INACCESIBLES[carpeta]) then
-    local nombre = copia_a_cache(encontrada)
-    if not nombre then
-      avisar(texto("No se pudo copiar la imagen " .. imagen.src .. " a la caché.",
-        "Could not copy the image " .. imagen.src .. " to the cache."))
-      return reemplazo(imagen)
-    end
-    imagen.src = nombre
-    return imagen
-  end
-  return nil
+  local copiar = imagen.src:match("^%.") ~= nil or (carpeta ~= nil and INACCESIBLES[carpeta] == true)
+  local nombre = preparar(encontrada, imagen.src, imagen.src, copiar)
+  if not nombre then return reemplazo(imagen) end
+  if nombre == imagen.src then return nil end
+  imagen.src = nombre
+  return imagen
 end

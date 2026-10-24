@@ -9,8 +9,9 @@ porque dependen de lo que el documento diga y no de cómo se compone.
 2. Referencias con sangría francesa. APA 7 pide que la primera línea de cada
    referencia vaya al margen y las demás sangradas. Aquí se localiza el
    encabezado «Referencias», se deshace la lista de viñetas si se escribió así y
-   se envuelve todo en el entorno ReferenceList, que cada formato define
-   (sangría francesa en APA, Harvard y MLA).
+   se envuelve todo en el entorno ReferenceList, que el formato define
+   (sangría francesa en APA). La lista llega hasta el siguiente encabezado de
+   su nivel o mayor; los subtítulos de dentro (`## Libros`) no la cortan.
 
 3. Listas muy anidadas. LaTeX admite 4 niveles de viñetas, 4 de números y 6
    en total; más allá se detiene con «Too deeply nested». Lo que pase del
@@ -149,17 +150,27 @@ function Pandoc(documento)
   documento = recorta_listas(documento)
   local salida = {}
   local dentro = false
+  local nivel -- el del encabezado de referencias
 
   for _, bloque in ipairs(documento.blocks) do
     if dentro and bloque.t == "Header" then
       salida[#salida + 1] = crudo("\\end{ReferenceList}")
       dentro = false
+      -- Un subtítulo (`## Libros`) no cierra las referencias: va fuera de la
+      -- sangría francesa y la lista sigue después de él.
+      if bloque.level > nivel and not es_encabezado_de_referencias(bloque) then
+        salida[#salida + 1] = bloque
+        salida[#salida + 1] = crudo("\\begin{ReferenceList}")
+        dentro = true
+        goto siguiente
+      end
     end
 
     if es_encabezado_de_referencias(bloque) then
       salida[#salida + 1] = bloque
       salida[#salida + 1] = crudo("\\begin{ReferenceList}")
       dentro = true
+      nivel = bloque.level
     elseif dentro then
       for _, parrafo in ipairs(a_parrafos(bloque)) do
         salida[#salida + 1] = parrafo
@@ -167,6 +178,7 @@ function Pandoc(documento)
     else
       salida[#salida + 1] = bloque
     end
+    ::siguiente::
   end
 
   if dentro then

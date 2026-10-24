@@ -5,7 +5,7 @@ mod common;
 use common::{data, has_tool, isolated_project, write};
 use investigacion::generate::{GenerateOptions, generate_pdf};
 use investigacion::i18n::Lang;
-use investigacion::template::{list_designs, list_formats, load_design};
+use investigacion::template::{list_designs, resolve_layout};
 
 const RICH_MARKDOWN: &str = r#"# Introducción
 
@@ -165,7 +165,7 @@ fn images_with_dot_relative_or_percent_encoded_paths_are_found() {
 }
 
 #[test]
-fn every_design_compiles_with_each_compatible_format_and_without_optional_fields() {
+fn every_design_compiles_with_and_without_optional_fields() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
     }
@@ -173,7 +173,7 @@ fn every_design_compiles_with_each_compatible_format_and_without_optional_fields
     let project = isolated_project(directory.path());
     let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
     let designs = list_designs(&project);
-    assert!(designs.len() >= 2, "{designs:?}");
+    assert!(!designs.is_empty(), "{designs:?}");
 
     let mut full = data("Completo");
     full.members = vec!["Ana Ruiz".into(), "Luis Paz".into()];
@@ -183,34 +183,28 @@ fn every_design_compiles_with_each_compatible_format_and_without_optional_fields
     bare.teacher.clear();
 
     for design in designs {
-        let accepted = load_design(&project, Some(&design)).unwrap();
-        for format in list_formats(&project).into_iter().filter(|f| accepted.accepts(f)) {
-            for (index, values) in [&full, &bare].into_iter().enumerate() {
-                let options = GenerateOptions {
-                    design: Some(design.clone()),
-                    format: Some(format.clone()),
-                    file_name: Some(format!("{design}-{format}-{index}")),
-                    ..Default::default()
-                };
-                let pdf = generate_pdf(
-                    &project,
-                    &source,
-                    &directory.path().join("salida"),
-                    values,
-                    &options,
-                    &mut |_| {},
-                )
-                .unwrap_or_else(|e| panic!("{design} + {format}: {e}"));
-                assert!(pdf.is_file());
-                // El estado de LaTeX se guarda aunque el diseño no tenga índice.
-                let prefix = format!("{design}-{format}-{index}-");
-                let saved =
-                    std::fs::read_dir(project.cache_dir().join("latex")).unwrap().flatten().any(|e| {
-                        e.file_name().to_string_lossy().starts_with(&prefix)
-                            && e.path().join("trabajo.toc").is_file()
-                    });
-                assert!(saved, "{design} + {format}: the latex state was not saved");
-            }
+        for (index, values) in [&full, &bare].into_iter().enumerate() {
+            let options = GenerateOptions {
+                layout: Some(resolve_layout(&project, Some(&design)).unwrap()),
+                file_name: Some(format!("{design}-{index}")),
+                ..Default::default()
+            };
+            let pdf = generate_pdf(
+                &project,
+                &source,
+                &directory.path().join("salida"),
+                values,
+                &options,
+                &mut |_| {},
+            )
+            .unwrap_or_else(|e| panic!("{design}: {e}"));
+            assert!(pdf.is_file());
+            // El estado de LaTeX se guarda aunque el diseño no tenga índice.
+            let prefix = format!("{design}-{index}-");
+            let saved = std::fs::read_dir(project.cache_dir().join("latex")).unwrap().flatten().any(|e| {
+                e.file_name().to_string_lossy().starts_with(&prefix) && e.path().join("trabajo.toc").is_file()
+            });
+            assert!(saved, "{design}: the latex state was not saved");
         }
     }
 }
@@ -244,17 +238,13 @@ fn cover_labels_follow_the_document_language() {
     let project = isolated_project(directory.path());
     let source =
         write(directory.path(), "paper.md", "# Introduction\n\nText.\n\n# References\n\nSmith (2020).\n");
-    let options = GenerateOptions {
-        design: Some("classic-cover".into()),
-        doc_lang: Some(Lang::En),
-        ..Default::default()
-    };
+    let options = GenerateOptions { doc_lang: Some(Lang::En), ..Default::default() };
     let pdf =
         generate_pdf(&project, &source, &directory.path().join("out"), &data("Paper"), &options, &mut |_| {})
             .unwrap();
     let text = std::process::Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
     let text = String::from_utf8_lossy(&text.stdout);
-    assert!(text.contains("Course:") && !text.contains("Materia:"), "{text}");
+    assert!(text.contains("COURSE:") && !text.contains("MATERIA:"), "{text}");
 }
 
 #[test]
@@ -275,14 +265,17 @@ fn a_minimal_design_with_a_custom_field_compiles() {
     let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
     let mut values = data("Minimo");
     values.fields.insert("SALON".into(), "B-204 & Lab".into());
-    let options = GenerateOptions { design: Some("minimal".into()), ..Default::default() };
+    let options = GenerateOptions {
+        layout: Some(resolve_layout(&project, Some("minimal")).unwrap()),
+        ..Default::default()
+    };
     let pdf = generate_pdf(&project, &source, &directory.path().join("out"), &values, &options, &mut |_| {})
         .unwrap();
     assert!(pdf.is_file());
 }
 
 #[test]
-fn the_starter_design_passes_the_check_with_every_format() {
+fn the_built_in_design_passes_the_check() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
     }
@@ -294,8 +287,208 @@ fn the_starter_design_passes_the_check_with_every_format() {
     for file in ["catalog.md", "sample-image.png"] {
         std::fs::copy(common::root().join("examples").join(file), examples.join(file)).unwrap();
     }
-    let report = investigacion::check::check_design(&project, "starter", &mut |_| {}).unwrap();
+    let report = investigacion::check::check_design(&project, "geometric-cover", &mut |_| {}).unwrap();
     assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
-    assert_eq!(report.builds.len(), 3);
+    assert_eq!(report.builds.len(), 1);
     assert!(report.passed(), "{report:?}");
+    // La revisión compila en una carpeta temporal: no deja estado en cache/latex/.
+    assert!(!directory.path().join("cache").join("latex").exists());
+}
+
+/// Genera un trabajo con una imagen copiada de `examples/` (o con `content`)
+/// usando el binario como conversor; devuelve los avisos y la carpeta.
+fn build_with_image(name: &str, content: &[u8]) -> Option<(Vec<String>, tempfile::TempDir)> {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return None;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join(name), content).unwrap();
+    let source = write(directory.path(), "trabajo.md", &format!("# Introducción\n\n![Figura]({name})\n"));
+    let options =
+        GenerateOptions { converter: Some(env!("CARGO_BIN_EXE_investigacion").into()), ..Default::default() };
+    let mut warnings = Vec::new();
+    let pdf = generate_pdf(
+        &isolated_project(directory.path()),
+        &source,
+        &directory.path().join("salida"),
+        &data("Imagen"),
+        &options,
+        &mut |w| warnings.push(w),
+    )
+    .unwrap();
+    assert!(pdf.is_file());
+    Some((warnings, directory))
+}
+
+fn converted_pngs(directory: &tempfile::TempDir) -> usize {
+    std::fs::read_dir(directory.path().join("cache/remote"))
+        .unwrap()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "png"))
+        .count()
+}
+
+#[test]
+fn an_svg_image_is_converted_to_png() {
+    let svg = std::fs::read(common::root().join("examples/sample-vector.svg")).unwrap();
+    let Some((warnings, directory)) = build_with_image("figura.svg", &svg) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+// Un WEBP con extensión .png (pasa al guardar desde el navegador) rompía pdflatex.
+#[test]
+fn a_webp_image_is_converted_even_with_a_misleading_extension() {
+    let webp = std::fs::read(common::root().join("examples/sample-photo.webp")).unwrap();
+    let Some((warnings, directory)) = build_with_image("falsa.png", &webp) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+#[test]
+fn a_broken_svg_is_a_warning_and_the_pdf_is_still_made() {
+    let Some((warnings, _directory)) = build_with_image("rota.svg", b"<svg <<< no es un svg") else { return };
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("rota.svg"), "{warnings:?}");
+}
+
+/// Genera un trabajo sin imágenes con un solo logo, `name`, en su carpeta;
+/// devuelve los avisos, el PDF y la carpeta.
+fn build_with_logo(name: &str, content: &[u8]) -> Option<(Vec<String>, Vec<u8>, tempfile::TempDir)> {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return None;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let logos = directory.path().join("mis-logos");
+    std::fs::create_dir(&logos).unwrap();
+    std::fs::write(logos.join(name), content).unwrap();
+    let source = write(directory.path(), "trabajo.md", "# Introducción\n\nTexto.\n");
+    let options = GenerateOptions { logos: Some(logos), ..Default::default() };
+    let mut warnings = Vec::new();
+    let pdf = generate_pdf(
+        &isolated_project(directory.path()),
+        &source,
+        &directory.path().join("salida"),
+        &data("Logo"),
+        &options,
+        &mut |w| warnings.push(w),
+    )
+    .unwrap();
+    Some((warnings, std::fs::read(pdf).unwrap(), directory))
+}
+
+fn has_image(pdf: &[u8]) -> bool {
+    pdf.windows(13).any(|w| w == b"/Subtype/Imag" || w == b"/Subtype /Ima")
+}
+
+#[test]
+fn an_svg_logo_is_converted_and_shown() {
+    let svg = std::fs::read(common::root().join("examples/sample-vector.svg")).unwrap();
+    let Some((warnings, pdf, directory)) = build_with_logo("logo-universidad.svg", &svg) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert!(has_image(&pdf));
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+// Un WEBP guardado como .png: se reconoce por el contenido.
+#[test]
+fn a_webp_logo_is_converted_even_with_a_misleading_extension() {
+    let webp = std::fs::read(common::root().join("examples/sample-photo.webp")).unwrap();
+    let Some((warnings, pdf, directory)) = build_with_logo("logo-universidad.png", &webp) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert!(has_image(&pdf));
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+#[test]
+fn a_broken_logo_is_a_warning_and_the_cover_goes_without_it() {
+    let Some((warnings, pdf, _directory)) = build_with_logo("logo-facultad.svg", b"<svg <<<") else { return };
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("logo-facultad.svg"), "{warnings:?}");
+    assert!(!has_image(&pdf));
+}
+
+/// Genera dos veces en el mismo proyecto (con `between` en medio) con un diseño
+/// con índice y sin compresión, para leer el texto del PDF. Devuelve el
+/// segundo PDF y el `.toc` guardado en `cache/latex/`.
+fn build_twice(first: &str, second: &str, between: impl Fn(&std::path::Path)) -> Option<(Vec<u8>, String)> {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return None;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    let design = directory.path().join("my-templates/designs/toc");
+    std::fs::create_dir_all(&design).unwrap();
+    std::fs::write(
+        design.join("template.ltx"),
+        "\\documentclass[%%CLASS_OPTIONS%%]{article}\n\\usepackage{investigacion-base}\n%%FORMAT%%\n\\usepackage{investigacion-final}\n\\pdfcompresslevel=0 \\pdfobjcompresslevel=0\n\\begin{document}\n\\tableofcontents\n%%CONTENIDO_MARKDOWN%%\n\\end{document}\n",
+    )
+    .unwrap();
+    let options = GenerateOptions {
+        layout: Some(resolve_layout(&project, Some("toc")).unwrap()),
+        ..Default::default()
+    };
+    let output = directory.path().join("salida");
+    let state_dirs = || -> Vec<std::path::PathBuf> {
+        let latex = directory.path().join("cache").join("latex");
+        std::fs::read_dir(latex).unwrap().flatten().map(|entry| entry.path()).collect()
+    };
+    let build = |markdown: &str| {
+        let source = write(directory.path(), "trabajo.md", markdown);
+        let pdf = generate_pdf(&project, &source, &output, &data("Caché"), &options, &mut |_| {}).unwrap();
+        std::fs::read(pdf).unwrap()
+    };
+    build(first);
+    let state = state_dirs();
+    assert_eq!(state.len(), 1, "una carpeta de estado por trabajo: {state:?}");
+    between(&state[0]);
+    let pdf = build(second);
+    assert_eq!(state_dirs(), state, "la segunda generación usa la misma carpeta");
+    let toc = std::fs::read(state[0].join("trabajo.toc")).unwrap();
+    Some((pdf, String::from_utf8_lossy(&toc).into_owned()))
+}
+
+fn contains(haystack: &[u8], needle: &str) -> bool {
+    haystack.windows(needle.len()).any(|window| window == needle.as_bytes())
+}
+
+// La segunda generación arranca con el índice de la anterior: si no viera que
+// cambió un encabezado, el PDF saldría con el índice viejo. Los números no
+// llevan interletraje, así que salen enteros en el PDF sin comprimir.
+#[test]
+fn the_cached_latex_state_follows_a_changed_heading() {
+    let Some((pdf, toc)) = build_twice("# Parte 1111\n\nTexto.\n", "# Parte 2222\n\nTexto.\n", |_| {}) else {
+        return;
+    };
+    assert!(toc.contains("2222") && !toc.contains("1111"), "{toc}");
+    assert!(contains(&pdf, "2222") && !contains(&pdf, "1111"), "el índice del PDF quedó viejo");
+}
+
+// Un `.aux` roto en la caché no impide el PDF: se compila desde cero.
+#[test]
+fn a_broken_cached_aux_still_gives_the_pdf() {
+    let markdown = "# Parte 3333\n\nTexto.\n";
+    let broken =
+        |state: &std::path::Path| std::fs::write(state.join("trabajo.aux"), "\\relax\n\\roto{").unwrap();
+    let Some((pdf, toc)) = build_twice(markdown, markdown, broken) else { return };
+    assert!(toc.contains("3333") && contains(&pdf, "3333"), "{toc}");
+}
+
+// pdfTeX guardaba en el PDF la ruta absoluta de cada PDF incluido
+// (PTEX.FileName): la caché y la carpeta personal salían en el archivo.
+#[test]
+fn the_pdf_does_not_contain_local_paths() {
+    let Some((first, _, _first_dir)) = build(RICH_MARKDOWN, "Primero") else { return };
+    let figure = std::fs::read(&first).unwrap();
+    let Some((warnings, directory)) = build_with_image("figura.pdf", &figure) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    let pdf = std::fs::read(directory.path().join("salida/trabajo.pdf")).unwrap();
+    // El diccionario de un PDF incluido (un Form XObject) nunca va comprimido:
+    // si está a la vista, PTEX.FileName también lo estaría.
+    assert!(contains(&pdf, "/Subtype /Form"), "the included PDF should be a visible form XObject");
+    assert!(!contains(&pdf, "PTEX"), "the PDF keeps PTEX keys");
+    for path in [directory.path(), &std::env::temp_dir()] {
+        let path = path.to_string_lossy();
+        assert!(!contains(&pdf, &path), "the PDF contains {path}");
+    }
 }

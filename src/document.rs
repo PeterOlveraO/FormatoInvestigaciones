@@ -31,7 +31,6 @@ pub struct DocumentData {
     pub university: String,
     pub faculty: String,
     pub student: String,
-    pub semester: String,
     pub title: String,
     pub course: String,
     pub teacher: String,

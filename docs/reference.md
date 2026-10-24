@@ -22,7 +22,7 @@ the code wins. Related files:
 | [`prompts/design.md`](prompts/design.md) | Prompt that tells an AI how to make a compatible design |
 | [`changelog.md`](changelog.md) | User-visible changes |
 | [`../courses/README.md`](../courses/README.md), [`../courses/example.toml`](../courses/example.toml) | Profile file reference and an example |
-| [`../examples/catalog.md`](../examples/catalog.md), [`../examples/syntax.md`](../examples/syntax.md) | Papers that exercise every supported element |
+| [`../examples/catalog.md`](../examples/catalog.md) | Paper that exercises every supported element |
 
 ## Table of contents
 
@@ -33,10 +33,10 @@ the code wins. Related files:
 5. [Data model and precedence](#5-data-model-and-precedence)
 6. [Settings and environment variables](#6-settings-and-environment-variables)
 7. [Course profiles and the wizard](#7-course-profiles-and-the-wizard)
-8. [Formats and designs](#8-formats-and-designs)
+8. [Format and designs](#8-format-and-designs)
 9. [The design contract, markers and custom fields](#9-the-design-contract-markers-and-custom-fields)
 10. [Checking a design: `--check-template`](#10-checking-a-design---check-template)
-11. [Making your own design or format](#11-making-your-own-design-or-format)
+11. [Making your own design](#11-making-your-own-design)
 12. [Writing the paper: Markdown syntax](#12-writing-the-paper-markdown-syntax)
 13. [Lua filters](#13-lua-filters)
 14. [Reading, cleaning and finding the Markdown](#14-reading-cleaning-and-finding-the-markdown)
@@ -64,9 +64,10 @@ paper.md  ->  investigacion  ->  output/paper.pdf
 
 - **Binary:** `investigacion` (`src/main.rs`). With no arguments it opens the
   full-screen menu; with arguments it is a normal CLI.
-- **Built-in formats** (the norm): `apa7` (default), `harvard`, `mla`.
-- **Built-in designs** (cover and look): `geometric-cover` (default),
-  `classic-cover`, `report`, `starter`.
+- **Format** (the norm): `apa7`, the only one. Every PDF uses it unless the
+  design is self-contained.
+- **Built-in design** (cover and look): `geometric-cover`. Your own designs go
+  in `my-templates/designs/`.
 - **Languages:** the interface (menu, messages, help) is Spanish or English.
   The PDF language is separate (the "document language"); papers are Spanish
   by default.
@@ -108,10 +109,12 @@ instead of breaking the build.
 | `clap` (derive) | Argument parsing; help and errors are re-localized in `src/cli.rs` |
 | `ratatui`, `crossterm` | The menu; same behavior on Linux, macOS and Windows |
 | `serde`, `toml` | Manifests (`format.toml`, `template.toml`) and course profiles |
+| `resvg` (text, system fonts) | SVG to PNG without external tools (`src/image.rs`) |
+| `image` (only `webp`) | WEBP decoding |
+| `png` | Writes the converted PNG with its resolution (pHYs); already pulled in by `image` and `resvg` |
 | `regex` | Marker extraction, Markdown cleanup, log parsing, settings keys |
 | `chrono` | Delivery date and log timestamps |
 | `tempfile` | Build folder, filter folder, check output |
-| `thiserror` | `GenerationError` |
 | `opener` | Open the PDF and project folders from the menu |
 | `sys-locale` | Detect the operating-system language |
 | `unicode-normalization` | Strip accents (`slugify`, heading comparison) |
@@ -137,7 +140,7 @@ The **project root** is found by `Project::discover()` (`src/project.rs`):
 
 The program folder (`root`) holds the templates, examples, cache and
 `settings.toml`. Your data lives in the **work folder** (`Project::work`):
-`input/`, `output/`, `courses/`, `my-templates/` and `logos/`. It is chosen on
+`input/`, `output/`, `courses/`, `my-templates/designs/` and `logos/`. It is chosen on
 the first run (or Options → `w`) and saved as `CARPETA_TRABAJO`; without one it
 is the program folder itself, as below. `-p example` still finds
 `courses/example.toml` in the program folder.
@@ -150,18 +153,18 @@ is the program folder itself, as below. `-p example` still finds
   settings.toml             remembered language (IDIOMA), theme (TEMA), work folder (CARPETA_TRABAJO), optional LOGOS
   templates/
     common/                 investigacion-base.sty, investigacion-final.sty (the base layer)
-    formats/<f>/            format.sty + format.toml (the norm)
-    designs/<d>/            template.ltx + template.toml (cover and look); optional logos/ and *.sty
-    logos/                  logo-universidad.png, logo-facultad.png (+ README.md)
+    formats/apa7/           format.sty + format.toml (the norm)
+    designs/geometric-cover/ template.ltx + template.toml (cover and look); optional logos/ and *.sty
+    logos/                  logo-universidad.*, logo-facultad.* (+ README.md)
   my-templates/
-    formats/<f>/            your own formats (same structure)
     designs/<d>/            your own designs (same structure)
   cache/
     latex/<pdf>-<hash>/     cached .aux/.toc of the last build of each PDF
-    remote/                 downloaded web images (<sha1 of URL>.png|jpg|pdf)
+    remote/                 downloaded web images (<sha1 of URL>.png|jpg|pdf|svg|webp),
+                            SVG/WEBP converted to PNG (<sha1>.png, logo-<hash>.png)
     diagrams/               compiled Graphviz diagrams (<sha1 of code>.pdf)
     logs/                   investigacion.log (and investigacion.old.log)
-  examples/                 Spanish sample papers; catalog.md is the visual test bench
+  examples/                 catalog.md (the visual test bench), catalog.pdf and its sample images
   docs/                     documentation and README screenshots (docs/images/)
   resources/filters/        Lua filters (embedded into the binary at build time)
   src/, tests/              Rust code and integration tests
@@ -182,8 +185,9 @@ Personal data never goes into the repository (`.gitignore`):
 | `/input/`, `/output/` | Your papers and PDFs |
 | `/courses/*` except `example.toml` and `README.md` | Profiles hold teacher and student names |
 | `/templates/logos/*` except `README.md`, and `/templates/*/logos/` | Institutional logos are rarely redistributable |
-| `/my-templates/` | Your own formats and designs |
+| `/my-templates/` | Your own designs |
 | `/cache/` | Regenerable; the log contains paths and titles |
+| `/local/` | Everything that is not versioned goes here (notes, loose PDFs, scratch tests) |
 | `last-error.tex`, `last-error.log` | Leftovers of failed builds |
 | `/target/`, editor and OS files | Build output and noise |
 
@@ -227,26 +231,27 @@ which calls `generate::generate_pdf()`. Steps in the order they actually run:
 |---|---|---|---|---|
 | 1 | Settings | `Settings::load` | `src/settings.rs` | Reads `settings.toml` (or `--settings`) |
 | 2 | Profile | `find_course` | `src/courses.rs` | Loads `courses/<key>.toml` when `-p` is given |
-| 3 | Layout | `resolve_layout` | `src/template.rs` | Picks design and format; checks they are compatible |
+| 3 | Layout | `resolve_layout` | `src/template.rs` | Loads the design (a retired name leads to `geometric-cover` with a warning) and, unless it is self-contained, the APA 7 format |
 | 4 | Data | `pick()` and `DocumentData` | `src/cli.rs`, `src/document.rs` | Merges CLI > profile; date in the document language |
 | 5 | Required data | `missing_data` | `src/generate.rs` | Errors before reading any file if the design needs data that is empty |
 | 6 | Locate and read | `locate_markdown`, `read_markdown` | `src/cli.rs`, `src/markdown.rs` | Finds the file (profile folder first), decodes UTF-8/UTF-16/Windows-1252 |
 | 7 | Normalize | `normalize_markdown` | `src/markdown.rs` | Removes invisible spaces (part of `read_markdown`) |
 | 8 | Validate | `validate_markdown` | `src/markdown.rs` | Warns about missing or out-of-order recommended headings |
-| 9 | Re-resolve | `generate_pdf` | `src/generate.rs` | Checks the file is `.md` and non-empty; resolves layout and `missing_data` again; picks the logos folder |
+| 9 | Re-check | `generate_pdf` | `src/generate.rs` | Checks the file is `.md` and non-empty; runs `missing_data` again on the layout it received; picks the logos folder |
 | 10 | Template markers | `Layout::format_block`, `class_options` | `src/template.rs` | Replaces `%%FORMAT%%` and `%%CLASS_OPTIONS%%` in `template.ltx` |
 | 11 | Pandoc | `pandoc_to_latex` | `src/pandoc.rs` | Markdown to a LaTeX **fragment** through the Lua filters |
 | 12 | Render | `render_template` | `src/latex.rs` | Replaces the data markers (escaped), then inserts the Pandoc content last |
-| 13 | Assets | `copy_template_assets` | `src/compile.rs` | Copies `.sty` files, the format and the logos to a temp folder |
+| 13 | Assets | `copy_template_assets`, `copy_logos` | `src/compile.rs`, `src/generate.rs` | Copies `.sty` files and the format to a temp folder, and each logo with the extension of its content (SVG/WEBP converted to PNG) |
 | 14 | Compile | `compile_pdf` | `src/compile.rs` | `pdflatex` passes with the `.aux/.toc` cache |
 | 15 | Copies | `copy_pdf_to` | `src/generate.rs` | Optional extra copies of the PDF |
 
 Notes on the order:
 
-- Steps 3 and 5 run twice (in `run_generation` and again in `generate_pdf`).
-  The first run lets the CLI fail before touching the Markdown; the second
-  keeps `generate_pdf` safe when it is called directly (as `--check-template`
-  does).
+- The layout is resolved once, in `run_generation`, and handed to
+  `generate_pdf` in `GenerateOptions::layout` (`None` = the default design).
+  Step 5 runs twice: the first lets the CLI fail before touching the
+  Markdown; the second keeps `generate_pdf` safe when it is called directly
+  (as `--check-template` does).
 - Step 8 only runs in `execute()`. `generate_pdf` and `--check-template` do not
   validate headings.
 - `AGENTS.md` lists the same names in a simplified order
@@ -286,8 +291,10 @@ pandoc - --from=markdown-raw_tex+mark+emoji+autolink_bare_uris --to=latex --wrap
   `INVESTIGACION_RESOURCES` (one folder per line), `INVESTIGACION_UNSEARCHABLE`
   (the folders left out above, one per line), `INVESTIGACION_MARKDOWN_FORMAT`
   (the reader string, so diagram and chart captions follow `--allow-latex` like
-  the body), `INVESTIGACION_LANG` (interface language) and
-  `INVESTIGACION_DOC_LANG` (document language). Paths go through
+  the body), `INVESTIGACION_LANG` (interface language),
+  `INVESTIGACION_DOC_LANG` (document language) and, when the program knows its
+  own path, `INVESTIGACION_CONVERTER` (this binary, for SVG/WEBP) and
+  `INVESTIGACION_CONVERTER_VERSION` (part of the converted PNG's name). Paths go through
   `pandoc::posix()` (always `/`).
 - Filters are embedded with `include_str!` (`LUA_FILTERS` in
   `src/pandoc.rs`) and written to a temp folder on each run, each one with
@@ -313,10 +320,14 @@ command-line option  >  course profile
   value (and `missing_data` then complains if the design requires it). The menu
   never passes empty strings: an empty form field becomes `None`, so the
   profile applies.
-- Design and format: option, then profile, then the design's first listed
-  format, then `apa7`.
+- Design: option, then profile, then `geometric-cover`. The format is always
+  `apa7`; a `--format` or profile `format` other than `apa7` is ignored with
+  the warning "The format "X" no longer exists; APA 7 is used.".
 - Document language: `--doc-lang`, then the profile's `language`, then the
-  format's `language`, then Spanish.
+  format's `language` (`es`).
+- In the menu, with a profile chosen, a cover field you clear is passed as an
+  empty value, so that line leaves the PDF too; without a profile, empty
+  fields are not passed.
 
 ### `DocumentData` (`src/document.rs`)
 
@@ -326,8 +337,7 @@ command-line option  >  course profile
 | `university` | `UNIVERSIDAD` | `--set UNIVERSIDAD=...` | `university` |
 | `faculty` | `FACULTAD` | `--set FACULTAD=...` | `faculty` |
 | `student` | `ALUMNO` | `--set ALUMNO=...` | `student` |
-| `semester` | `SEMESTRE` | `--set SEMESTRE=...` | `semester` |
-| `course` | `MATERIA` | `--course` | `name` |
+| `course` | `MATERIA` | `--course`, then `--set MATERIA=...` | `name` |
 | `teacher` | `DOCENTE` | `--teacher`, then `--set DOCENTE=...` | `teacher` |
 | `members` | `INTEGRANTES` | `--members`, then `--set INTEGRANTES=...` | `members` |
 | `group` | `GRUPO` | `--group`, then `--set GRUPO=...` | `group` |
@@ -335,9 +345,13 @@ command-line option  >  course profile
 | `fields` | custom markers | `--set NAME=value` (name uppercased) | `[fields]` table |
 
 - `--set` also accepts the names of the standard data above (it is how a run
-  without a profile supplies university, faculty, student or semester). Every
+  without a profile supplies university, faculty or student). Every
   `--set` pair also goes into `fields`; unused entries are ignored.
-- `--set MATERIA=...` is **not** read; use `--course`.
+- `SEMESTRE` is no longer standard data. A profile `semester` is ignored with
+  a warning ("put the term in group"); `--set SEMESTRE=...` is ignored with a
+  warning too, unless the design uses `%%SEMESTRE%%`, which makes it a custom
+  field.
+- `--set MATERIA=...` works too; `--course` wins over it.
 - Members: one string split on `,` or `;`, trimmed, empty names dropped
   (`"Ana,,Luis,"` is two names). Members **replace** the student on the cover and
   in the PDF metadata.
@@ -367,7 +381,7 @@ Keys the program reads:
 | Key | Meaning |
 |---|---|
 | `IDIOMA` (alias `INTERFACE_LANGUAGE`) | Interface language: `es`/`en` (also `español`, `inglés`, `spanish`, `english`, and with a region: `en-US`, `es_MX`) |
-| `CARPETA_TRABAJO` (alias `INVESTIGACION_WORKSPACE`) | Work folder with `input/`, `output/`, `courses/`, `my-templates/` and `logos/`; empty or missing = the program folder |
+| `CARPETA_TRABAJO` (alias `INVESTIGACION_WORKSPACE`) | Work folder with `input/`, `output/`, `courses/`, `my-templates/designs/` and `logos/`; empty or missing = the program folder |
 | `TEMA` (alias `THEME`) | Menu color theme: `classic`, `dracula`, `nord`, `gruvbox`, `catppuccin`, `tokyo-night` |
 | `LOGOS` | Folder with the logos, used when `--logos` is not given |
 
@@ -391,15 +405,16 @@ Keys the program reads:
 | `INVESTIGACION_LOG` | `logging` | `debug`, `off`/`0`; anything else or unset is `info` ([section 18](#18-logging)) |
 | `INVESTIGACION_TIMING` | `process::report_timing` | `1` prints `[timing] <step>: <s>` to stderr |
 | `IDIOMA`, `INTERFACE_LANGUAGE`, `CARPETA_TRABAJO`, `INVESTIGACION_WORKSPACE`, `LOGOS` | `Settings::get` | Override `settings.toml` |
+| `INVESTIGACION_CONVERTER_TIMEOUT_MS` | `image::run_cli` | Tests only: a shorter limit for `--convert-image` instead of 30 s |
 | `TEXINPUTS` | `compile::latex_search_path` | `.` (the temp folder), the Markdown folder and the image caches first; existing value preserved after them |
 | `HOME` / `USERPROFILE` | `expand_home` | `~` expansion |
-| `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_UNSEARCHABLE`, `INVESTIGACION_MARKDOWN_FORMAT`, `INVESTIGACION_LANG`, `INVESTIGACION_DOC_LANG` | Lua filters | **Set by the program** for Pandoc; do not set by hand |
+| `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_UNSEARCHABLE`, `INVESTIGACION_MARKDOWN_FORMAT`, `INVESTIGACION_LANG`, `INVESTIGACION_DOC_LANG`, `INVESTIGACION_CONVERTER`, `INVESTIGACION_CONVERTER_VERSION` | Lua filters | **Set by the program** for Pandoc; do not set by hand |
 
 ## 7. Course profiles and the wizard
 
-A profile (`courses/<key>.toml`) keeps everything for one course: format,
-design and all the cover data. Two courses can use different formats,
-teachers or universities. The file name (without `.toml`) is the profile's
+A profile (`courses/<key>.toml`) keeps everything for one course: the design
+and all the cover data. Two courses can use different designs, teachers or
+universities. The file name (without `.toml`) is the profile's
 key: `ia.toml` is used with `-p ia`.
 
 ### Schema (`CourseProfile` in `src/courses.rs`)
@@ -416,10 +431,9 @@ All keys are strings except `fields`. Unknown keys are an error
 | `members` | no | Team members, separated by commas (or `;`); replace the student | `INTEGRANTES` |
 | `teacher` | no | Teacher | `DOCENTE` |
 | `group` | no | Group, for example `7-A` | `GRUPO` |
-| `semester` | no | Term, for example `2026-2` | `SEMESTRE` |
-| `format` | no | `apa7`, `harvard`, `mla` or one of yours | n/a |
-| `design` (alias `template`) | no | `geometric-cover`, `classic-cover`, `report`, `starter` or one of yours; legacy `apa`/`apa-simple` still work | n/a |
-| `language` | no | Document language `es` or `en`; default is the format's | n/a |
+| `design` (alias `template`) | no | `geometric-cover` or one of yours; the retired names `apa`, `apa-simple`, `classic-cover`, `report`, `starter` lead to `geometric-cover` with a warning | n/a |
+| `language` | no | Document language `es` or `en`; default is the format's (`es`) | n/a |
+| `semester`, `format` | no | **Retired.** Read so old profiles still load, ignored with a one-line warning (`format = "apa7"` gives none), never saved | n/a |
 | `folder` | no | Subfolder of `input/` (lookup) and `output/` (PDFs) | n/a |
 | `output` | no | Folder for the PDFs; wins over `output/<folder>`. Relative to the work folder, `~` expanded | n/a |
 | `copies` | no | Array of extra folders for a copy of the PDF; `--copy` replaces them | n/a |
@@ -434,11 +448,9 @@ faculty = "Nombre de la facultad"
 student = "Nombre del alumno"
 # members = "Ana Ruiz, Luis Paz"         # replaces the student
 teacher = "Nombre del docente"
-group = "7-A"
-semester = "2026-2"
-format = "apa7"
-design = "geometric-cover"
-# language = "es"                        # default: the format's
+group = "7-A"                            # group or term
+design = "geometric-cover"               # or one of yours in my-templates/designs/
+# language = "es"                        # default: Spanish
 folder = "IA"                            # input/IA and output/IA
 # output = "~/Documentos/Entregas/IA"     # instead of output/IA
 # copies = ["~/Drive/IA"]                 # extra copies of the PDF
@@ -456,14 +468,15 @@ Behavior:
   is in English) and an empty `name` are reported with the file path. A broken
   profile does not hide the others: `list_courses` returns the valid ones and
   the errors apart, and the menu shows the errors as warnings.
-- **Old profiles:** `subject = ...` and `template = "apa"` still work.
+- **Old profiles:** `subject = ...` and `template = "apa"` still work;
+  `semester` and `format` are read and ignored with a warning.
 - **`folder`:** the Markdown is looked up in `input/<folder>` first (only if
   that directory exists), and the PDF goes to `output/<folder>`.
 - **Fields not used by the design** are silently ignored.
 - **Saving** (`save_profile`): writes only non-empty keys, in the order
-  `name, university, faculty, student, members, teacher, group, semester,
-  format, design, language, folder, output`, then `copies` (an array), then
-  `[fields]`. The key is `slugify`'d.
+  `name, university, faculty, student, members, teacher, group, design,
+  language, folder, output`, then `copies` (an array), then `[fields]`
+  (`semester` and `format` are dropped). The key is `slugify`'d.
   An existing file with the same key is replaced.
 - **Privacy:** `courses/*.toml` is git-ignored except `example.toml`.
 - **`example.toml`** holds placeholders. It is not listed in the menu and does
@@ -482,9 +495,8 @@ answer with "This field is required."
 | # | Step | Widget | Required |
 |---|---|---|---|
 | 1 | Profile name (`Key`) | text, saved as `slugify(value)` | yes |
-| 2 | Format | list (type to filter) | yes |
-| 3 | Design | list, only designs that accept the format (or self-contained) | yes |
-| 4+ | One step per **standard marker the design uses**, in this order: `UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO`, `SEMESTRE` | text | `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `MATERIA` unless the design lists them in `optional`; others never |
+| 2 | Design | list (type to filter), with each design's description | yes |
+| 3+ | One step per **standard marker the design uses**, in this order: `UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO` | text | `UNIVERSIDAD`, `FACULTAD`, `MATERIA` unless the design lists them in `optional`; others never |
 | ... | One step per **custom field** of the design (label and help from `template.toml`) | text | only if `required = true` |
 | ... | Papers folder (`folder`) | folder picker that starts in `input/<folder>` (or `input/`); `./` saves the folder relative to `input/` (`./` in `input/` itself = none); a folder outside `input/` is refused | no |
 | last | Extra copies (`copies`) | folder picker: each `./` is added and the step stays | no |
@@ -500,9 +512,7 @@ papers folder is saved relative to `input/`.
 
 Details:
 
-- The steps after the design are rebuilt when the design changes. Changing
-  the format clears the design (and the steps after it) if the design does not
-  accept the new format.
+- The steps after the design are rebuilt when the design changes.
 - When editing an existing profile, every answer is pre-filled and the data
   steps are shown immediately. The key can be edited; saving under a new key
   creates a new file and leaves the old one.
@@ -515,102 +525,97 @@ Details:
 - If the profile cannot be saved (no permission, full disk, a removed USB), the
   wizard stays on its last step and shows the error; what you typed is kept.
 
-## 8. Formats and designs
+## 8. Format and designs
 
-A PDF combines two things chosen separately, on top of a universal base:
+A PDF combines two layers on top of a universal base:
 
 ```
 DESIGN  templates/designs/<d>/template.ltx + template.toml   cover or title block, look, custom fields
-FORMAT  templates/formats/<f>/format.sty  + format.toml      the norm: font, spacing, headings, captions, references, page number
+FORMAT  templates/formats/apa7/format.sty + format.toml      the norm: font, spacing, headings, captions, references, page number
 BASE    templates/common/investigacion-base.sty / -final.sty universal: Pandoc compatibility, diagrams, charts, Unicode
 ```
 
 - **Base** (`templates/common/`) is the same for everything.
-- **Format** decides how the paper is typeset.
-- **Design** decides the cover and what data is shown.
-- A design lists the formats it works with; a design without `%%FORMAT%%` is
-  **self-contained** and carries all its own rules (no format is applied).
-- User-made formats and designs live in `my-templates/formats|designs/`. The
-  search order is `templates/<kind>/` first, then `my-templates/<kind>/`, so a
-  user folder **cannot replace** a built-in one with the same name; pick a
-  different name.
+- **Format** decides how the paper is typeset. APA 7 is the only one, and
+  there are no user formats: `my-templates/formats/` is not read.
+- **Design** decides the cover and what data is shown. Every design goes with
+  APA 7; a design without `%%FORMAT%%` is **self-contained** and carries all
+  its own rules (no format is applied).
+- User-made designs live in `my-templates/designs/`. The search order is
+  `templates/designs/` first, then `my-templates/designs/`, so a user folder
+  **cannot replace** a built-in one with the same name; pick a different name.
 - Layout resolution (`resolve_layout`): load the design (name, folder, or path
-  to a `.ltx`), then, unless self-contained, choose the format: the given one,
-  else the first in the design's `formats`, else `apa7`. If the design does not
-  accept it: "The design X does not work with the format Y. Compatible formats:
-  ...".
+  to a `.ltx`), then, unless self-contained, load `apa7`.
 
-### Built-in formats
+### The format: APA 7
 
-All three: 12 pt Times (`newtx`), US letter (`class_options = "12pt,
-letterpaper"`), single column, document language Spanish by default.
+12 pt Times (`newtx`), US letter (`class_options = "12pt, letterpaper"`),
+single column, document language Spanish by default.
 
-| Format | Spacing, indent | Margins | Headings | Captions | Page number | References | Recommended headings |
-|---|---|---|---|---|---|---|---|
-| `apa7` (default) | double, 1.27 cm indent, no paragraph skip | 2.54 cm | unnumbered; `#` centered bold, `##` left bold, `###` left bold italic, `####` run-in bold ending with a period, `#####` run-in bold italic | table and figure: bold label ("Tabla 1"/"Figura 1") on its own line, italic title below, figure caption on top | top right | hanging indent 1.27 cm | `Introducción`, `Desarrollo`, `Conclusión`, `Referencias` |
-| `harvard` | 1.5, no indent, 0.8 em paragraph skip | 2.5 cm | numbered `1`, `1.1`, `1.1.1`; `#` large bold, `##` bold, `###` bold italic | bold label with colon ("Tabla 1:"); table title above, figure caption below | bottom center | hanging indent 1.27 cm | none |
-| `mla` | double, 0.5 in indent | 1 in | unnumbered, text size; `#` bold, `##` italic, `###` bold italic | label with period; figures named "Fig." with the caption below; table title above | top right | hanging indent 0.5 in ("Works Cited") | none |
+| Spacing, indent | Margins | Headings | Captions | Page number | References | Recommended headings |
+|---|---|---|---|---|---|---|
+| double, 1.27 cm indent, no paragraph skip | 2.54 cm | unnumbered; `#` centered bold, `##` left bold, `###` left bold italic, `####` run-in bold ending with a period, `#####` run-in bold italic | table and figure: bold label ("Tabla 1"/"Figura 1") on its own line, italic title below, figure caption on top | top right | hanging indent 1.27 cm | `Introducción`, `Desarrollo`, `Conclusión`, `Referencias` |
 
 Details worth knowing:
 
-- APA charts use a grayscale `pgfplots` style (`every axis/.append style`,
-  `cycle list`, `bar cycle list`); Harvard and MLA leave the base defaults.
-- Harvard and MLA are generic versions written from their published guides. If
-  a school asks for something different, copy the format folder into
-  `my-templates/formats/<name>/` and adjust it.
-- Table of contents depth is 3 in all formats. APA renames "Índice" to
-  "Contenido" when the document language is Spanish.
-- Long tables are set at single spacing in all formats (`\AtBeginEnvironment{longtable}{\singlespacing}`).
+- Charts use a grayscale `pgfplots` style (`every axis/.append style`,
+  `cycle list`, `bar cycle list`).
+- Table of contents depth is 3. "Índice" is renamed "Contenido" when the
+  document language is Spanish.
+- Long tables are set at single spacing (`\AtBeginEnvironment{longtable}{\singlespacing}`).
 
-### Built-in designs
+### The built-in design: `geometric-cover`
 
-| Design | Look | Formats | Standard data it shows | Required (default) | Logos |
-|---|---|---|---|---|---|
-| `geometric-cover` (default) | Constructivist cover: TikZ lines, arcs and small squares over the whole page; sans-serif text; then the table of contents | `apa7`, `harvard`, `mla` | `UNIVERSIDAD`, `FACULTAD`, `TITULO`, `ALUMNO`/`INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO`, `SEMESTRE`, `FECHA_ENTREGA` | `TITULO`, `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `MATERIA` | yes (university top-left 1.6 cm high, faculty top-right 0.88 cm high) |
-| `classic-cover` | Centered title page without TikZ; labels "Alumno:", "Integrantes:", "Materia:", "Docente:", "Semestre:", "Grupo:", "Fecha de entrega:"; then the table of contents | `apa7`, `harvard`, `mla` | same as `geometric-cover` | same | yes (university 2 cm high, faculty 1.2 cm high) |
-| `report` | Compact title block (no cover page) followed by the table of contents | `apa7`, `harvard`, `mla` | `TITULO`, `ALUMNO`/`INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO`, `FACULTAD`, `UNIVERSIDAD`, `FECHA_ENTREGA` | `TITULO` (the manifest sets `optional = ["UNIVERSIDAD", "FACULTAD", "MATERIA"]`) | no |
-| `starter` | Minimal, heavily commented design to copy; centered title block, no table of contents | `apa7`, `harvard`, `mla` | `TITULO`, `ALUMNO`/`INTEGRANTES`, `MATERIA`, `DOCENTE`, `FECHA_ENTREGA` | `TITULO` (`optional = ["MATERIA"]`) | no |
+| Look | Standard data it shows | Required (default) | Logos |
+|---|---|---|---|
+| Constructivist cover: TikZ lines, arcs and small squares over the whole page; sans-serif text; then the table of contents | `UNIVERSIDAD`, `FACULTAD`, `TITULO`, `ALUMNO`/`INTEGRANTES`, `MATERIA`, `DOCENTE`, `GRUPO`, `FECHA_ENTREGA` | `TITULO`, `UNIVERSIDAD`, `FACULTAD`, `MATERIA` | yes (university top-left 1.6 cm high, faculty top-right 0.88 cm high) |
 
-Cover rules shared by the built-in covers:
+Cover rules:
 
 - **Empty lines disappear:** student, team, teacher and group are omitted when
-  empty; the course and the semester always appear in the covers.
-- **Order is fixed in the design:** student (or team), course, teacher,
-  semester, group, then the delivery date.
+  empty; the course always appears.
+- **Order is fixed in the design:** student (or team), course, teacher, group,
+  then the delivery date.
 - **Team members replace the student,** one name per line. The PDF metadata
   follow the same rule (`\AutorPDF` in `investigacion-final.sty`).
-- **Fixed labels belong to the design** and stay in Spanish (for example
-  "FECHA DE ENTREGA") whatever the document language is.
-- `geometric-cover` and `classic-cover` set the page counter to 2 after the
-  cover (APA counts the cover as page 1).
+- **Fixed labels follow the document language** through `\SegunIdioma`
+  (`MATERIA:`/`COURSE:`, `FECHA DE ENTREGA:`/`DUE DATE:`).
+- The page counter is set to 2 after the cover (APA counts the cover as page 1).
 - Logos are optional; without them the cover compiles unchanged.
 
-### Legacy design names
+### Retired names
 
-`apa` maps to `geometric-cover` and `apa-simple` to `classic-cover`
-(`project::legacy_design`). Because both list `apa7` first, they keep
-producing the same output as before. The profile key `template` and the
-`--template`/`--plantilla` options still work.
+The designs `apa`, `apa-simple`, `classic-cover`, `report` and `starter` no
+longer exist. Asking for one (`--design`, profile `design` or `template`,
+`--check-template`) uses `geometric-cover` and prints "The design "X" no
+longer exists; geometric-cover is used." (`RETIRED_DESIGNS` and
+`retired_design_warning` in `src/template.rs`). A design of your own with one
+of those names wins and gets no warning. The profile key `template` and the
+`--template`/`--plantilla` options still work. The formats `harvard` and
+`mla` (or any name other than `apa7`) are ignored with a warning, see
+[section 5](#precedence).
 
 ### Document language vs interface language
 
 - The **document language** drives the PDF: babel (`spanish, es-tabla` or
   `english`), the delivery date, "Contents"/"Contenido", "Figure"/"Figura",
-  "Table"/"Tabla" and the note-box titles.
+  "Table"/"Tabla", the cover labels and the note-box titles.
 - It comes from `--doc-lang`, then the profile's `language`, then the format's
-  `language` (all three built-ins: `es`), then Spanish. All of them accept a
-  region suffix (`en-US`, `es_MX`), which is ignored.
+  `language` (`es`). All of them accept a region suffix (`en-US`, `es_MX`),
+  which is ignored.
 - The **interface language** (`--lang`, `IDIOMA`) controls menus, messages and
   help only. The two are independent.
 
 ### `format.toml` (`FormatManifest`)
 
-Optional: a format only needs `format.sty`. Without `format.toml` the name is
-the folder name, language `es`, no class options and no headings. Unknown keys
-are errors, and so is a `language` that is not Spanish or English.
+`templates/formats/apa7/format.toml` must exist next to `format.sty`. Every
+key is optional (missing: language `es`, no class options, no headings).
+Unknown keys are ignored, so `name` (still in the file for older binaries) or
+an extra key does no harm. A `language` that is not Spanish or English is an
+error.
 
 ```toml
-name = { es = "APA 7", en = "APA 7" }     # required; plain string or { es, en }
+name = { es = "APA 7", en = "APA 7" }     # optional and ignored; kept for older binaries
 language = "es"                           # default document language; default "es"; "en-US" works
 class_options = "12pt, letterpaper"       # inserted at %%CLASS_OPTIONS%%
 headings = ["Introducción", "Desarrollo", "Conclusión", "Referencias"]   # [] = no structure check
@@ -619,18 +624,20 @@ headings_en = ["Introduction", "Development", "Conclusion", "References"] # for 
 
 ### `template.toml` (`DesignManifest`)
 
-Optional. Without it the design accepts every format and has no described
-fields. Unknown keys are errors.
+Optional. Without it the design has no description and no described fields.
+Unknown keys are errors.
 
 ```toml
 description = { es = "Mi portada", en = "My cover" }   # shown in the pickers
-formats = ["apa7", "harvard", "mla"]   # empty = any; the first one is the default
 optional = ["UNIVERSIDAD"]             # standard markers it shows but does not require
 [fields.SALON]                         # description of a custom field
 label = { es = "Salón", en = "Room" }
 help  = { es = "Aula de entrega", en = "Delivery room" }
 required = true                        # default false
 ```
+
+An old `formats = [...]` list is still accepted so old designs load, but it
+does nothing; `--check-template` warns about it.
 
 Localized values (`Localized`) are either a plain string or `{ es, en }`.
 
@@ -658,10 +665,10 @@ it):
   `<babel>` is `spanish, es-tabla` for Spanish and `english` for English.
 - A design without `%%FORMAT%%` is self-contained and gets no format and no
   babel line (it must set up its own language).
-- `\FormatBodySetup` is a hook the base defines empty and each format redefines
+- `\FormatBodySetup` is a hook the base defines empty and the format redefines
   (alignment and indent after the cover).
-- `ReferenceList` is an environment: neutral in the base, hanging indent in the
-  three formats. The `blocks` filter wraps the references section in it.
+- `ReferenceList` is an environment: neutral in the base, hanging indent in
+  APA 7. The `blocks` filter wraps the references section in it.
 - `CajaMarcada{title}` is the note-box environment (a thin black frame, no
   color) defined in the base.
 - `investigacion-final.sty` loads `hyperref`, `bookmark`, `xurl`,
@@ -671,14 +678,16 @@ it):
   subject. It must be last in the preamble.
 - **Files the program copies** to the temp build folder (first in
   `TEXINPUTS`): every `*.sty` of `templates/common/`, every `*.sty` next to
-  the design, the chosen `format.sty` renamed to `investigacion-format.sty`, and
-  **every file** of the logos folder. The build runs with the Markdown's folder
-  as working directory.
+  the design, `format.sty` renamed to `investigacion-format.sty`, the two
+  logos as `logo-universidad.<pdf|png|jpg>` and `logo-facultad.<pdf|png|jpg>`
+  (by content; SVG and WEBP converted to PNG), and every other file of the
+  logos folder as it is. The build runs with the Markdown's folder as working
+  directory.
 - **Inside a `.sty`:** no `\makeatletter` (`@` is already a letter); load
   packages with `\RequirePackage`.
 - `\SegunIdioma{<es>}{<en>}` (base) prints the first text in Spanish documents
   and the second in any other language; without babel it prints the Spanish one.
-  The built-in covers use it for their labels (`Alumno:`/`Student:`…). Use it
+  `geometric-cover` uses it for its labels (`ALUMNO:`/`STUDENT:`…). Use it
   for any fixed text on a cover.
 - `investigacion-final.sty` also makes babel-spanish's `\%` safe in math mode:
   `$28.9\,\%$` no longer fails with "Incompatible glue units" (text is unchanged).
@@ -696,8 +705,7 @@ it):
 | `INTEGRANTES` | Members | each name escaped, joined with a literal `\\` | Never required; design shows them instead of the student |
 | `MATERIA` | Course (`--course` or profile `name`) | yes | Required if used and not optional |
 | `DOCENTE` | Teacher | yes | Never required |
-| `GRUPO` | Group | yes | Never required |
-| `SEMESTRE` | Semester | yes | Required if used and not optional |
+| `GRUPO` | Group (or term) | yes | Never required |
 | `FECHA_ENTREGA` | Today's date in the document language | yes | Computed; never required |
 | `CONTENIDO_MARKDOWN` | The Pandoc LaTeX fragment | **no** | Required by the contract; inserted last |
 | `FORMAT` | babel + format package lines | n/a | Replaced before rendering; absence means self-contained |
@@ -706,7 +714,10 @@ it):
 ### Custom fields
 
 - Any `%%NAME%%` that is not a standard marker is a custom field. Names match
-  `[A-Z_]+` (uppercase letters and underscore; **no digits**).
+  `[A-Z_]+` (uppercase letters and underscore; **no digits**). `%%SEMESTRE%%`
+  is no longer standard: in an old design it is a custom field, empty unless
+  given with `--set SEMESTRE=…` or `[fields]`, and `--check-template` suggests
+  `%%GRUPO%%`.
 - Value: `DocumentData.fields[NAME]` (profile `[fields]`, `--set NAME=value`,
   menu extra fields), escaped with `latex_escape`; empty if not given.
 - `template.toml` may describe it (`label`, `help`, `required`). Without a
@@ -722,8 +733,8 @@ it):
 
 ### Required-data rules (`missing_data` in `src/generate.rs`)
 
-- Standard data: only `TITULO`, `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `MATERIA`
-  can be required, and only if the design **uses** the marker and does **not**
+- Standard data: only `TITULO`, `UNIVERSIDAD`, `FACULTAD`, `MATERIA`
+  (`REQUIRED_MARKERS`) can be required, and only if the design **uses** the marker and does **not**
   list it in `optional`.
 - Custom fields: required only when `[fields.NAME] required = true`.
 - Whitespace-only values count as empty.
@@ -764,7 +775,9 @@ it):
   definir: <char> (U+XXXX)" into the log and prints a bold `[?]`. Rust matches
   that exact text in `unsupported_character_warnings`; keep it identical.
   To support a symbol, add it to that block.
-- **Logos** are wrapped in `\IfFileExists`.
+- **Logos:** the design tests them with its own `\SiHayLogo{<name>}{...}`
+  (`geometric-cover`), which tries `.pdf`, `.png` and `.jpg`, because
+  `\IfFileExists` does not try extensions.
 
 ## 10. Checking a design: `--check-template`
 
@@ -774,7 +787,7 @@ investigacion --check-template <design>      # also --check-template=<design>; a
 
 Handled in `cli::main_with_args` **before** clap parsing (it needs no Markdown
 or title) and implemented in `src/check.rs`. `<design>` is a name, a folder or a
-path to a `.ltx` (legacy names work). A value that starts with `-` is not taken
+path to a `.ltx` (a retired name checks `geometric-cover`, with a warning). A value that starts with `-` is not taken
 as the name. Exit code: 0 passed, 1 failed (or the design could not be loaded),
 2 when the name is missing.
 
@@ -787,7 +800,9 @@ Static checks (`inspect`):
 | Error | `%%CONTENIDO_MARKDOWN%%` missing |
 | Warning | No `%%FORMAT%%`: self-contained design, no format applies |
 | Warning | Has `%%FORMAT%%` but no `%%CLASS_OPTIONS%%`: the format cannot set font size or paper |
-| Error | A format in `template.toml` `formats` does not exist (lists the available ones) |
+| Warning | `template.toml` still has `formats`: it is no longer used |
+| Warning | `%%SEMESTRE%%` is used: no longer a standard field, use `%%GRUPO%%` |
+| Warning | A retired design name was given, so `geometric-cover` was checked |
 | Warning | A custom field looks like a typo of a standard marker (edit distance <= 2): "did you mean `%%DOCENTE%%`?" |
 | Warning | A custom field is not described in `template.toml` |
 | Warning | `template.toml` describes a field the design does not use |
@@ -796,32 +811,36 @@ Static checks (`inspect`):
 
 If there are errors, the check stops there. Otherwise it compiles
 `examples/catalog.md` (skipped, with a warning, if the file is missing) once
-per compatible format (or once with no format for a self-contained design)
-using sample data: every standard datum filled, two members, every custom
-field set to "Ejemplo". The output goes to a temp folder that is deleted. A
-build failure shows the first four lines of its error.
+with APA 7 (or with no format for a self-contained design) using sample data:
+every standard datum filled, two members, every custom field set to
+"Ejemplo". The output goes to a temp folder that is deleted, and the build
+neither reads nor writes LaTeX state in `cache/latex/` (`skip_latex_state`).
+A build failure shows the first four lines of its error.
 
 Output symbols: `✗` for errors, `!` for warnings, `✓` for passing builds, then "Done: the design is ready to use." Failure exits 1.
 
-## 11. Making your own design or format
+## 11. Making your own design
 
-### A design
+There is one format (APA 7) and no user formats; what you can make is a
+design.
 
-1. Copy `templates/designs/starter/` to `my-templates/designs/<your-design>/`
-   (git ignores it).
-2. Edit the cover between the `TU DISEÑO` marks. Keep the contract
+1. Copy `templates/designs/geometric-cover/` to
+   `my-templates/designs/<your-design>/` (git ignores it) and give it a name
+   that is not a built-in or retired one.
+2. Edit the cover inside `\begin{titlepage}` (the TikZ drawing, the `LOGOS`
+   block and the `TEXTOS DE LA PORTADA` nodes). Keep the contract
    ([section 9](#9-the-design-contract-markers-and-custom-fields)):
    `\documentclass[%%CLASS_OPTIONS%%]{article}`, `investigacion-base` first,
    `%%FORMAT%%`, `investigacion-final` last in the preamble, `\FormatBodySetup`
    and `%%CONTENIDO_MARKDOWN%%` in the body.
 3. Use only the data you need. Standard markers: `%%TITULO%%`,
    `%%UNIVERSIDAD%%`, `%%FACULTAD%%`, `%%ALUMNO%%`, `%%INTEGRANTES%%`,
-   `%%MATERIA%%`, `%%DOCENTE%%`, `%%GRUPO%%`, `%%SEMESTRE%%`,
-   `%%FECHA_ENTREGA%%`. Any other uppercase name (`%%SALON%%`) is a field of your
-   own; the menu and the wizard ask for it and it is saved in the profile.
-4. Describe it in `template.toml` (`description`, `formats`, `optional`,
-   `[fields.X]`). Use `\ifdefempty{\Cmd}{}{...}` to omit empty lines; put
-   `\\[0.25cm]` inside each conditional branch.
+   `%%MATERIA%%`, `%%DOCENTE%%`, `%%GRUPO%%`, `%%FECHA_ENTREGA%%`. Any other
+   uppercase name (`%%SALON%%`) is a field of your own; the menu and the
+   wizard ask for it and it is saved in the profile.
+4. Describe it in `template.toml` (`description`, `optional`, `[fields.X]`).
+   Use `\ifdefempty{\Cmd}{}{...}` to omit empty lines; put `\\[0.25cm]` inside
+   each conditional branch.
 5. Check it: `investigacion --check-template <your-design>`.
 6. Use it: `--design <your-design>`, in the menu's Design list, or
    `design = "<your-design>"` in a profile. A design can also be given by path
@@ -832,47 +851,44 @@ Extras:
 
 - **Self-contained design:** omit `%%FORMAT%%` to carry all your own rules (for a
   school format that follows no known norm). `--check-template` warns, which is
-  expected.
+  expected. It is the only way to typeset a paper in something other than
+  APA 7.
 - **Logos for one design:** put a `logos/` folder next to `template.ltx` (git
-  ignores `/templates/*/logos/`).
+  ignores `/templates/*/logos/`). Keep the `\SiHayLogo` command of
+  `geometric-cover` to test for them.
 - **Extra packages:** any `.sty` next to the design is copied to the build
   folder.
 - **Members on the cover:** use `\ListaIntegrantes` (already escaped, names
-  joined with `\\`); put it in a `tabular` to align the lines, as the built-in
-  covers do.
+  joined with `\\`); put it in a `tabular` to align the lines, as
+  `geometric-cover` does.
 - **Where optional data comes empty:** list it in `optional` so the menu and
   the wizard do not require it.
 
-### A format
-
-1. Copy `templates/formats/harvard/` to `my-templates/formats/<name>/`.
-2. Edit `format.sty` (it is copied as `investigacion-format.sty`; keep
-   `\ProvidesPackage{investigacion-format}`): geometry, fonts, spacing,
-   `titlesec`, `\captionsetup`, the floatrow caption position (guard it with
-   `\@ifpackageloaded{floatrow}`), `fancyhdr`, and redefine
-   `ReferenceList` and `\FormatBodySetup`.
-3. Edit `format.toml` (`name`, `language`, `class_options`, `headings`).
-4. Keep it **single-column**: Pandoc tables are `longtable`, which fails in
-   `twocolumn` (that is why IEEE was removed).
-5. Add the format to the `formats` lists of the designs that should offer it
-   (an empty list already means all). `tests/pdf.rs` compiles every design x
-   format pair, and `--check-template` reports per format.
-6. Do not add `\makeatletter`; load packages with `\RequirePackage`; never load
-   `float`.
-
 ### Logos
 
-- **Names:** `logo-universidad.png` (top left in the built-in covers) and
-  `logo-facultad.png` (top right).
+- **Names:** `logo-universidad` (top left in `geometric-cover`) and
+  `logo-facultad` (top right), each as SVG, PDF, PNG, JPG (`.jpg` or `.jpeg`)
+  or WEBP. When a folder holds several, the first in that order wins
+  (`LOGO_EXTENSIONS`, `project::find_logo`). Extensions are matched in lower
+  case.
+- **Conversion:** SVG and WEBP are converted to PNG in `cache/remote/`
+  (`logo-<hash>.png`, reused while the file does not change). The format is read
+  from the content, so a PNG named `.jpg` still works.
 - **Lookup** (`Project::resolve_logos_directory`), first match wins:
-  1. `--logos <folder>` or `LOGOS` in `settings.toml`/environment (must exist,
-     else "The logos folder does not exist: ...");
+  1. `--logos <folder>` or `LOGOS` in `settings.toml`/environment. If it does
+     not exist (a removed USB drive), the warning "The logos folder <folder>
+     (from --logos) does not exist; the cover is built without logos." is
+     shown and no other folder is tried;
   2. `logos/` next to the design's `template.ltx`;
   3. `logos/` in the work folder, if it holds a logo;
   4. `templates/logos/`, if it holds a logo.
 - Having none is not an error: the cover compiles without logos.
-- Use dark or colored PNGs with transparent background (a white logo is
-  invisible on the white cover). The built-in designs scale by **height**, so a
+- A logo with the right name but an unsupported or upper-case extension
+  (`logo-facultad.gif`, `logo-facultad.PNG`) is not used, and a warning says
+  how to rename it. A logo that cannot be read or converted is a warning too;
+  the cover is built without it.
+- Use dark or colored logos with transparent background (a white logo is
+  invisible on the white cover). `geometric-cover` scales by **height**, so a
   large transparent margin makes a logo look small.
 - To move them, edit the `LOGOS` block of
   `templates/designs/geometric-cover/template.ltx` (`xshift`, `yshift`,
@@ -895,19 +911,19 @@ missing blank line.
 ### Headings and structure
 
 Markdown `#` is LaTeX `\section`, `##` `\subsection`, `###` `\subsubsection`,
-`####` `\paragraph`, `#####` `\subparagraph`. How each looks depends on the
-format ([section 8](#built-in-formats)).
+`####` `\paragraph`, `#####` `\subparagraph`. APA 7 sets them like this
+([section 8](#the-format-apa-7)):
 
-| Markdown | APA 7 | Harvard | MLA 9 |
-|---|---|---|---|
-| `#` | centered, bold | `1` numbered, large, bold | bold |
-| `##` | left, bold | `1.1` numbered, bold | italic |
-| `###` | left, bold italic | `1.1.1` numbered, bold italic | bold italic |
-| `####` | run-in paragraph heading, bold, ends with a period | LaTeX default | LaTeX default |
-| `#####` | run-in, bold italic | LaTeX default | LaTeX default |
+| Markdown | APA 7 |
+|---|---|
+| `#` | centered, bold |
+| `##` | left, bold |
+| `###` | left, bold italic |
+| `####` | run-in paragraph heading, bold, ends with a period |
+| `#####` | run-in, bold italic |
 
 - **Structure warnings** come from `format.toml` `headings` (`headings_en` for
-  English documents). Only `apa7` defines them (`Introducción`, `Desarrollo`,
+  English documents). `apa7` defines them (`Introducción`, `Desarrollo`,
   `Conclusión`, `Referencias`; in English `Introduction`, `Development`,
   `Conclusion`, `References`). The
   program warns "The recommended heading "X" is missing." per missing one and
@@ -915,13 +931,15 @@ format ([section 8](#built-in-formats)).
   but are out of order. Matching ignores case, accents, numbering (`2. `) and
   closing `#`s; headings inside fenced code are ignored. They are warnings,
   never errors.
-- **References** are written by hand in the style of the format, as a dash list
+- **References** are written by hand in APA 7 style, as a dash list
   or as separate paragraphs, under a heading named `Referencias`,
   `Bibliografía`, `Referencias bibliográficas`, `Lista de referencias`,
   `Obras citadas`, `Fuentes consultadas`, `Fuentes`, `References`,
   `Reference list`, `Bibliography` or `Works Cited` (case and
   accent insensitive). The `blocks` filter wraps the section in `ReferenceList`
-  (the format adds the hanging indent) until the next heading.
+  (the format adds the hanging indent) until the next heading. A subheading
+  inside the references (`### Libros`) keeps the hanging indent for the
+  entries after it.
 
 ### Syntax summary
 
@@ -937,7 +955,8 @@ format ([section 8](#built-in-formats)).
 | Link | `[text](https://...)` or a bare URL |
 | Footnote | `text[^1]` and `[^1]: the note` on another line |
 | Table | `\| A \| B \|` with `\|---\|---\|` below (required); `:---:` centers, `---:` right-aligns |
-| Table caption | a line `: Title` under the table (APA: becomes "Tabla 1" bold with the title in italic) |
+| Table caption | a line `: Title` under the table (becomes "Tabla 1" bold with the title in italic) |
+| Image | `![Caption](file.png){width=50%}`: PNG, JPG, PDF, SVG or WEBP, local or from the web |
 | Code block | ` ```python ` ... ` ``` `; the language enables syntax colors |
 | Formula | `$E = mc^2$` inline, `$$ ... $$` on its own line; `\sum`, `\frac`, `\begin{bmatrix}`, `\begin{cases}` work |
 | Line break | `<br>` (the form that never gets lost) |
@@ -949,8 +968,7 @@ format ([section 8](#built-in-formats)).
 
 Elements that are written as in any Markdown guide (tables, footnotes,
 lists, quotes, code, math) are covered by Pandoc itself. For a rendered
-version of every element see [`../examples/syntax.md`](../examples/syntax.md) and
-[`../examples/catalog.md`](../examples/catalog.md)
+version of every element see [`../examples/catalog.md`](../examples/catalog.md)
 ([PDF](../examples/catalog.pdf)).
 
 ### Tables
@@ -999,16 +1017,32 @@ long tables.
   or relative to the Markdown's folder). A missing image becomes its alt text in
   italics (or "[imagen no disponible]") plus a warning "Image not found: ...".
 - **Web images:** downloaded once into `cache/remote/<sha1 of URL>.<ext>` and the
-  path is rewritten; later runs work offline. The extension comes from the URL
-  or, if absent, from the `Content-Type` (`png`, `jpg`, `pdf`).
-- **Formats:** `pdflatex` only handles PNG, JPG and PDF. Other formats (SVG,
-  WebP) from a URL are rejected with a warning; convert them first.
+  path is rewritten; later runs work offline. The extension comes from the
+  content, not from the URL or the `Content-Type`. A URL whose extension is of
+  another kind (`.gif`) is not downloaded.
+- **Formats:** PNG, JPG and PDF go to `pdflatex` as they are. SVG and WEBP,
+  local or from the web, are converted to PNG inside the program
+  (`src/image.rs`, through the internal `--convert-image`, see
+  [`cli.md`](cli.md#commands)) and cached as `cache/remote/<sha1>.png`, so an
+  unchanged image is not converted again. The format is read from the
+  content: a JPG named `foto.png` is copied to the cache with the right
+  extension. Anything else (GIF, BMP…) becomes the alt text with a warning.
+- **SVG details:** an SVG is drawn at 192 dpi and keeps its own size (without
+  `{width=...}` it measures what the SVG says). Its text is drawn with the
+  fonts installed on the system, so the same SVG can look slightly different
+  on another machine; convert text to paths for an exact result. Linked or
+  embedded images inside the SVG are not loaded (an SVG reads no files and no
+  network).
+- **Limits:** one conversion may take 30 s (`CONVERTER_TIMEOUT`); past that it
+  is stopped, the alt text stays and the warning suggests exporting it to PNG.
+  An image over 40 million pixels (`MAX_PIXELS`) is refused the same way. The
+  PDF is still produced.
 - **Failures** (download, format, write) become the alt text plus a warning; the
   PDF is still produced.
 - **Size:** `{width=40%}` or `{height=...}` like any Pandoc image. Images never
   exceed the text width or height (`\pandocbounded`).
 - **Placement:** the figure stays where written (`H` with floatrow). Caption:
-  APA puts "Figura 1" in bold above; Harvard and MLA put it below.
+  APA puts "Figura 1" in bold above.
 - A figure whose only content was a failed image is dissolved so no orphan
   caption appears.
 
@@ -1127,7 +1161,7 @@ filters whose job is code blocks).
 | Order | File | Handles | Reads env |
 |---|---|---|---|
 | 1 | `inline_html.lua` | `Inlines`, `RawBlock`: HTML tags listed above | none |
-| 2 | `images.lua` | `Image`, `Figure`: web download, local check (a folder is not an image) | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_UNSEARCHABLE`, `INVESTIGACION_LANG` |
+| 2 | `images.lua` | `Image`, `Figure`: web download, local check (a folder is not an image), format by content, SVG/WEBP conversion | `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_RESOURCES`, `INVESTIGACION_UNSEARCHABLE`, `INVESTIGACION_CONVERTER`, `INVESTIGACION_CONVERTER_VERSION`, `INVESTIGACION_LANG` |
 | 3 | `diagrams.lua` | `CodeBlock` with class `dot`/`graphviz` | `INVESTIGACION_DIAGRAMS`, `INVESTIGACION_LANG` |
 | 4 | `charts.lua` | `CodeBlock` with class `pgfplot`/`pgfplots`/`grafica`/`tikz` | none |
 | 5 | `blocks.lua` | `Div` note boxes; lists deeper than LaTeX allows and the references section (`Pandoc`) | `INVESTIGACION_DOC_LANG`, `INVESTIGACION_LANG` |
@@ -1143,7 +1177,10 @@ Conventions:
   document language (`INVESTIGACION_DOC_LANG`). `pandoc_to_latex` sets both.
 - **Never fail:** on a problem the image becomes its alt text, the diagram stays
   as code, and a warning is printed (each message once).
-- **Cache names:** `sha1` of the URL (images) or of the diagram code.
+- **Cache names:** `sha1` of the URL (downloads), of the converter version
+  plus the content (SVG/WEBP converted to PNG), or of the diagram code. Cache
+  files are written to a temporary name and then renamed, so an interrupted
+  run never leaves half a file.
 - **`User-Agent`:** Pandoc sends none and some sites answer 400, so
   `--request-header` supplies one.
 - **Adding a filter:** put the `.lua` in `resources/filters/`, add it to
@@ -1267,32 +1304,31 @@ quits, `v` opens the last PDF (hidden).
 | 2 | Markdown file | list (folder browser, `.md` only) | **yes** | n/a |
 | 3 | Title | text | **yes** | n/a |
 | 4 | PDF file name | text | no | name of the Markdown (proposed automatically from the chosen file until you type one) |
-| 5 | University | text | only if the design uses `UNIVERSIDAD` and does not list it optional | profile's; if none, omitted |
-| 6 | Faculty | text | only if the design uses `FACULTAD` and does not list it optional | profile's; if none, omitted |
-| 7 | Student | text | no | profile's; if none, omitted |
+| 5 | University | text | only if the design uses `UNIVERSIDAD` and does not list it optional | not shown on the cover |
+| 6 | Faculty | text | only if the design uses `FACULTAD` and does not list it optional | not shown on the cover |
+| 7 | Student | text | no | not shown on the cover |
 | 8 | Course | text | only if the design uses `MATERIA` and does not list it optional | n/a |
-| 9 | Teacher | text | no | profile's; if none, omitted |
-| 10 | Team members | text | no | profile's; if none, the student |
-| 11 | Group | text | no | profile's; if none, omitted |
-| 12 | Semester | text | only if the design uses `SEMESTRE` and does not list it optional | profile's; if none, omitted |
-| 13 | Format | list | no | first one the design accepts |
-| 14 | Design | list (filtered by the chosen format) | no | `geometric-cover` |
-| 15 | Output folder | folder picker (`./` chooses; saved relative to the project root) | no | `output/` or the profile's |
-| 16 | Extra copies | folder picker; each `./` is added to a `;` list | no | the profile's; if none, no copies |
-| 17+ | The design's own fields | text | per `template.toml` | n/a |
+| 9 | Teacher | text | no | not shown on the cover |
+| 10 | Team members | text | no | the student is shown |
+| 11 | Group | text | no | not shown on the cover |
+| 12 | Design | list | no | `geometric-cover` |
+| 13 | Output folder | folder picker (`./` chooses; saved relative to the project root) | no | `output/` or the profile's |
+| 14 | Extra copies | folder picker; each `./` is added to a `;` list | no | the profile's; if none, no copies |
+| 15+ | The design's own fields | text | per `template.toml` | n/a |
 
 - A `*` after the label marks required fields; `▸` before the label marks
   fields chosen from a list. Missing required fields show `[missing]` in red.
 - The design's own fields (for example *Salón*) appear at the end when the
   chosen design uses them; values are kept while the design still has them.
-- University, faculty, student and semester reach `execute()` as `--set
-  UNIVERSIDAD=…`, `FACULTAD`, `ALUMNO`, `SEMESTRE` (there are no dedicated CLI
+- University, faculty and student reach `execute()` as `--set
+  UNIVERSIDAD=…`, `FACULTAD`, `ALUMNO` (there are no dedicated CLI
   options for them), so the form works without a profile too.
-- Choosing a profile fills university, faculty, student, semester, course,
-  teacher, members, group, format, design, the
+- Choosing a profile fills university, faculty, student, course,
+  teacher, members, group, design, the
   design's own fields, the output folder and the extra copies; what you change afterwards wins
-  (the same as a CLI option over a profile).
-- Choosing a format removes the chosen design if it does not accept it.
+  (the same as a CLI option over a profile). With a profile, a cover field you
+  clear is sent empty, so that line leaves the PDF (the field's hint says "not
+  shown on the cover").
 - `--allow-latex`, `--settings`, `--logos`, `--doc-lang` and a design by path are
   CLI-only on purpose.
 - Pressing `g` with missing required fields prints "Cannot generate yet.
@@ -1338,8 +1374,7 @@ list. Both languages' letters work in either language.
 ### Pickers
 
 One component (`src/tui/picker.rs`) serves the Markdown browser, profiles,
-formats, designs, themes and project folders, and the output and copy
-folders.
+designs, themes and project folders, and the output and copy folders.
 
 - Typing filters the list. Ranking: exact name, then prefix, then substring,
   then match in the description; so `ia` picks the profile `ia`, not `example`
@@ -1359,8 +1394,8 @@ folders.
   does not offer it. At the root of a drive, the other existing drives are
   listed so you can switch (Windows only).
 - Other keys: Up/Down, PageUp/PageDown (10 rows), Esc cancels.
-- The design list shows only designs that accept the chosen format (and
-  self-contained designs), with their `description`.
+- The design list shows every design (built-in and yours), with its
+  `description`.
 
 ### Wizard
 
@@ -1386,8 +1421,8 @@ See [section 7](#the-profile-wizard-srctuiwizardrs).
 ```bash
 investigacion paper.md --title "Ecuaciones diferenciales" --course "Cálculo"
 investigacion Tarea1.md -p ia --title "Búsqueda heurística"
-investigacion paper.md --title "Tema" --format mla --design report --set SALON="B-204"
-investigacion --check-template starter
+investigacion paper.md --title "Tema" --design mine --set SALON="B-204"
+investigacion --check-template mine
 ```
 
 Only the Markdown file and `--title` are always required by clap. Other data
@@ -1414,19 +1449,21 @@ Compact option list (full detail, examples and edge cases in
 | `--settings` | `--env-file` | file | Settings file (default `settings.toml`) |
 | `--allow-latex` | `--permitir-latex` | flag | Interpret raw LaTeX in the Markdown |
 | `--design` | `--template`, `--plantilla`, `--diseno` | name or `.ltx` path | Cover and look |
-| `--format` | `--formato` | name | The norm |
 | `--set` | none | `NAME=value` | Design's own field, or a standard datum; repeatable; name uppercased |
 | `--doc-lang` | `--idioma-documento` | `es`/`en` | Document language |
 | `--logos` | none | folder | Logos folder (falls back to `LOGOS`) |
 | `--lang` | `--idioma` | `es`/`en` | Interface language for this run |
 | `--check-template` | `--revisar-plantilla` | design | Check a design and build the catalog with it |
+| `--format` (hidden) | `--formato` | any | Ignored; a value other than `apa7` gives a warning |
+| `--convert-image` (internal) | | source, destination | SVG/WEBP to PNG for the image filter |
 | `-h`, `--help`, `-V`, `--version` | | | Localized help and version |
 
 Behavior details:
 
 - **Exit codes:** `0` success (also `--help`/`--version`); `1` generation error
   (printed as `Error: <message>` on stderr) or a failed check; `2` argument
-  errors reported by clap and `--check-template` without a name.
+  errors reported by clap and `--check-template` without a name; `124` only
+  from `--convert-image` past its 30 s limit ([`cli.md`](cli.md#exit-codes)).
 - **Output:** warnings go to stderr as `Warning: ...` (`Aviso: ...` in Spanish);
   results go to stdout: `PDF generated: <path>` and `Copy saved: <path>`.
 - **Localized help and errors:** `prescan_language()` reads `--lang` and
@@ -1435,8 +1472,8 @@ Behavior details:
   `-h`/`-V` are defined so they can be translated. `describe_clap_error()`
   translates missing required arguments, unknown arguments, and invalid values.
 - **`--set` accepted names:** custom fields of the design, plus the standard
-  `UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `SEMESTRE`, `DOCENTE`, `INTEGRANTES`,
-  `GRUPO`. `NAME=` (empty value) is valid and blanks the value.
+  `UNIVERSIDAD`, `FACULTAD`, `ALUMNO`, `MATERIA`, `DOCENTE`, `INTEGRANTES`, `GRUPO`.
+  `SEMESTRE` is ignored with a warning unless the design uses it. `NAME=` (empty value) is valid and blanks the value.
 - **Timing:** `INVESTIGACION_TIMING=1 investigacion ...` prints the time of each
   Pandoc/pdflatex run.
 - **Hidden old Spanish names** (`--titulo`, `--materia`, `--plantilla`,
@@ -1447,8 +1484,13 @@ Behavior details:
 `compile_pdf` (`src/compile.rs`):
 
 - **Command:** `pdflatex -interaction=nonstopmode -halt-on-error
-  -file-line-error [-draftmode] trabajo.tex`, run inside the temp folder (only the
-  file name goes on the command line: a full path breaks on spaces and on the `~`
+  -file-line-error [-draftmode] -jobname=trabajo
+  "\ifdefined\pdfsuppressptexinfo\pdfsuppressptexinfo=-1\fi\input{trabajo.tex}"`,
+  run inside the temp folder. `\pdfsuppressptexinfo=-1` keeps pdfTeX from
+  writing the `PTEX.*` keys, which hold the absolute path of every included PDF
+  (diagrams, images, emoji): the PDF carries no path of the machine. It is on
+  the command line, not in the base, so it covers every design. Only the
+  file name goes on the command line (a full path breaks on spaces and on the `~`
   of Windows short paths such as `C:\Users\USUARI~1\...`). On MiKTeX it also
   gets `--enable-installer`. `TEXINPUTS` is `.`, then
   `pandoc::resource_dirs()` (the Markdown's folder, `cache/`, `cache/remote/`,
@@ -1462,7 +1504,8 @@ Behavior details:
   still changes after the last pass a warning is logged.
 - **State cache:** `.aux` and `.toc` are saved after a successful build in
   `cache/latex/<pdf-stem>-<16 hex>/trabajo.{aux,toc}`. The hash covers the output
-  PDF path and `Layout::cache_key()` (design file path + format key), because
+  PDF path and `Layout::cache_key()` (design file path + `apa7`, or `-` for a
+  self-contained design), because
   another design loads other packages. With a cache hit a re-run usually takes a
   single (non-draft) pass. Designs without a table of contents write no `.toc`;
   an empty one is saved so the cache works for them too. If the build with the
@@ -1470,7 +1513,8 @@ Behavior details:
   scratch (only a failure of that second attempt is a real error). Saving the
   cache is best-effort.
 - **Timeout:** `TOOL_TIMEOUT = 180 s` per Pandoc or pdflatex run
-  (`src/process.rs`; process killed). Message: "pdflatex kept working for more
+  (`src/process.rs`; process killed). A pass cut by the timeout is not retried
+  from scratch. Message: "pdflatex kept working for more
   than 180 seconds and was stopped; look in the document for something LaTeX
   cannot typeset." (soul loops are the classic cause). The tool check in the menu
   uses a 5 s limit.
@@ -1537,11 +1581,13 @@ the command line. It is a diagnostic aid and must never break the program.
   channel reporter in the TUI. `execute()` wraps the reporter in
   `LoggingReporter`, so everything the user sees is also logged.
 - **Always produce a PDF** ([section 1](#1-overview)): warnings, not errors, for
-  images, symbols, Graphviz and heading structure.
+  images (missing, unsupported, broken or slow SVG/WEBP), logos and the logos
+  folder, symbols, Graphviz, heading structure and the retired names
+  (format, design, `semester`).
 - **Hard failures:** missing Pandoc or pdflatex, timeouts, broken `pgfplot`/`tikz`
   or math LaTeX, missing required data, a missing or non-`.md` or empty Markdown, unknown
-  design/format/profile, an incompatible design/format pair, an invalid
-  profile or manifest, an unwritable output folder, a bad `--logos` folder.
+  design or profile, an invalid profile or manifest, an unwritable output
+  folder.
 - **TUI:** panics are caught (see [section 15](#robustness)).
 
 ## 20. Internationalization
@@ -1605,20 +1651,21 @@ macOS update needs no redesign:
 
 | Path | Responsibility |
 |---|---|
-| `src/main.rs` | Entry point: initializes the log and panic hook; no arguments -> TUI, else CLI |
+| `src/main.rs` | Entry point: `--convert-image` first (no log, no settings); then initializes the log and panic hook; no arguments -> TUI, else CLI |
 | `src/lib.rs` | Module list; `tr!` macro available everywhere (`#[macro_use] i18n` first) |
 | `src/cli.rs` | `Args` (clap), localized help/errors, `Reporter`, `execute()`, `--check-template` dispatch |
 | `src/i18n.rs` | `Lang`, `tr!`, `Text`, detection and resolution |
 | `src/logging.rs` | Diagnostic log, levels, rotation, panic hook |
 | `src/error.rs` | `GenerationError`, `Result` |
-| `src/template.rs` | `Format`, `Design`, manifests, `STANDARD_MARKERS`, `resolve_layout`, `Layout` |
+| `src/template.rs` | `Format`, `Design`, manifests, `STANDARD_MARKERS`, retired design names, `resolve_layout`, `Layout` |
 | `src/check.rs` | `--check-template` |
-| `src/generate.rs` | `generate_pdf`, `missing_data`, `output_file_name`, `copy_pdf_to`, state cache directory |
+| `src/generate.rs` | `generate_pdf`, `missing_data`, `output_file_name`, `copy_pdf_to`, `copy_logos`, state cache directory |
+| `src/image.rs` | SVG/WEBP to PNG (`convert_to_png`), `--convert-image` and its 30 s limit |
 | `src/markdown.rs` | Read/normalize Markdown, lookup in `input/`, heading validation, `expand_home`, `strip_accents` |
 | `src/pandoc.rs` | Pandoc call, embedded Lua filters, `posix()`, `filter_warnings` |
 | `src/latex.rs` | `latex_escape`, `render_template`, log summaries and Unicode warnings |
 | `src/compile.rs` | `copy_template_assets`, `latex_search_path`, `compile_pdf`, passes, state cache, failure artifacts |
-| `src/project.rs` | Project root, folders, logos lookup, legacy design names, defaults |
+| `src/project.rs` | Project root, folders, logos lookup (`find_logo`), `replace_file`, defaults |
 | `src/settings.rs` | `settings.toml` (KEY=VALUE) + environment; `save_value` |
 | `src/courses.rs` | Course profiles: `CourseProfile`, `find_course`, `list_courses`, `save_profile` |
 | `src/document.rs` | `DocumentData`, `parse_members`, dates, `slugify` |
@@ -1626,8 +1673,8 @@ macOS update needs no redesign:
 | `src/process.rs` | Run tools with a timeout (`TOOL_TIMEOUT` 180 s), timing output |
 | `src/tui/` | `app.rs` (state and keys), `ui.rs` (drawing), `wizard.rs`, `picker.rs`, `guard.rs`, `tools.rs`, `tests.rs` |
 | `resources/filters/` | `inline_html`, `images`, `diagrams`, `charts`, `blocks` Lua filters |
-| `templates/` | `common/`, `formats/{apa7,harvard,mla}/`, `designs/{geometric-cover,classic-cover,report,starter}/`, `logos/` |
-| `tests/` | `templates.rs`, `pandoc.rs`, `pdf.rs`, `cli.rs`, `logging.rs`, `common/` |
+| `templates/` | `common/`, `formats/apa7/`, `designs/geometric-cover/`, `logos/` |
+| `tests/` | `templates.rs`, `pandoc.rs`, `pdf.rs`, `cli.rs`, `logging.rs`, `converter.rs`, `common/` |
 
 ### Checklists
 
@@ -1659,9 +1706,9 @@ it in `courses/README.md`, `courses/example.toml` and this page.
 **Add Markdown syntax:** decide among `MARKDOWN_EXTENSIONS`, a Lua filter, or the
 base `.sty`; then update `docs/prompts/paper.md`, this page and `examples/catalog.md`.
 
-**Add a format or design:** [section 11](#11-making-your-own-design-or-format);
-for built-ins also add them to the `formats` lists, the README, this page and the
-catalog check.
+**Add a design:** [section 11](#11-making-your-own-design); for a built-in
+one also update the README, this page and `tests/pdf.rs`. There is no
+support for other formats.
 
 ### Rules for contributors (`AGENTS.md`)
 
@@ -1670,8 +1717,10 @@ catalog check.
 - **No logic in the TUI:** it builds `cli::Args` and calls `cli::execute()`.
 - **Formats and designs are separate layers;** a design follows the contract.
 - **APA output must not change by accident** ([section 23](#23-testing-and-regression-rules)).
-- **Keep old names working:** hidden clap aliases, serde aliases `subject` and
-  `template`, legacy designs `apa`/`apa-simple`.
+- **Keep old names working:** hidden clap aliases (also `--format`), serde
+  aliases `subject` and `template`, the retired keys `semester` and `format`,
+  and the retired design names (`apa`, `apa-simple`, `classic-cover`,
+  `report`, `starter`), which lead to `geometric-cover` with a warning.
 - **Log what happens, never break because of it.**
 - **Before finishing:** `cargo fmt`, `cargo clippy --all-targets -- -D
   warnings`, `cargo test`; for template or filter changes also generate
@@ -1688,21 +1737,23 @@ cargo fmt && cargo clippy --all-targets -- -D warnings
 cargo test                                # PDF/Pandoc tests skip if the tools are missing
 cargo test --lib markdown                 # one module
 cargo test --test pdf                     # real PDFs (~45 s)
-target/release/investigacion --check-template starter
+target/release/investigacion --check-template geometric-cover
 INVESTIGACION_TIMING=1 target/release/investigacion examples/catalog.md --title T -p example
 INVESTIGACION_LOG=debug target/release/investigacion ...
 ```
 
 - Unit tests live next to the code; the TUI has `src/tui/tests.rs` (`press()`,
   `type_text()`, `render()` on a 120x32 `TestBackend`).
-- `tests/pdf.rs` compiles every design x format pair (also without optional
-  fields), an English document, a minimal design with a custom field, and the
-  starter through the check; `tests/pandoc.rs`, `tests/templates.rs`,
-  `tests/cli.rs` and `tests/logging.rs` cover the rest.
+- `tests/pdf.rs` compiles every design (also without optional fields), an
+  English document, a minimal design with a custom field, the built-in design
+  through the check, SVG/WEBP images and logos (also broken ones) and the
+  LaTeX state cache; `tests/converter.rs` checks that a slow conversion is a
+  warning; `tests/pandoc.rs`, `tests/templates.rs`, `tests/cli.rs` and
+  `tests/logging.rs` cover the rest.
 - **APA must not change by accident.** For any change to the base, the `apa7`
-  format or the APA designs, render the catalog with both covers before and
-  after (`pdftoppm -r 40`) and compare every page with `cmp`; they must stay
-  byte-identical unless the change is intended.
+  format or the design, render the catalog before and after (`pdftoppm -r 40`)
+  and compare every page with `cmp`; they must stay byte-identical unless the
+  change is intended.
 - After template or filter changes, regenerate the versioned catalog and
   screenshots with the `/regenerate-catalog` skill (placeholders from
   `courses/example.toml`, empty logos folder).
@@ -1719,8 +1770,10 @@ Only the real LaTeX error is shown. After a failed build, `last-error.tex` and
 | Symptom or message | Likely cause and fix |
 |---|---|
 | "Missing data used by the design X: ..." | The design uses that data and it is empty. Fill it in the profile (`p` in the menu options), or give it with `--set NAME=value` (or `--course`) |
-| "The design X does not work with the format Y" | Choose a format the design lists, or another design |
-| "Design X not found" / "Format X not found" | Typo, or the folder lacks `template.ltx`/`format.sty`. The message lists the available names. A same-named folder in `my-templates/` never overrides a built-in |
+| "The design "X" no longer exists; geometric-cover is used." | A retired design (`classic-cover`, `report`, `starter`, `apa`, `apa-simple`) in the profile or `--design`; set `design = "geometric-cover"` or one of yours |
+| "The format "X" no longer exists; APA 7 is used." | An old `format` in the profile or `--format`; delete it |
+| "The profile has semester, which is no longer used" | Delete `semester` from the profile and put the term in `group` |
+| "Design X not found" | Typo, or the folder lacks `template.ltx`. The message lists the available names. A same-named folder in `my-templates/` never overrides a built-in |
 | "Course profile not found: X" | Wrong key; `courses/<key>.toml` must exist. The message lists the profiles |
 | "The course profile ... is not valid" | A typo in a key (unknown keys are errors) or bad TOML; the file path and the parser's message are shown |
 | "The course profile ... needs a name" | Add `name = "..."` |
@@ -1735,17 +1788,20 @@ Only the real LaTeX error is shown. After a failed build, `last-error.tex` and
 | ... pointing to a chart | `pgfplot` syntax error (real LaTeX); the message gives the line; fix or delete the block |
 | LaTeX reports a missing `.sty` | Install the package (`tlmgr install <name>` or the MiKTeX Console) |
 | "Could not write to <folder>" | Permissions, or the PDF is open in a viewer; close it |
-| "The logos folder does not exist" | Fix `--logos`/`LOGOS`, or remove it to use `templates/logos/` |
+| "The logos folder ... does not exist" (warning) | Fix `--logos`/`LOGOS`, or remove it to use `templates/logos/` |
+| "The logo ... is not used: name it ..." | Rename the file to `logo-universidad`/`logo-facultad` with a lower-case `svg`, `pdf`, `png`, `jpg`, `jpeg` or `webp` extension |
+| "... took too long to convert" | An SVG with heavy filters, or a huge image: export it to PNG |
+| An SVG's text looks different on another computer | SVG text uses the system fonts; convert the text to paths, or export to PNG |
 | `###` printed in the PDF | Invisible spaces or a missing blank line before the heading |
 | A table shows as rows of bars | The dashes row under the header is missing, or a blank line before the table |
 | A diagram is misaligned | ASCII art outside a code block |
 | Diagram appears as code | Graphviz missing (`dot -V`) or a syntax error in the diagram (one warning) |
 | "Image not found: ..." | The path is resolved from the Markdown's folder (and `cache/`) |
-| Web image missing | Not PNG/JPG/PDF (SVG, WebP), no connection, or the site refused; convert and use a local file |
+| Web image missing | Not PNG, JPG, PDF, SVG or WEBP, no connection, or the site refused; download it and use a local file |
 | `[?]` in the PDF and a warning naming a symbol | The font has no glyph; replace it or declare it in the Unicode block of `investigacion-base.sty` |
 | Warnings about missing headings | APA 7 recommends `Introducción`, `Desarrollo`, `Conclusión`, `Referencias`; it is only a warning |
 | Wrong language on the cover or "Contents" | Set the document language: `language` in the profile or `--doc-lang` |
-| Cover logos missing | Files must be named `logo-universidad.png` and `logo-facultad.png` and be in `templates/logos/`, next to the design, or in `--logos` |
+| Cover logos missing | Files must be named `logo-universidad` and `logo-facultad` (SVG, PDF, PNG, JPG or WEBP) and be in `--logos`, next to the design, in the work folder's `logos/` or in `templates/logos/` |
 | Your own design fails | `investigacion --check-template <design>` |
 | "Invalid syntax in settings.toml, line N: expected KEY=VALUE" | `settings.toml` is KEY=VALUE lines, not TOML tables; fix or delete the file |
 | Menu shows "Internal error: ..." | A bug; the menu keeps running; send the log |
@@ -1759,7 +1815,7 @@ Only the real LaTeX error is shown. After a failed build, `last-error.tex` and
 | Term | Meaning |
 |---|---|
 | Base | The universal LaTeX layer (`templates/common/`): Pandoc compatibility, diagrams, charts, Unicode |
-| Format | The norm (`apa7`, `harvard`, `mla`): `format.sty` + `format.toml` |
+| Format | The norm (`apa7`, the only one): `format.sty` + `format.toml` |
 | Design | The cover or title block and the look: `template.ltx` + `template.toml` |
 | Layout | A design plus its format (`Layout` in `src/template.rs`); the format is absent for a self-contained design |
 | Self-contained design | A design without `%%FORMAT%%`; carries all its own rules |
@@ -1772,11 +1828,11 @@ Only the real LaTeX error is shown. After a failed build, `last-error.tex` and
 | Fragment | Pandoc's LaTeX output without a preamble |
 | Document language | The language of the PDF (`es`/`en`) |
 | Interface language | The language of menus, messages and help |
-| Legacy design | `apa` and `apa-simple`, mapped to `geometric-cover`/`classic-cover` |
+| Retired name | A design (`apa`, `apa-simple`, `classic-cover`, `report`, `starter`), format (`harvard`, `mla`…) or profile key (`semester`, `format`) that is still accepted, with a warning |
 | Disguised space | An invisible space (U+00A0, U+2007, U+202F, U+200B) |
-| `ReferenceList` | LaTeX environment wrapping the references section (hanging indent per format) |
+| `ReferenceList` | LaTeX environment wrapping the references section (hanging indent in APA 7) |
 | `CajaMarcada` | LaTeX environment of a note box |
-| `\FormatBodySetup` | Hook a format redefines to set alignment and indent after the cover |
+| `\FormatBodySetup` | Hook the format redefines to set alignment and indent after the cover |
 | Draft mode | `pdflatex -draftmode`: first pass without producing the PDF |
 | State cache | Saved `.aux`/`.toc` in `cache/latex/` that lets a re-run finish in one pass |
 | `TOOL_TIMEOUT` | 180 s limit for each Pandoc and pdflatex run |

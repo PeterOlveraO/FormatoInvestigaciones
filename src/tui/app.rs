@@ -6,9 +6,7 @@ use std::sync::mpsc::{self, Receiver, TryRecvError};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
-use super::picker::{
-    Item, PickOutcome, PickValue, Picker, PickerPurpose, design_items, format_items, may_write,
-};
+use super::picker::{Item, PickOutcome, PickValue, Picker, PickerPurpose, design_items, may_write};
 use crate::cli::{Args, Reporter, execute};
 use std::collections::BTreeMap;
 
@@ -37,8 +35,6 @@ pub enum FieldKey {
     Teacher,
     Members,
     Group,
-    Semester,
-    Format,
     Template,
     Output,
     Copies,
@@ -51,7 +47,6 @@ impl FieldKey {
             FieldKey::University => "UNIVERSIDAD",
             FieldKey::Faculty => "FACULTAD",
             FieldKey::Course => "MATERIA",
-            FieldKey::Semester => "SEMESTRE",
             _ => return None,
         })
     }
@@ -81,7 +76,7 @@ const NOTHING: Text = Text::new("", "");
 /// El formulario. No incluye el archivo de ajustes, «permitir LaTeX», la
 /// plantilla por ruta ni la carpeta de logos (las opciones 9 a 12 del menú
 /// anterior): siguen disponibles en el CLI para quien las necesite.
-pub const FIELDS: [Field; 16] = [
+pub const FIELDS: [Field; 14] = [
     Field {
         key: FieldKey::Profile,
         label: Text::new("Perfil de materia", "Course profile"),
@@ -141,7 +136,7 @@ pub const FIELDS: [Field; 16] = [
             "Name of the university, as shown on the cover.",
         ),
         example: Text::new("Universidad Autónoma de Ejemplo", "Example State University"),
-        empty: Text::new("la del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Faculty,
@@ -150,7 +145,7 @@ pub const FIELDS: [Field; 16] = [
         required: false,
         help: Text::new("Facultad o escuela.", "Faculty or school."),
         example: Text::new("Facultad de Ingeniería", "School of Engineering"),
-        empty: Text::new("la del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Student,
@@ -162,7 +157,7 @@ pub const FIELDS: [Field; 16] = [
             "Your full name. With team members, the cover shows them instead.",
         ),
         example: Text::new("Ana Ruiz Pérez", "Ana Ruiz Pérez"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Course,
@@ -184,7 +179,7 @@ pub const FIELDS: [Field; 16] = [
         required: false,
         help: Text::new("Nombre del docente.", "Name of the teacher."),
         example: Text::new("Nombre del docente", "Name of the teacher"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Members,
@@ -196,37 +191,16 @@ pub const FIELDS: [Field; 16] = [
             "Team names separated by commas. With members, the cover does not show the student.",
         ),
         example: Text::new("Ana Ruiz, Luis Paz", "Ana Ruiz, Luis Paz"),
-        empty: Text::new("los del perfil; si no hay, el alumno", "the profile's; if none, the student"),
+        empty: Text::new("sale el alumno", "the student is shown"),
     },
     Field {
         key: FieldKey::Group,
         label: Text::new("Grupo", "Group"),
         kind: FieldKind::Text,
         required: false,
-        help: Text::new("Grupo de la materia.", "Group of the course."),
+        help: Text::new("Grupo o periodo, p. ej. 7-A.", "Group or term, e.g. 7-A."),
         example: Text::new("7-A", "7-A"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
-    },
-    Field {
-        key: FieldKey::Semester,
-        label: Text::new("Semestre", "Semester"),
-        kind: FieldKind::Text,
-        required: false,
-        help: Text::new("Semestre o periodo escolar.", "Semester or term."),
-        example: Text::new("7", "7"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
-    },
-    Field {
-        key: FieldKey::Format,
-        label: Text::new("Formato", "Format"),
-        kind: FieldKind::Pick(PickerPurpose::Format),
-        required: false,
-        help: Text::new(
-            "La norma: APA 7, Harvard, MLA… Decide letra, interlineado, encabezados y referencias.",
-            "The norm: APA 7, Harvard, MLA… It sets font, spacing, headings and references.",
-        ),
-        example: Text::new("harvard", "harvard"),
-        empty: Text::new("el primero que acepta el diseño", "the first one the design accepts"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Template,
@@ -237,7 +211,7 @@ pub const FIELDS: [Field; 16] = [
             "Portada y aspecto del documento. Los diseños están en templates/designs/ y en my-templates/designs/.",
             "Cover and look of the document. Designs live in templates/designs/ and my-templates/designs/.",
         ),
-        example: Text::new("classic-cover", "classic-cover"),
+        example: Text::new("geometric-cover", "geometric-cover"),
         empty: Text::new("geometric-cover (APA 7)", "geometric-cover (APA 7)"),
     },
     Field {
@@ -497,6 +471,8 @@ impl Reporter for ChannelReporter {
 
 pub struct App {
     pub project: Project,
+    /// Este programa, para convertir SVG y WEBP (lo pasa `main.rs`).
+    pub converter: Option<PathBuf>,
     pub values: [String; FIELDS.len()],
     pub selected: usize,
     pub mode: Mode,
@@ -549,6 +525,7 @@ impl App {
         let log = errors.into_iter().map(|e| LogLine::Warning(e.0)).collect();
         let mut app = Self {
             project,
+            converter: None,
             values: Default::default(),
             selected: index_of(FieldKey::Markdown),
             mode: Mode::Form,
@@ -824,21 +801,24 @@ impl App {
         self.courses.iter().find(|s| s.key == key)
     }
 
-    /// Arma los mismos argumentos que recibiría el CLI. Los campos vacíos no
-    /// se pasan, para que siga valiendo el perfil.
+    /// Arma los mismos argumentos que recibiría el CLI. Sin perfil, los campos
+    /// vacíos no se pasan. Con perfil, el formulario ya muestra sus datos: un
+    /// dato de portada vacío se pasa vacío, para que el PDF tampoco lo lleve.
     pub fn build_args(&self) -> Args {
         let optional = |key| Some(self.value(key).to_owned()).filter(|v| !v.is_empty());
+        let with_profile = !self.value(FieldKey::Profile).is_empty();
+        let data = |key| Some(self.value(key).to_owned()).filter(|v| with_profile || !v.is_empty());
         // Las carpetas del formulario parten de la raíz del proyecto; `~` es la carpeta personal.
         let folder = |path: &str| self.project.resolve(path);
         Args {
             markdown: PathBuf::from(self.value(FieldKey::Markdown)),
             title: self.value(FieldKey::Title).to_owned(),
             file_name: optional(FieldKey::FileName),
-            course: optional(FieldKey::Course),
+            course: data(FieldKey::Course),
             profile: optional(FieldKey::Profile),
-            teacher: optional(FieldKey::Teacher),
-            members: optional(FieldKey::Members),
-            group: optional(FieldKey::Group),
+            teacher: data(FieldKey::Teacher),
+            members: data(FieldKey::Members),
+            group: data(FieldKey::Group),
             output: optional(FieldKey::Output).map(|o| folder(&o)),
             copy: self
                 .value(FieldKey::Copies)
@@ -850,22 +830,22 @@ impl App {
             settings: None,
             allow_latex: false,
             design: optional(FieldKey::Template),
-            format: optional(FieldKey::Format),
+            format: None,
             // Los datos generales sin opción propia viajan como `--set`, igual que en el CLI.
             fields: [
                 ("UNIVERSIDAD", FieldKey::University),
                 ("FACULTAD", FieldKey::Faculty),
                 ("ALUMNO", FieldKey::Student),
-                ("SEMESTRE", FieldKey::Semester),
             ]
             .into_iter()
             .map(|(name, key)| (name.to_owned(), self.value(key).to_owned()))
             .chain(self.extras.iter().map(|e| (e.name.clone(), e.value.trim().to_owned())))
-            .filter(|(_, value)| !value.is_empty())
+            .filter(|(_, value)| with_profile || !value.is_empty())
             .collect(),
             doc_lang: None,
             logos: None,
             lang: Some(i18n::current()),
+            converter: self.converter.clone(),
         }
     }
 
@@ -1093,16 +1073,10 @@ impl App {
                     items,
                 )
             }
-            PickerPurpose::Format => Picker::choices(
-                purpose,
-                Text::new("Elige un formato", "Choose a format").get(),
-                format_items(&self.project),
-            ),
-            // Solo los diseños que combinan con el formato elegido.
             PickerPurpose::Template => Picker::choices(
                 purpose,
                 Text::new("Elige un diseño", "Choose a design").get(),
-                design_items(&self.project, self.value(FieldKey::Format)),
+                design_items(&self.project),
             ),
             PickerPurpose::Output | PickerPurpose::Copies => {
                 // Empieza en la carpeta ya elegida (la última copia) o en la raíz.
@@ -1162,24 +1136,20 @@ impl App {
                         project.courses_dir(),
                         Text::new("perfiles de materia (*.toml)", "course profiles (*.toml)"),
                     ),
-                    (
-                        "my-templates",
-                        project.user_templates_dir(),
-                        Text::new("tus formatos y diseños", "your formats and designs"),
-                    ),
+                    ("my-templates", project.user_templates_dir(), Text::new("tus diseños", "your designs")),
                     (
                         "logos",
                         project.work.join("logos"),
                         Text::new(
-                            "logo-universidad.png y logo-facultad.png",
-                            "logo-universidad.png and logo-facultad.png",
+                            "logo-universidad y logo-facultad (SVG, PDF, PNG, JPG o WEBP)",
+                            "logo-universidad and logo-facultad (SVG, PDF, PNG, JPG or WEBP)",
                         ),
                     ),
                     (".", project.work.clone(), Text::new("carpeta de trabajo", "work folder")),
                     (
                         "templates",
                         project.templates_dir(),
-                        Text::new("formatos y diseños incluidos", "built-in formats and designs"),
+                        Text::new("el formato y los diseños incluidos", "the built-in format and designs"),
                     ),
                     (
                         "cache",
@@ -1266,16 +1236,6 @@ impl App {
                 self.set(FieldKey::Markdown, path.display().to_string());
             }
             (PickerPurpose::Profile, PickValue::Choice(key)) => self.apply_profile(&key),
-            (PickerPurpose::Format, PickValue::Choice(name)) => {
-                // Un diseño que no combina con el formato nuevo se quita.
-                if self.design.as_ref().is_some_and(|d| !d.is_self_contained() && !d.accepts(&name))
-                    && !self.value(FieldKey::Template).is_empty()
-                {
-                    self.set(FieldKey::Template, "");
-                    self.refresh_design();
-                }
-                self.set(FieldKey::Format, name);
-            }
             (PickerPurpose::Template, PickValue::Choice(name)) => {
                 self.set(FieldKey::Template, name);
                 self.refresh_design();
@@ -1322,11 +1282,9 @@ impl App {
             (FieldKey::University, &profile.university),
             (FieldKey::Faculty, &profile.faculty),
             (FieldKey::Student, &profile.student),
-            (FieldKey::Semester, &profile.semester),
             (FieldKey::Teacher, &profile.teacher),
             (FieldKey::Members, &profile.members),
             (FieldKey::Group, &profile.group),
-            (FieldKey::Format, &profile.format),
             (FieldKey::Template, &profile.design),
         ] {
             // También los vacíos: si no, quedaría el dato del perfil anterior.

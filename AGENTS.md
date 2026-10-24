@@ -1,8 +1,9 @@
 # AGENTS.md
 
 Rust CLI and full-screen menu (`investigacion`) that turns a paper written in
-Markdown into a PDF: Pandoc → LaTeX (format + design) → pdflatex. Built-in
-formats: APA 7 (default), Harvard and MLA 9. The project belongs to a
+Markdown into a PDF: Pandoc → LaTeX (format + design) → pdflatex. One
+format (APA 7) and one built-in design (`geometric-cover`); users can add
+designs in `my-templates/designs/`. The project belongs to a
 Spanish-speaking student; papers are Spanish by default.
 
 ## Commands
@@ -14,7 +15,7 @@ cargo test                                # all tests (PDF/Pandoc tests skip if 
 cargo test --lib markdown                 # one module
 cargo test --test pdf                     # only the tests that build real PDFs (~45 s)
 cargo run --release -- Tarea1.md -p ia --title "Tema"   # CLI; no arguments opens the menu
-target/release/investigacion --check-template starter    # check a design, build the catalog with it
+target/release/investigacion --check-template geometric-cover    # check a design, build the catalog with it
 INVESTIGACION_TIMING=1 target/release/investigacion examples/catalog.md --title T --course M
 INVESTIGACION_LOG=debug target/release/investigacion …   # full log in cache/logs/investigacion.log (off: INVESTIGACION_LOG=off)
 ```
@@ -47,18 +48,22 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
 - **Formats and designs are separate layers.**
   - **Base** (`templates/common/`, universal): Pandoc compatibility, diagrams,
     charts, Unicode.
-  - **Format** (`templates/formats/<f>/`): the norm's style.
+  - **Format** (`templates/formats/apa7/`): the norm's style. APA 7 is the
+    only one; there are no user formats.
   - **Design** (`templates/designs/<d>/`): cover and look.
   - A design must follow the contract (`latex-templates` skill), and
     `--check-template` verifies it.
 - **APA output must not change by accident.** For any change to the base, the
-  `apa7` format or the APA designs, compare the rendered pages before and
+  `apa7` format or the design, compare the rendered pages before and
   after (`pdftoppm` + `cmp`). Every phase so far kept them byte-identical.
 - **Keep old names working.** These stay:
   - the hidden clap aliases `--titulo`, `--materia`, `--subject`,
     `--template`…;
   - the serde aliases `subject` and `template` in profiles;
-  - the legacy design names `apa`/`apa-simple`.
+  - the hidden `--format` and the profile keys `format` and `semester`
+    (ignored with a one-line warning);
+  - the retired design names `apa`, `apa-simple`, `classic-cover`, `report`,
+    `starter` (they use `geometric-cover` with a warning).
 - **Nothing OS-specific.** It runs on Linux and Windows, and macOS comes next,
   so the code must stay portable:
   - no `cfg!(windows)`, fixed paths or hand-written path separators;
@@ -85,8 +90,9 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
 - **The menu must not crash.** Key handling, drawing and the generation
   thread run inside `tui::guard::run`: a panic is logged with its backtrace
   and shown as an error line, and the menu keeps running.
-- **Always produce a PDF.** A missing image, symbol or Graphviz becomes a
-  warning, not an error. The only intended hard failures are a broken
+- **Always produce a PDF.** A missing image, an SVG/WEBP that cannot be
+  converted, a bad logo or logos folder, an unknown symbol or a missing
+  Graphviz becomes a warning, not an error. The only intended hard failures are a broken
   ` ```pgfplot `/` ```tikz ` block and broken `$…$` math, because both are
   real LaTeX.
 - **Required data follows the design.** A standard field is required only if
@@ -105,6 +111,8 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
   - `settings.toml`, `.env` (old), `input/`, `output/`, `cache/`,
     `my-templates/`, `courses/*.toml` (except `example.toml`) and
     `templates/logos/*` are git-ignored on purpose.
+  - `local/` is git-ignored: everything that is not versioned (notes, loose
+    PDFs, scratch tests) goes there.
   - Generated files in git (`examples/catalog.pdf`, `docs/images/*.png`) use
     the placeholders of `courses/example.toml` (`-p example`) and no logos (`/regenerate-catalog`).
 
@@ -112,13 +120,14 @@ Minimum Rust: 1.88 (edition 2024, let-chains).
 
 ```
 src/
-  main.rs        CLI entry; no arguments → TUI
+  main.rs        CLI entry; --convert-image first; no arguments → TUI
   cli.rs         Args (clap), localized help/errors, execute() shared with the TUI, --check-template
   i18n.rs        Lang (thread-local), tr!, Text, detect/resolve
   logging.rs     diagnostic log (cache/logs/), levels, rotation, panic hook
-  template.rs    Format/Design, manifests, markers, resolve_layout (design × format)
+  template.rs    Format/Design, manifests, markers, retired design names, resolve_layout
   check.rs       --check-template: contract checks, typo suggestions, test builds
-  generate.rs    the pipeline: generate_pdf, missing_data, copy_pdf_to, output_file_name
+  generate.rs    the pipeline: generate_pdf, missing_data, copy_pdf_to, copy_logos, output_file_name
+  image.rs       SVG/WEBP → PNG (resvg, image), --convert-image with a 30 s limit
   markdown.rs    read/normalize Markdown, lookup in input/, structure warnings
   pandoc.rs      Pandoc call; Lua filters embedded with include_str!
   latex.rs       latex_escape, render_template (standard markers + custom fields)
@@ -131,18 +140,19 @@ src/
   process.rs     run tools with a timeout (TOOL_TIMEOUT = 180 s)
   tui/           app.rs (state), ui.rs (drawing), wizard.rs (profile wizard), picker.rs,
                  guard.rs (panic safety net), tools.rs (Pandoc/pdflatex/Graphviz check), tests.rs
-tests/           integration: templates.rs, pandoc.rs, pdf.rs, cli.rs
+tests/           integration: templates.rs, pandoc.rs, pdf.rs, cli.rs, logging.rs, converter.rs
 resources/filters/   Lua filters: inline_html, images, diagrams, charts, blocks;
                      common.lua is pasted in front of each one
-templates/       common/ (base + final .sty), formats/{apa7,harvard,mla}/,
-                 designs/{geometric-cover,classic-cover,report,starter}/, logos/
-my-templates/    the user's own formats/ and designs/ (git-ignored)
+templates/       common/ (base + final .sty), formats/apa7/, designs/geometric-cover/, logos/
+my-templates/    the user's own designs/ (git-ignored)
 courses/         course profiles; only example.toml and README.md are tracked
-examples/        Spanish sample papers; catalog.md is the visual test bench
+examples/        catalog.md (Spanish, the visual test bench), catalog.pdf and its
+                 sample images (PNG, SVG, WEBP)
+local/           notes and scratch files, never versioned (git-ignored)
 ```
 
 Pipeline (`cli::execute` → `generate::generate_pdf`): `resolve_layout`
-(design + format) → `missing_data` → `read_markdown` (+ `normalize_markdown`)
+(design + APA 7) → `missing_data` → `read_markdown` (+ `normalize_markdown`)
 → `validate_markdown` (the format's headings) → `pandoc_to_latex` (a LaTeX
 **fragment**) → `render_template` → `compile_pdf` → `copy_pdf_to`.
 

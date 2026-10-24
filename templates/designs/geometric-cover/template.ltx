@@ -5,8 +5,8 @@
 % CONTRATO DEL DISEÑO
 % ==========================================
 % La base universal (Pandoc, diagramas, gráficas, símbolos) va primero; en
-% la línea marcada abajo el programa inserta el idioma (babel) y el formato (APA,
-% Harvard, MLA...). Este diseño solo aporta sus datos y su portada.
+% la línea marcada abajo el programa inserta el idioma (babel) y el formato
+% (APA 7). Este diseño solo aporta sus datos y su portada.
 \usepackage{investigacion-base}
 %%FORMAT%%
 
@@ -24,8 +24,11 @@
 \newcommand{\NombreMateria}{%%MATERIA%%}
 \newcommand{\GrupoMateria}{%%GRUPO%%}
 \newcommand{\NombreMaestro}{%%DOCENTE%%}
-\newcommand{\SemestreActual}{%%SEMESTRE%%}
 \newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
+
+% El programa deja cada logo como .pdf, .png o .jpg según su contenido, y
+% \IfFileExists no prueba extensiones: por eso se prueban las tres.
+\newcommand{\SiHayLogo}[2]{\IfFileExists{#1.pdf}{#2}{\IfFileExists{#1.png}{#2}{\IfFileExists{#1.jpg}{#2}{}}}}
 
 % hyperref, footnotehyper y los metadatos del PDF: van al final del preámbulo.
 \usepackage{investigacion-final}
@@ -119,11 +122,12 @@
         % Van dentro del marco (la línea superior está en yshift=-2cm) y por
         % encima del nombre de la universidad, que empieza en yshift=-5.4cm.
         %
-        % Se buscan dos archivos con nombre fijo: `logo-universidad.png` a la
-        % izquierda y `logo-facultad.png` a la derecha. Salen de la carpeta de
-        % logos (templates/logos/ por omisión, o la que indique --logos), que
-        % generate_pdf() copia junto al .tex temporal y compile_pdf() agrega a
-        % TEXINPUTS; por eso aquí basta con el nombre, sin ruta ni extensión.
+        % Se buscan dos archivos con nombre fijo: `logo-universidad` a la
+        % izquierda y `logo-facultad` a la derecha (SVG, PDF, PNG, JPG o WEBP).
+        % Salen de la carpeta de logos (templates/logos/ por omisión, o la que
+        % indique --logos); generate_pdf() los deja junto al .tex temporal (SVG y
+        % WEBP ya convertidos a PNG), así que aquí basta con el nombre, sin ruta
+        % ni extensión.
         % Si faltan, la portada se compila igual (mismo criterio que los .sty
         % opcionales del preámbulo).
         %
@@ -131,12 +135,12 @@
         % ser muy distintas: un escudo es casi cuadrado y el logotipo de una
         % facultad suele ser una banda alargada. Si tus logos se ven
         % descolocados, estos dos valores son los que hay que ajustar.
-        \IfFileExists{logo-universidad.png}{%
+        \SiHayLogo{logo-universidad}{%
             \node[anchor=north west, inner sep=0pt] at ([xshift=3.5cm, yshift=-2.6cm]current page.north west)
-                {\includegraphics[height=1.6cm]{logo-universidad}};}{}
-        \IfFileExists{logo-facultad.png}{%
+                {\includegraphics[height=1.6cm]{logo-universidad}};}
+        \SiHayLogo{logo-facultad}{%
             \node[anchor=north west, inner sep=0pt] at ([xshift=11.3cm, yshift=-3.18cm]current page.north west)
-                {\includegraphics[height=0.88cm]{logo-facultad}};}{}
+                {\includegraphics[height=0.88cm]{logo-facultad}};}
 
         % ==========================================
         % TEXTOS DE LA PORTADA
@@ -179,14 +183,12 @@
               }%
               % El orden de estas líneas es fijo y no depende del orden en que
               % se hayan escrito las opciones del comando:
-              %   alumno (o integrantes), materia, docente, semestre y grupo.
-              \textbf{\SegunIdioma{MATERIA:}{COURSE:}} \NombreMateria\\[0.25cm]
-              % El docente tambien es opcional: la materia y el semestre son los
-              % unicos datos que siempre aparecen.
-              \ifdefempty{\NombreMaestro}{}{\textbf{\SegunIdioma{DOCENTE:}{TEACHER:}} \NombreMaestro\\[0.25cm]}%
-              \textbf{\SegunIdioma{SEMESTRE:}{SEMESTER:}} \SemestreActual%
-              % El grupo es opcional y cierra el bloque. El salto va DENTRO del
-              % condicional para no dejar un renglón vacío cuando no se indica.
+              %   alumno (o integrantes), materia, docente y grupo.
+              \textbf{\SegunIdioma{MATERIA:}{COURSE:}} \NombreMateria%
+              % El docente y el grupo son opcionales; la materia es el único dato
+              % que siempre aparece. El salto va DENTRO de cada condicional para
+              % no dejar un renglón vacío cuando el dato no se indica.
+              \ifdefempty{\NombreMaestro}{}{\\[0.25cm]\textbf{\SegunIdioma{DOCENTE:}{TEACHER:}} \NombreMaestro}%
               \ifdefempty{\GrupoMateria}{}{\\[0.25cm]\textbf{\SegunIdioma{GRUPO:}{GROUP:}} \GrupoMateria}};
         
         \node[anchor=south east, font=\sffamily\bfseries, align=right] at ([xshift=-3.5cm, yshift=3.5cm]current page.south east) {\SegunIdioma{FECHA DE ENTREGA:}{DUE DATE:} \FechaEntrega};

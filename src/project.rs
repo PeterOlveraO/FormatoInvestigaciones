@@ -15,23 +15,20 @@ pub const DEFAULT_TEMPLATE: &str = "geometric-cover";
 pub const DEFAULT_FORMAT: &str = "apa7";
 pub const TEMPLATE_FILE: &str = "template.ltx";
 pub const FORMAT_FILE: &str = "format.sty";
-
-/// Nombres de plantilla de la versión anterior, que siguen valiendo.
-pub fn legacy_design(name: &str) -> &str {
-    match name {
-        "apa" => "geometric-cover",
-        "apa-simple" => "classic-cover",
-        other => other,
-    }
-}
 pub const LOGOS_DIRECTORY: &str = "logos";
 /// Claves de `settings.toml` con la carpeta de trabajo, la española primero.
 pub const WORKSPACE_SETTINGS: [&str; 2] = ["CARPETA_TRABAJO", "INVESTIGACION_WORKSPACE"];
 /// Lo que se crea en una carpeta de trabajo nueva.
-pub const WORKSPACE_DIRS: [&str; 6] =
-    ["input", "output", "courses", "my-templates/designs", "my-templates/formats", LOGOS_DIRECTORY];
-/// Nombres que busca la portada dentro de la carpeta de logos.
-pub const LOGO_FILES: [&str; 2] = ["logo-universidad.png", "logo-facultad.png"];
+pub const WORKSPACE_DIRS: [&str; 5] = ["input", "output", "courses", "my-templates/designs", LOGOS_DIRECTORY];
+/// Nombres (sin extensión) que busca la portada dentro de la carpeta de logos.
+pub const LOGO_FILES: [&str; 2] = ["logo-universidad", "logo-facultad"];
+/// Extensiones de logo en orden de preferencia: los vectores primero.
+pub const LOGO_EXTENSIONS: [&str; 6] = ["svg", "pdf", "png", "jpg", "jpeg", "webp"];
+
+/// El primer `<name>.<extensión>` de la carpeta, en el orden de `LOGO_EXTENSIONS`.
+pub fn find_logo(directory: &Path, name: &str) -> Option<PathBuf> {
+    LOGO_EXTENSIONS.iter().map(|ext| directory.join(format!("{name}.{ext}"))).find(|path| path.is_file())
+}
 
 /// Ruta absoluta sin resolver enlaces. Se evita `canonicalize()` porque en
 /// Windows devuelve rutas `\\?\C:\...` que pdflatex y Pandoc no entienden.
@@ -45,8 +42,7 @@ pub fn absolute(path: &Path) -> PathBuf {
 // shortcut: si `path` es un enlace simbólico, queda un archivo normal en su lugar;
 // si alguien enlaza sus perfiles o ajustes, escribir en el destino del enlace.
 pub fn replace_file(path: &Path, write: impl FnOnce(&Path) -> std::io::Result<()>) -> std::io::Result<()> {
-    let temporary =
-        path.with_file_name(format!(".{}.tmp", path.file_name().unwrap_or_default().to_string_lossy()));
+    let temporary = temporary_for(path);
     match write(&temporary).and_then(|()| std::fs::rename(&temporary, path)) {
         Ok(()) => Ok(()),
         Err(error) => {
@@ -54,6 +50,16 @@ pub fn replace_file(path: &Path, write: impl FnOnce(&Path) -> std::io::Result<()
             Err(error)
         }
     }
+}
+
+/// El temporal que usa `replace_file` para `path` en este proceso. Con el id
+/// del proceso: dos generaciones a la vez no se pisan el temporal.
+pub fn temporary_for(path: &Path) -> PathBuf {
+    path.with_file_name(format!(
+        ".{}.{}.tmp",
+        path.file_name().unwrap_or_default().to_string_lossy(),
+        std::process::id()
+    ))
 }
 
 #[derive(Debug, Clone)]
@@ -189,7 +195,7 @@ impl Project {
     pub fn courses_dir(&self) -> PathBuf {
         self.work.join("courses")
     }
-    /// Los formatos y diseños propios (`formats/`, `designs/`).
+    /// Los diseños propios (`designs/`).
     pub fn user_templates_dir(&self) -> PathBuf {
         self.work.join("my-templates")
     }
@@ -213,7 +219,7 @@ impl Project {
         Ok((remote, diagrams))
     }
 
-    /// De dónde salen los logos: la carpeta indicada (que debe existir), la
+    /// De dónde salen los logos: la carpeta indicada (si no existe, ninguna: el CLI ya avisó), la
     /// `logos/` junto a la plantilla, la de la carpeta de trabajo o la
     /// compartida `templates/logos/`.
     /// Que no haya ninguna no es error: la portada se compila sin logos.
@@ -225,11 +231,11 @@ impl Project {
         if let Some(explicit) = explicit {
             let directory = absolute(&expand_home(explicit));
             if !directory.is_dir() {
-                return Err(GenerationError::new(tr!(
-                    es: "No existe la carpeta de logos: {}",
-                    en: "The logos folder does not exist: {}",
+                crate::logging::warn(format_args!(
+                    "logos folder {} not found; no logos",
                     directory.display()
-                )));
+                ));
+                return Ok(None);
             }
             return Ok(Some(directory));
         }
@@ -237,7 +243,7 @@ impl Project {
         // Las compartidas cuentan solo si traen un logo: una `logos/` vacía de
         // la carpeta de trabajo no debe tapar a `templates/logos/`.
         let shared = [self.work.join(LOGOS_DIRECTORY), self.templates_dir().join(LOGOS_DIRECTORY)];
-        let has_logo = |dir: &PathBuf| LOGO_FILES.iter().any(|logo| dir.join(logo).is_file());
+        let has_logo = |dir: &PathBuf| LOGO_FILES.iter().any(|logo| find_logo(dir, logo).is_some());
         Ok(beside.filter(|dir| dir.is_dir()).or_else(|| shared.into_iter().find(has_logo)))
     }
 }
@@ -247,22 +253,40 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_explicit_logos_directory_wins_and_must_exist() {
+    fn an_explicit_logos_directory_wins_and_a_missing_one_means_no_logos() {
         let directory = tempfile::tempdir().unwrap();
         let project = Project::at(directory.path());
         let template = directory.path().join("base.ltx");
         let own = directory.path().join("mis-logos");
         std::fs::create_dir(&own).unwrap();
         assert_eq!(project.resolve_logos_directory(&template, Some(&own)).unwrap(), Some(own));
-        assert!(project.resolve_logos_directory(&template, Some(&directory.path().join("no"))).is_err());
+        // Que no exista no es error ni cae en otra carpeta: la portada sale sin logos.
+        std::fs::create_dir_all(project.templates_dir().join(LOGOS_DIRECTORY)).unwrap();
+        std::fs::write(project.templates_dir().join(LOGOS_DIRECTORY).join("logo-facultad.png"), "x").unwrap();
+        assert_eq!(
+            project.resolve_logos_directory(&template, Some(&directory.path().join("no"))).unwrap(),
+            None
+        );
+        std::fs::remove_dir_all(project.templates_dir().join(LOGOS_DIRECTORY)).unwrap();
         assert_eq!(project.resolve_logos_directory(&template, None).unwrap(), None);
         // Una `logos/` vacía en la carpeta de trabajo no tapa a `templates/logos/`.
         let shared = project.templates_dir().join(LOGOS_DIRECTORY);
         std::fs::create_dir_all(&shared).unwrap();
-        std::fs::write(shared.join(LOGO_FILES[0]), "png").unwrap();
+        std::fs::write(shared.join("logo-universidad.webp"), "webp").unwrap();
         std::fs::create_dir(directory.path().join(LOGOS_DIRECTORY)).unwrap();
         let design = directory.path().join("templates/designs/x/template.ltx");
         assert_eq!(project.resolve_logos_directory(&design, None).unwrap(), Some(shared));
+    }
+
+    #[test]
+    fn logos_are_looked_up_vector_first() {
+        let directory = tempfile::tempdir().unwrap();
+        assert_eq!(find_logo(directory.path(), "logo-facultad"), None);
+        for extension in LOGO_EXTENSIONS.iter().rev() {
+            let path = directory.path().join(format!("logo-facultad.{extension}"));
+            std::fs::write(&path, "").unwrap();
+            assert_eq!(find_logo(directory.path(), "logo-facultad"), Some(path));
+        }
     }
 
     #[test]

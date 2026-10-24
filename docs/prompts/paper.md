@@ -1,21 +1,18 @@
 # Prompt: have an AI write the paper
 
 1. Copy the block below into ChatGPT, Claude, Gemini or the model you use.
-2. After it, write your request: the **topic**, the **citation format** your
-   teacher asks for (APA 7 if you say nothing; also Harvard, MLA or any
-   other), length, language (Spanish by default) and any other instructions.
-   Example: *"Software development life cycles, Harvard, about eight pages,
-   compare at least four models."*
-3. Save the answer in `input/my-paper.md` and generate the PDF with the same
-   format (`--format` or the menu):
+2. After it, write your request: the **topic**, length, language (Spanish by
+   default) and any other instructions. Example: *"Software development life
+   cycles, about eight pages, compare at least four models."*
+3. Save the answer in `input/my-paper.md` and generate the PDF (from the menu
+   or with one command):
 
 ```bash
-investigacion my-paper.md --title "The topic" --course "The course" --format harvard
+investigacion my-paper.md --title "The topic" --course "The course"
 ```
 
-The Markdown is the same for every format: the program sets the layout. The
-format only changes how the model writes citations and references, which is
-why the request must name it.
+The program typesets the paper in APA 7, and the prompt tells the model to
+write citations and references in APA 7 too.
 
 Attach [`examples/catalog.md`](../../examples/catalog.md) too if you want the
 model to see every element in use. If the build stops, the cause is a
@@ -55,7 +52,8 @@ table, one diagram and one chart. Do not ask questions: decide and write.
 # STRUCTURE
 
 Start directly with the first section, using exactly these level-1 headings
-in this order (English papers: Introduction, Body, Conclusion, References):
+in this order (English papers: Introduction, Development, Conclusion,
+References):
 
 ```
 # Introducción
@@ -140,11 +138,14 @@ error (unclosed brace, unknown command) stops the whole PDF: check each one.
 Images, diagrams and charts with a caption share one counter (Figura 1,
 2...). Never type the number; mention each one in the text.
 
-Images only if the user gives a file or URL. PNG, JPG or PDF only:
+Images only if the user gives a file or URL. PNG, JPG, PDF, SVG or WEBP
+(the program converts SVG and WEBP); no GIF:
 
 ```
 ![Caption](picture.png){width=60%}
 ```
+
+Without `{width=...}` an SVG keeps its own size.
 
 Graphviz diagrams for structures, flows and processes. Quote every name, end
 statements with `;`, keep under ~12 nodes, use `rankdir=LR` for long chains.
@@ -178,7 +179,7 @@ with `;`. With `symbolic x coords`, use `xtick=data` and the exact same names
 \end{axis}
 ```
 
-```{.pgfplot caption="Progress during the semester"}
+```{.pgfplot caption="Progress during the term"}
 \begin{axis}[xlabel={Week}, ylabel={Progress (\%)}, ymin=0, ymax=100,
   legend pos=north west]
   \addplot coordinates {(2,10) (4,35) (6,70) (8,100)};
@@ -200,13 +201,12 @@ with `;`. With `symbolic x coords`, use `xtick=data` and the exact same names
 
 # CITATIONS AND REFERENCES
 
-Use the citation format the user names (APA 7 if none), for example APA
-`(Cormen et al., 2022, p. 14)`, Harvard `(Cormen et al. 2022, p. 14)`, MLA
-`(Cormen 45)`. Citations are plain text: no `[@key]` or `\cite`. In Spanish
-use "y", not "&".
+The program typesets APA 7 only; if the user asks for another citation
+style, say so and use APA 7. For example `(Cormen et al., 2022, p. 14)`. Citations are plain
+text: no `[@key]` or `\cite`. In Spanish use "y", not "&".
 
 `# Referencias` is the last section and holds only references: one per
-paragraph separated by blank lines, alphabetical, in the same style, with
+paragraph separated by blank lines, alphabetical, in APA 7 style, with
 titles in `*italics*` and full DOIs/URLs. The program adds the hanging indent.
 Only real sources that the text cites.
 

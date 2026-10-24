@@ -67,7 +67,7 @@ fn what_the_filters_produce_is_defined() {
 #[test]
 fn the_cover_order_is_fixed() {
     let template = full_template();
-    let positions: Vec<usize> = [r"{ALUMNO:}", r"{MATERIA:}", r"{DOCENTE:}", r"{SEMESTRE:}", r"{GRUPO:}"]
+    let positions: Vec<usize> = [r"{ALUMNO:}", r"{MATERIA:}", r"{DOCENTE:}", r"{GRUPO:}"]
         .iter()
         .map(|label| template.find(label).unwrap())
         .collect();
@@ -76,13 +76,14 @@ fn the_cover_order_is_fixed() {
     assert_eq!(positions, sorted);
     assert!(template.find(r"{INTEGRANTES:}").unwrap() < template.find(r"{MATERIA:}").unwrap());
     assert!(!template.contains("TRABAJO ACADÉMICO"));
-    assert!(template.contains(r"\ifdefempty{\NombreMaestro}{}{\textbf{\SegunIdioma{DOCENTE:}"));
+    assert!(template.contains(r"\ifdefempty{\NombreMaestro}{}{\\[0.25cm]\textbf{\SegunIdioma{DOCENTE:}"));
+    assert!(!template.contains("SEMESTRE"));
 }
 
 #[test]
 fn the_template_looks_for_the_generic_logo_names() {
     let template = full_template();
     for name in investigacion::project::LOGO_FILES {
-        assert!(template.contains(&format!(r"\IfFileExists{{{name}}}")));
+        assert!(template.contains(&format!(r"\SiHayLogo{{{name}}}")));
     }
 }

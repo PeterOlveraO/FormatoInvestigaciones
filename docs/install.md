@@ -109,19 +109,19 @@ Run `investigacion`. The first time it asks for:
 1. the **language**;
 2. your **work folder**: browse to where you want your papers (for example
    `Documents/Papers`), go into it and choose `./`. The program creates
-   `input/`, `output/`, `courses/`, `my-templates/` (your designs and formats)
+   `input/`, `output/`, `courses/`, `my-templates/` (your designs)
    and `logos/` there, so you never have to open the program folder. Esc keeps
    everything in the program folder. Change it later in Options → `w`;
 3. your first course profile, with the **profile wizard**.
 
-The wizard asks for the format (APA 7, Harvard, MLA), the
+The wizard asks for the
 design and all the cover data, and saves them in `courses/<name>.toml`. There
 is nothing else to configure.
 
 Optional:
 
-- **Logos:** put `logo-universidad.png` and `logo-facultad.png` in the
-  `logos/` folder of your work folder.
+- **Logos:** put `logo-universidad` and `logo-facultad` (SVG, PDF, PNG, JPG
+  or WEBP) in the `logos/` folder of your work folder.
 - **`settings.toml`** is written by the menu: it remembers the language
   (`IDIOMA="es"`). You can add `LOGOS="<folder>"` for a logos folder outside
   the project. The cover data always goes in the profiles.

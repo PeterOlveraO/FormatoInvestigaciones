@@ -1,6 +1,6 @@
 ---
 name: latex-templates
-description: The three template layers (universal base, format, design), the design contract and its markers, custom fields, manifests (format.toml, template.toml), known LaTeX traps (soul, floatrow, babel, hyperref), Unicode/emoji, logos/TEXINPUTS and the pdflatex pass cache. Use when editing templates/**, src/template.rs, src/latex.rs, src/compile.rs or src/check.rs, adding a format, a design or a cover field, or debugging a LaTeX build failure.
+description: The three template layers (universal base, format, design), the design contract and its markers, custom fields, manifests (format.toml, template.toml), known LaTeX traps (soul, floatrow, babel, hyperref), Unicode/emoji, logos/TEXINPUTS and the pdflatex pass cache. Use when editing templates/**, src/template.rs, src/latex.rs, src/compile.rs or src/check.rs, adding a design or a cover field, or debugging a LaTeX build failure.
 paths: "templates/**,src/template.rs,src/latex.rs,src/compile.rs,src/check.rs,src/document.rs,src/generate.rs,tests/templates.rs,tests/pdf.rs"
 ---
 
@@ -10,21 +10,21 @@ paths: "templates/**,src/template.rs,src/latex.rs,src/compile.rs,src/check.rs,sr
 
 ```
 DESIGN  templates/designs/<d>/template.ltx + template.toml   cover, look, custom fields
-FORMAT  templates/formats/<f>/format.sty  + format.toml      the norm: fonts, spacing, headings, captions, references
+FORMAT  templates/formats/apa7/format.sty + format.toml      the norm: fonts, spacing, headings, captions, references
 BASE    templates/common/investigacion-base.sty / -final.sty  universal: Pandoc compatibility, diagrams, charts, Unicode
 ```
 
-- **Built-ins:**
-  - formats `apa7`, `harvard`, `mla`;
-  - designs `geometric-cover`, `classic-cover`, `report`, `starter`.
-- **The user's own** go in `my-templates/formats|designs/`, searched after the
-  built-ins (`template.rs`: `roots()`).
-- **Selection.** `resolve_layout(project, design, format)` loads the design,
-  then picks the format: the given one, else the first in the design's
-  `formats`, else `apa7`. It errors if the design does not accept it. A design
-  without `%%FORMAT%%` is self-contained and gets no format.
-- **Legacy names.** `apa` → `geometric-cover` and `apa-simple` →
-  `classic-cover` (`legacy_design`).
+- **Built-ins:** the format `apa7` (the only one; `load_format`) and the
+  design `geometric-cover`.
+- **The user's own designs** go in `my-templates/designs/`, searched after the
+  built-ins (`template.rs`: `roots()`). There are no user formats.
+- **Selection.** `resolve_layout(project, design)` loads the design and, unless
+  it is self-contained (no `%%FORMAT%%`), the APA 7 format.
+- **Retired names.** `RETIRED_DESIGNS` (`apa`, `apa-simple`, `classic-cover`,
+  `report`, `starter`) lead to `geometric-cover`, and
+  `retired_design_warning` gives the one-line warning; a user design with one
+  of those names wins, without a warning. Any `--format`/profile `format`
+  other than `apa7` is ignored with a warning in `run_generation`.
 
 ## The design contract
 
@@ -38,16 +38,16 @@ BASE    templates/common/investigacion-base.sty / -final.sty  universal: Pandoc 
 ```
 
 - **Files the program copies.** `copy_template_assets()` copies `common/*.sty`,
-  any `.sty` next to the design, the chosen `format.sty` (renamed to
-  `investigacion-format.sty`) and the logos into the temp dir, which is first
-  in `TEXINPUTS`.
+  any `.sty` next to the design, `format.sty` (renamed to
+  `investigacion-format.sty`) and the other files of the logos folder into the
+  temp dir, which is first in `TEXINPUTS`; `generate::copy_logos` adds the two
+  cover logos.
 - **Babel follows the document language** (`Layout::format_block`): es →
   `spanish, es-tabla`, en → `english`. Anything Spanish-only in a format must
   be guarded, e.g. `\@ifundefined{captionsspanish}{}{\addto\captionsspanish{…}}`.
-- **Hooks the base defines and formats redefine:**
+- **Hooks the base defines and the format redefines:**
   - `\FormatBodySetup`: alignment and indent after the cover;
-  - `ReferenceList`: neutral in the base; hanging indent in apa7, harvard and
-    mla.
+  - `ReferenceList`: neutral in the base; hanging indent in apa7.
 - **Inside a `.sty`:** no `\makeatletter`; load packages with
   `\RequirePackage`.
 - **Comment lines are not scanned for markers** (`extract_markers`), so a
@@ -55,28 +55,29 @@ BASE    templates/common/investigacion-base.sty / -final.sty  universal: Pandoc 
   not filled (`latex::is_comment_line`). Never write `%%FORMAT%%` inside a
   comment anyway, because it is replaced by a two-line block.
 - **Cover labels:** `\SegunIdioma{<es>}{<en>}` (base) follows the document
-  language; the built-in covers use it. Spanish output must stay identical.
+  language; `geometric-cover` uses it. Spanish output must stay identical.
 - **babel-spanish `\%` in math:** `investigacion-final.sty` wraps
   `\es@sppercent` so `$28.9\,\%$` compiles; text mode keeps the original.
 
 ## Markers and data
 
 - **Standard markers** (`STANDARD_MARKERS`): `TITULO UNIVERSIDAD FACULTAD
-  ALUMNO INTEGRANTES MATERIA DOCENTE GRUPO SEMESTRE FECHA_ENTREGA
-  CONTENIDO_MARKDOWN FORMAT CLASS_OPTIONS`.
+  ALUMNO INTEGRANTES MATERIA DOCENTE GRUPO FECHA_ENTREGA
+  CONTENIDO_MARKDOWN FORMAT CLASS_OPTIONS`. `SEMESTRE` is no longer one: in an
+  old design it is a custom field and `--check-template` suggests `GRUPO`.
 - **Custom fields.** Any other `%%NAME%%` is a custom field: filled from
   `DocumentData.fields` (the profile's `[fields]`, `--set`, the TUI extras),
   escaped, empty if missing.
 - **Required data** (`generate::missing_data`):
-  - standard: `TITULO`, `UNIVERSIDAD`, `FACULTAD`, `SEMESTRE`, `MATERIA`,
-    only if the design uses them and does not list them in `optional`;
+  - standard: `TITULO`, `UNIVERSIDAD`, `FACULTAD`, `MATERIA`
+    (`REQUIRED_MARKERS`), only if the design uses them and does not list them in `optional`;
   - custom: only if `[fields.X] required = true`.
 - **Escaping.** `render_template` escapes user data with `latex_escape`.
   Pandoc's content is not escaped and goes in **last**.
 - **`%%INTEGRANTES%%`:** each name is escaped separately, then joined with a
   literal `\\`.
-- **Built-in covers:**
-  - order: student or team, course, teacher, semester, group;
+- **`geometric-cover`:**
+  - order: student or team, course, teacher, group;
   - members replace the student (`\ifdefempty{\ListaIntegrantes}`);
   - `\\[0.25cm]` goes inside each conditional branch.
 - **Adding a standard marker** means changing `DocumentData`,
@@ -86,15 +87,14 @@ BASE    templates/common/investigacion-base.sty / -final.sty  universal: Pandoc 
 ## Manifests
 
 ```toml
-# format.toml
-name = { es = "APA 7", en = "APA 7" }
+# format.toml (required; unknown keys are ignored)
+name = { es = "APA 7", en = "APA 7" }  # optional and ignored; kept for older binaries
 language = "es"                       # document language default
 class_options = "12pt, letterpaper"
 headings = ["Introducción", "Desarrollo", "Conclusión", "Referencias"]  # [] = no structure check
 
 # template.toml (optional)
 description = { es = "…", en = "…" }
-formats = ["apa7", "harvard", "mla"]  # empty = any
 optional = ["UNIVERSIDAD"]            # standard markers shown but not required
 [fields.SALON]
 label = { es = "Salón", en = "Room" }
@@ -102,20 +102,13 @@ help = { es = "…", en = "…" }
 required = true
 ```
 
-Both manifests use `deny_unknown_fields`. Bilingual values are `Localized`
-(plain or `{es, en}`).
+`template.toml` uses `deny_unknown_fields`; an old `formats` list is still
+accepted (and ignored, with a `--check-template` warning). `format.toml` has
+no `deny_unknown_fields`, so `name` and extra keys are ignored. Bilingual
+values are `Localized` (plain or `{es, en}`).
 
-## Adding a format
-
-1. Copy `templates/formats/harvard/` and edit `format.sty`:
-   - geometry, fonts, spacing, `titlesec`, captions;
-   - floatrow caption position (guard it with
-     `\@ifpackageloaded{floatrow}`), `fancyhdr`;
-   - `\renewenvironment{ReferenceList}`, `\renewcommand{\FormatBodySetup}`.
-2. Keep it **single-column**. Pandoc tables are `longtable`, which fails in
-   `twocolumn`; that is why IEEE was removed.
-3. Add it to the designs' `formats` lists. `tests/pdf.rs` then compiles every
-   design × format pair, and `--check-template` reports per format.
+The format must stay **single-column**: Pandoc tables are `longtable`, which
+fails in `twocolumn`.
 
 ## The Pandoc contract (base)
 
@@ -175,8 +168,10 @@ The base only loads pgfplots. Styles live in the format (apa7: grayscale via
 
 ## Logos
 
-- **Names:** `logo-universidad.png` and `logo-facultad.png`, wrapped in
-  `\IfFileExists`.
+- **Names:** `logo-universidad` and `logo-facultad`, found as svg, pdf, png,
+  jpg, jpeg, webp (`find_logo`). `generate::copy_logos` leaves each in the
+  temp dir as `.pdf`/`.png`/`.jpg` by content (SVG/WEBP converted to PNG);
+  the design tests them with `\SiHayLogo`.
 - **Lookup** (`resolve_logos_directory`):
   1. `--logos`/`LOGOS`;
   2. `logos/` next to the design;
@@ -189,7 +184,8 @@ The base only loads pgfplots. Styles live in the format (apa7: grayscale via
 - **Draft first pass.** Without previous state, the first pass uses
   `-draftmode`.
 - **State cache.** `.aux`/`.toc` are cached in `cache/latex/<pdf>-<hash>/`,
-  hashed on output path + `Layout::cache_key()` (design + format). A re-run
+  hashed on output path + `Layout::cache_key()` (design + `apa7`, or `-` when
+  self-contained). `--check-template` skips it (`skip_latex_state`). A re-run
   usually takes one pass. If the old state breaks the build, it is deleted and
   the build is retried.
 - **Designs without a table of contents** write no `.toc`. `save_state` then
@@ -208,9 +204,9 @@ The base only loads pgfplots. Styles live in the format (apa7: grayscale via
 
 ## Regression rule
 
-Before committing a change to the base, the `apa7` format or the APA designs:
+Before committing a change to the base, the `apa7` format or the design:
 
-1. Render the APA catalog with both covers before the change (`pdftoppm -r 40`).
+1. Render the catalog before the change (`pdftoppm -r 40`).
 2. Render it again after the change.
 3. Compare every page with `cmp`; they must stay byte-identical unless the
    change is intended.

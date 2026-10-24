@@ -1,7 +1,7 @@
 # Command-line reference
 
 Every command and option of `investigacion`. For a friendly introduction see
-[usage.md](usage.md); for formats, designs and the Markdown syntax see
+[usage.md](usage.md); for the format, designs and the Markdown syntax see
 [reference.md](reference.md).
 
 - [Commands](#commands)
@@ -25,6 +25,7 @@ Every command and option of `investigacion`. For a friendly introduction see
 | `investigacion --check-template <design>` | Checks a design and builds the catalog with it. |
 | `investigacion --help` (`-h`) | Shows the help, in the interface language. |
 | `investigacion --version` (`-V`) | Shows the version (`investigacion 2.0.0`). |
+| `investigacion --convert-image <SOURCE> <DESTINATION>` | Internal, hidden from `--help`: the image filter calls it to turn an SVG or WEBP into a PNG. It must be the first argument; it does not read `settings.toml` or write the log. It stops itself after 30 s. Exit code `0` converted, `1` failed (short reason on standard error), `2` wrong number of arguments, `124` past the 30 s limit. |
 
 Only the Markdown file and `--title` are always required. The rest is
 required only if the chosen design uses it (see
@@ -53,14 +54,14 @@ as a **hidden alias**: it is not shown in `--help`, and it is kept on purpose.
 | `--settings` | | `--env-file` | file | `settings.toml` in the project | no |
 | `--allow-latex` | | `--permitir-latex` | none (flag) | off | no |
 | `--design` | | `--template`, `--plantilla`, `--diseno` | design name or `.ltx` path | the profile's, else `geometric-cover` | no |
-| `--format` | | `--formato` | format name | the profile's, else the design's first | no |
 | `--set` | | none | `NAME=value` | none | **yes** |
-| `--doc-lang` | | `--idioma-documento` | `es` or `en` | the profile's, else the format's | no |
+| `--doc-lang` | | `--idioma-documento` | `es` or `en` | the profile's, else Spanish | no |
 | `--logos` | | none | folder | `LOGOS` setting, else the design's | no |
 | `--lang` | | `--idioma` | `es` or `en` | saved language, else the system's | no |
 | `--help` | `-h` | none | none | | no |
 | `--version` | `-V` | none | none | | no |
 | `--check-template` | | `--revisar-plantilla` | design name | none | no |
+| `--format` (hidden) | | `--formato` | any text | ignored | no |
 
 `--lang` and `--doc-lang` also accept the full names (`español`, `spanish`,
 `english`, `inglés`, `ingles`, `espanol`), in any case, with or without a
@@ -86,8 +87,9 @@ becomes `investigacion-con.pdf`).
 **`--profile`, `-p`**: course profile from `courses/` (for example `-p ia`
 reads `courses/ia.toml`). The key is matched ignoring case. A path to a
 `.toml` file also works. A profile gives the course, teacher, group, members,
-university, faculty, student, semester, format, design, document language,
-custom fields and folder. See [`courses/README.md`](../courses/README.md).
+university, faculty, student, design, document language, custom fields and
+folders. An old profile with `semester` or `format` still loads: each one is
+ignored with a one-line warning. See [`courses/README.md`](../courses/README.md).
 
 **`--teacher`, `--members`, `--group`**: cover data that overrides the
 profile. If nothing gives a value, the line is left out of the cover.
@@ -110,15 +112,16 @@ invalid one is.
 (`\newpage`, and so on). Without it they are shown as text.
 
 **`--design`**: the cover and look. Either a name (looked up in
-`my-templates/designs/` and `templates/designs/`), a folder, or the path to a
-`.ltx` file. The old names `apa` (now `geometric-cover`) and `apa-simple` (now
-`classic-cover`) still work. A design that is self-contained (it does not use
-`%%FORMAT%%`) applies no format.
+`templates/designs/` and `my-templates/designs/`), a folder, or the path to a
+`.ltx` file. The retired names `apa`, `apa-simple`, `classic-cover`, `report`
+and `starter` use `geometric-cover` with a one-line warning (a design of your
+own with one of those names wins, without a warning). A design that is
+self-contained (it does not use `%%FORMAT%%`) applies no format.
 
-**`--format`**: the norm: `apa7` (default), `harvard`, `mla`, or one of your
-own. Without it, the first format the design lists is used (APA 7 if it lists
-none). A format the design does not accept is an error that names the
-compatible ones.
+**`--format`** (hidden): APA 7 is the only format, so the option is accepted
+only so old commands keep working. `--format apa7` does nothing; any other
+value prints `The format "<name>" no longer exists; APA 7 is used.` and the
+PDF is made in APA 7.
 
 **`--set NAME=value`**: a design's own field (for example
 `--set SALON="B-204"`), or one of the standard cover data names when there is
@@ -128,13 +131,20 @@ converted to upper case; the value may be empty (`--set AULA=`). Without an
 several fields. If the same name appears twice, the last one wins.
 
 **`--doc-lang`**: language of the PDF (`es` or `en`): babel, the date and the
-titles of boxes. It is independent of the interface language (`--lang`).
+titles of boxes. Without it, the profile's `language`, else Spanish (the APA 7
+default). It is independent of the interface language (`--lang`).
 
-**`--logos`**: folder with `logo-universidad.png` and `logo-facultad.png`. The
-folder must exist. Without the option, the `LOGOS` setting is used; if there
+**`--logos`**: folder with `logo-universidad` and `logo-facultad`, each as SVG,
+PDF, PNG, JPG or WEBP (looked up in that order; SVG and WEBP are converted to
+PNG). Without the option, the `LOGOS` setting is used; if there
 is none, the `logos/` folder next to the design, then `logos/` in your work
 folder, then `templates/logos/`. No
-logos at all is not an error: the cover is built without them.
+logos at all is not an error: the cover is built without them. A `--logos` or
+`LOGOS` folder that does not exist (a removed USB drive, say) is a warning that
+names where the path came from, and the cover is built without logos; it does
+not fall back to the other folders. A logo with the right name but another
+extension or upper case (`logo-facultad.GIF`, `logo-facultad.PNG`) is not
+used, and a warning says how to rename it.
 
 **`--lang`**: language of the messages, help and errors for this run. It does
 not change the saved language and does not affect the PDF.
@@ -143,6 +153,9 @@ not change the saved language and does not affect the PDF.
 clap option: it does not appear in the option list of `--help`, only in its
 last lines.
 
+**`--convert-image`**: internal, see [Commands](#commands). Do not use it by
+hand.
+
 ## Precedence
 
 Each value is taken from the first place that has it:
@@ -150,10 +163,9 @@ Each value is taken from the first place that has it:
 | Value | Order |
 |---|---|
 | Course, teacher, members, group | option > `--set MATERIA=…` (`DOCENTE`, `INTEGRANTES`, `GRUPO`) > profile |
-| University, faculty, student, semester | `--set` > profile |
+| University, faculty, student | `--set` > profile |
 | Design | `--design` > profile `design` (or old `template`) > `geometric-cover` |
-| Format | `--format` > profile `format` > the design's first format > `apa7` |
-| Document language | `--doc-lang` > profile `language` > the format's > Spanish |
+| Document language | `--doc-lang` > profile `language` > the format's (`es`) |
 | Output folder | `--output` > profile `output` > `output/<folder>` of the profile > `output/` |
 | Extra copies | `--copy` (all of them) > profile `copies` > none |
 | Markdown folder to search | the profile's `input/<folder>` > `input/` |
@@ -166,8 +178,7 @@ date is always the day you run the command, written in the document language.
 
 ## Cover data without a profile (`--set`)
 
-With a profile, the cover data (university, faculty, student, semester, and
-so on) comes from `courses/<key>.toml`. Without one, give it on the command
+With a profile, the cover data (university, faculty, student, and so on) comes from `courses/<key>.toml`. Without one, give it on the command
 line. Besides `--course`, `--teacher`, `--members` and `--group`, the
 following names work with `--set` and fill the standard data directly:
 
@@ -176,7 +187,7 @@ following names work with `--set` and fill the standard data directly:
 | `UNIVERSIDAD` | University |
 | `FACULTAD` | Faculty |
 | `ALUMNO` | Student |
-| `SEMESTRE` | Semester |
+| `MATERIA` | Course (`--course` wins if both are given) |
 | `DOCENTE` | Teacher (`--teacher` wins if both are given) |
 | `GRUPO` | Group (`--group` wins if both are given) |
 | `INTEGRANTES` | Team members (`--members` wins if both are given) |
@@ -184,17 +195,19 @@ following names work with `--set` and fill the standard data directly:
 Which of them are **required** depends on the design. A standard field is
 required only if the design uses its marker and does not list it under
 `optional` in its `template.toml`. The standard fields that can be required
-are title, university, faculty, semester and course; student, teacher, group
+are title, university, faculty and course; student, teacher, group
 and members are never required. A custom field is required only if its spec
 says so. If something required is missing, the command fails with exit code 1
 and a message such as:
 
 ```
-Error: Missing data used by the design geometric-cover: UNIVERSIDAD, FACULTAD, SEMESTRE, MATERIA. Add them to the profile (Options → p in the menu) or with --set NAME=value.
+Error: Missing data used by the design geometric-cover: UNIVERSIDAD, FACULTAD, MATERIA. Add them to the profile (Options → p in the menu) or with --set NAME=value.
 ```
 
-The default design (`geometric-cover`) needs university, faculty, semester
-and course. The `report` design needs no cover data beyond the title.
+The default design (`geometric-cover`) needs university, faculty and course.
+
+`--set SEMESTRE=…` is ignored with a warning (`use --group`), unless the
+design is one of yours that uses `%%SEMESTRE%%`: then it is a custom field.
 
 ## Finding the Markdown file
 
@@ -230,10 +243,12 @@ folder.
   never stop the PDF.
 - When pdflatex fails, `last-error.tex` and `last-error.log` are saved next to
   the PDF, and the message shows the real LaTeX error.
-- Each external tool (Pandoc, pdflatex, Graphviz) has a 180 second time limit.
+- Each external tool (Pandoc, pdflatex, Graphviz) has a 180 second time limit;
+  the conversion of one SVG or WEBP image, 30 seconds.
 - Temporary build files live in a temporary folder that is removed
-  afterwards. Downloaded images, diagrams and the LaTeX state are cached in
-  `cache/` and may be deleted at any time.
+  afterwards. Downloaded images, SVG and WEBP images converted to PNG,
+  diagrams and the LaTeX state are cached in `cache/` and may be deleted at
+  any time.
 
 The project root (where `input/`, `output/`, `courses/`, `templates/`,
 `cache/` and `settings.toml` live) is found like this:
@@ -254,21 +269,24 @@ Checks a design of your own and test-builds it. `<design>` is a name, a
 folder or the path to a `.ltx` file, like `--design`.
 
 - It is handled **before** the other arguments are parsed. It is found
-  anywhere in the arguments, and the argument right after it is the design.
-  Everything else on the line is ignored. `--revisar-plantilla` is its old
-  name. The `--check-template=<design>` form is not supported.
+  anywhere in the arguments, and the argument right after it is the design;
+  `--check-template=<design>` works too. A value that starts with `-` is not
+  taken as the design. Everything else on the line is ignored.
+  `--revisar-plantilla` is its old name.
 - It first reads the design and reports:
   - errors: `\usepackage{investigacion-base}`, `\usepackage{investigacion-final}`
-    or `%%CONTENIDO_MARKDOWN%%` missing, or a format in `template.toml` that
-    does not exist;
+    or `%%CONTENIDO_MARKDOWN%%` missing;
   - warnings: no `%%FORMAT%%` (self-contained design), no `%%CLASS_OPTIONS%%`,
     a marker that looks like a typo of a standard one (for example
-    `%%DOCENTES%%`), custom fields not described in `template.toml`, and
-    `template.toml` entries the design does not use.
-- If there are no errors, it builds `examples/catalog.md` with every format
-  the design accepts (or once, if the design is self-contained), using sample
-  data. If `examples/catalog.md` does not exist, the build is skipped with a
-  warning.
+    `%%DOCENTES%%`), `%%SEMESTRE%%` (no longer a standard field: use
+    `%%GRUPO%%`), custom fields not described in `template.toml`,
+    `template.toml` entries the design does not use, a leftover `formats`
+    list in `template.toml`, and a retired design name (`starter`…) that led
+    to `geometric-cover`.
+- If there are no errors, it builds `examples/catalog.md` once with APA 7 (or
+  with no format, if the design is self-contained), using sample data. If
+  `examples/catalog.md` does not exist, the build is skipped with a warning.
+  The build leaves no LaTeX state in `cache/latex/`.
 - Output lines start with `✗` (error or build failure), `!` (warning) or `✓`
   (build ok). The last line is `Done: the design is ready to use.` when all is
   well. The text follows `--lang` and the saved language.
@@ -280,11 +298,14 @@ found), `2` no design name after the option.
 
 | Code | When |
 |---|---|
-| `0` | The PDF was generated (a skipped extra copy is only a warning); `--help`/`--version` shown; `--check-template` passed; the menu closed normally. |
-| `1` | A generation error (missing data, file not found, Pandoc/pdflatex failure, unwritable folder, bad profile or settings file); `--check-template` found errors or a build failed; the menu closed because of an internal error. |
+| `0` | The PDF was generated; `--help`/`--version` shown; `--check-template` passed; the menu closed normally. Recovered problems only print a `Warning:` line and keep `0`: a missing or unreadable image, a broken SVG/WEBP, a remote image that cannot be downloaded, a missing or misnamed logo or logos folder, Graphviz not installed, a skipped extra copy, a retired format or design (`mla`, `classic-cover`…), `semester` in a profile. |
+| `1` | A generation error: missing cover data, Markdown not found or empty, unknown profile or design, invalid profile or settings file, unwritable output folder, Pandoc or pdflatex missing or past the 180 s limit, and LaTeX that does not compile. A broken ` ```pgfplot `/` ```tikz ` block or broken `$…$` math is real LaTeX, so it ends here: the message starts with `The LaTeX build failed:`, shows the line, and ends with `Full log: <output folder>/last-error.log` (`last-error.tex` is saved next to it). Also: `--check-template` found errors, a build failed or the design was not found; the menu closed because of an internal error or could not find `templates/`. |
 | `2` | An argument error (missing `--title`, unknown option, invalid value such as `--lang fr`, no design after `--check-template`). The message is in the interface language and ends with `Use --help to see the options.` |
+| `124` | Only the internal `--convert-image`: the conversion passed its own 30 s limit and was stopped. The image filter keeps the alt text and warns that the image took too long, suggesting to export it to PNG; the PDF is still made. |
 
-Errors go to standard error as `Error: <message>`.
+Errors go to standard error as `Error: <message>`; warnings as
+`Warning: <message>`. Every one is also written to the log
+([`INVESTIGACION_LOG`](#environment-variables)).
 
 ## Environment variables
 
@@ -298,6 +319,7 @@ Errors go to standard error as `Error: <message>`.
 | `LOGOS` | Folder with the logos, when `--logos` is not given. |
 | `TEXINPUTS` | Your own value is kept and appended after the project's folders when pdflatex runs. |
 | `HOME`, `USERPROFILE` | Used to expand `~` in paths. |
+| `INVESTIGACION_CONVERTER_TIMEOUT_MS` | Only for the tests: a shorter limit (in ms) for `--convert-image` instead of 30 s. |
 
 `IDIOMA`, `INTERFACE_LANGUAGE` and `LOGOS` can also be set in
 `settings.toml`; when both exist, the **environment variable wins**. The
@@ -319,7 +341,7 @@ it has one `KEY=value` per line.
 # comments start with #
 IDIOMA="en"
 TEMA="nord"
-LOGOS="/home/me/logos"
+LOGOS="~/logos"
 ```
 
 - Accepted keys: `IDIOMA` (or `INTERFACE_LANGUAGE`), `TEMA` (or `THEME`),
@@ -342,7 +364,7 @@ LOGOS="/home/me/logos"
 All of them use placeholder data. `Tarea1.md` can live in the current folder
 or in `input/`.
 
-**With a profile** (the profile gives course, university, format, design…):
+**With a profile** (the profile gives course, university, design…):
 
 ```bash
 investigacion Tarea1.md -p example --title "Búsqueda heurística"
@@ -356,7 +378,6 @@ investigacion Tarea1.md --title "Ecuaciones diferenciales" \
   --set UNIVERSIDAD="Nombre de la universidad" \
   --set FACULTAD="Nombre de la facultad" \
   --set ALUMNO="Nombre del alumno" \
-  --set SEMESTRE="2026-2" \
   --teacher "Nombre del docente" --group "7-A"
 ```
 
@@ -364,13 +385,6 @@ investigacion Tarea1.md --title "Ecuaciones diferenciales" \
 
 ```bash
 investigacion Tarea1.md -p example --title "Tema" --members "Ana Ruiz, Luis Paz"
-```
-
-**Choosing the format and the design** (the design must accept the format):
-
-```bash
-investigacion Tarea1.md -p example --title "Tema" --format mla --design classic-cover
-investigacion Tarea1.md -p example --title "Tema" --format harvard --design report
 ```
 
 **A design from a file of your own:**
@@ -382,7 +396,7 @@ investigacion Tarea1.md -p example --title "Tema" --design my-templates/designs/
 **An English document** (the PDF language), with English messages:
 
 ```bash
-investigacion Essay.md -p example --title "On Graph Theory" --doc-lang en --format mla --lang en
+investigacion Essay.md -p example --title "On Graph Theory" --doc-lang en --lang en
 ```
 
 **Name and folder of the PDF, plus extra copies:**
@@ -411,7 +425,7 @@ investigacion Tarea1.md -p example --title "Tema" --allow-latex --logos ~/logos
 ```bash
 investigacion --check-template mine
 investigacion --check-template my-templates/designs/mine
-investigacion --check-template starter --lang en
+investigacion --check-template=mine --lang en
 ```
 
 **Diagnosing a problem** (full log in `cache/logs/investigacion.log`, and the

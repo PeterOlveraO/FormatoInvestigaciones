@@ -32,15 +32,18 @@ pub struct CourseProfile {
     pub faculty: String,
     #[serde(default)]
     pub student: String,
+    /// Ya no se usa (el grupo cumple su función); se lee con un aviso para
+    /// no romper perfiles viejos y no se guarda.
     #[serde(default)]
     pub semester: String,
-    /// Formato (`apa7`, `harvard`, `mla`…) y diseño (`geometric-cover`…).
-    /// `template` es el nombre antiguo del diseño.
+    /// Ya no se usa (solo hay APA 7); se lee para no romper perfiles viejos y
+    /// no se guarda.
     #[serde(default)]
     pub format: String,
+    /// Diseño (`geometric-cover`…); `template` es su nombre antiguo.
     #[serde(default, alias = "template")]
     pub design: String,
-    /// Idioma del documento (`es` o `en`); vacío = el del formato.
+    /// Idioma del documento (`es` o `en`); vacío = el del formato (español).
     #[serde(default)]
     pub language: String,
     /// Campos propios del diseño (`SALON = "B-204"`).
@@ -69,7 +72,7 @@ impl Course {
     /// Lee y valida un perfil; los errores dicen qué archivo falló.
     pub fn load(path: &Path) -> Result<Self> {
         let text = decode_text(&std::fs::read(path)?, path)?;
-        let profile: CourseProfile = toml::from_str(&text).map_err(|e| {
+        let mut profile: CourseProfile = toml::from_str(&text).map_err(|e| {
             // El detalle (`e.message()`) lo redacta el crate toml y va en inglés.
             GenerationError::new(tr!(
                 es: "El perfil de materia {} no es válido: {}",
@@ -85,6 +88,9 @@ impl Course {
                 path.display()
             )));
         }
+        // Los marcadores van en mayúsculas: `salon` es `SALON` para el CLI y para el menú.
+        // Al revés, para que con `salon` y `SALON` repetidos gane `SALON` (el que escribe el asistente).
+        profile.fields = profile.fields.into_iter().rev().map(|(k, v)| (k.to_uppercase(), v)).collect();
         let key = path.file_stem().unwrap_or_default().to_string_lossy().into_owned();
         Ok(Self { key, profile })
     }
@@ -207,8 +213,6 @@ pub fn save_profile(project: &Project, key: &str, profile: &CourseProfile) -> Re
         ("members", &profile.members),
         ("teacher", &profile.teacher),
         ("group", &profile.group),
-        ("semester", &profile.semester),
-        ("format", &profile.format),
         ("design", &profile.design),
         ("language", &profile.language),
         ("folder", &profile.folder),
@@ -295,8 +299,6 @@ mod tests {
         let mut profile = CourseProfile {
             name: "Inteligencia \"artificial\"".into(),
             university: "Universidad \\ Norte".into(),
-            semester: "7".into(),
-            format: "apa7".into(),
             design: "report".into(),
             folder: "IA".into(),
             output: "salida/IA".into(),
@@ -311,6 +313,28 @@ mod tests {
         // `output` gana sobre `folder`; las rutas relativas parten de la raíz.
         assert_eq!(course.output_dir(&project), project.root.join("salida/IA"));
         assert_eq!(course.copy_dirs(&project)[1], project.root.join("Drive \"IA\""));
+    }
+
+    #[test]
+    fn an_old_semester_is_read_but_not_saved() {
+        let (_dir, project) =
+            project_with(&[("viejo.toml", "name = \"M\"\nsemester = \"7\"\ngroup = \"7-A\"\n")]);
+        let course = find_course(&project, "viejo").unwrap();
+        assert_eq!(course.profile.semester, "7");
+        let path = save_profile(&project, "viejo", &course.profile).unwrap();
+        let saved = std::fs::read_to_string(path).unwrap();
+        assert!(!saved.contains("semester") && saved.contains("group = \"7-A\""), "{saved}");
+    }
+
+    #[test]
+    fn field_keys_are_read_in_capitals() {
+        let text = "name = \"M\"\n[fields]\nsalon = \"viejo\"\nSALON = \"nuevo\"\naula = \"B\"\n";
+        let (_dir, project) = project_with(&[("m.toml", text)]);
+        let fields = find_course(&project, "m").unwrap().profile.fields;
+        assert_eq!(
+            fields.into_iter().collect::<Vec<_>>(),
+            [("AULA".to_owned(), "B".to_owned()), ("SALON".to_owned(), "nuevo".to_owned())]
+        );
     }
 
     #[test]

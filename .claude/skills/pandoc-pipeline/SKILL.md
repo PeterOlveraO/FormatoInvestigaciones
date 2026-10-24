@@ -23,7 +23,9 @@ and extended). Check which of three places to change:
    - **The filters:**
      - `inline_html`: `<br> <mark> <sub> <u> <kbd> <img>`… The LaTeX writer
        **drops HTML silently**, so without this filter the content vanishes.
-     - `images`: downloads web images and warns about missing local ones.
+     - `images`: downloads web images, warns about missing local ones, reads
+       the format from the content and has SVG/WEBP converted to PNG by the
+       program (`--convert-image`, `src/image.rs`).
      - `diagrams`: draws ` ```dot ` blocks with Graphviz; without Graphviz the
        block stays as code and a warning is printed.
      - `charts`: wraps ` ```pgfplot `/` ```tikz ` in `tikzpicture`, plus a
@@ -31,7 +33,9 @@ and extended). Check which of three places to change:
      - `blocks`: `::: nota`/`::: note` boxes and the references section. It
        emits `CajaMarcada` (box title in the **document** language, from
        `INVESTIGACION_DOC_LANG`) and `ReferenceList`. The latter is defined
-       neutral in the base and redefined by each format. Reference headings
+       neutral in the base and redefined by the format. A deeper subheading
+       inside the references (`## Libros`) stays outside the list and the
+       list reopens after it. Reference headings
        are recognized in Spanish and English (`referencias`, `obras citadas`,
        `references`, `bibliography`, `works cited`…).
 3. **`templates/common/investigacion-base.sty`:** the commands Pandoc assumes
@@ -70,6 +74,11 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
   caption is only allowed with `--allow-latex`, like in the body.
 - **A folder is not an image.** `existe` reads one byte, because `io.open`
   opens folders on Linux.
+- **The converter.** `INVESTIGACION_CONVERTER` is this binary (`None` in
+  tests that do not pass it: SVG/WEBP then stay as alt text with a warning)
+  and `INVESTIGACION_CONVERTER_VERSION` goes into the PNG's name. The filter
+  calls `pandoc.pipe(converter, {"--convert-image", src, dst})`; exit 124
+  means the 30 s limit (`CONVERTER_TIMEOUT`) and gets its own warning.
 - **Paths from Rust.** `INVESTIGACION_REMOTE_IMAGES`, `INVESTIGACION_DIAGRAMS`,
   `INVESTIGACION_RESOURCES` and `INVESTIGACION_UNSEARCHABLE` (folders whose
   name contains the path separator; their images are copied to the cache)
@@ -84,10 +93,16 @@ pandoc file.md --from=markdown-raw_tex+mark+emoji+autolink_bare_uris \
 
 - **Folders:** `Project::media_directories()` creates `cache/remote/` and
   `cache/diagrams/`.
-- **File names:** the `sha1` of the URL or the diagram code. The cache is safe
-  to delete.
-- **Formats:** pdflatex only handles PNG/JPG/PDF; anything else is rejected
-  with a warning.
+- **File names:** the `sha1` of the URL, of the converter version plus the
+  content (SVG/WEBP converted to PNG), or of the diagram code. Logos converted
+  by Rust are `logo-<hash>.png` in `cache/remote/`. Files are written to a
+  temporary name and renamed (`escribir`), so a cut run leaves no half file.
+  The cache is safe to delete.
+- **Formats:** pdflatex gets PNG/JPG/PDF; SVG and WEBP are converted to PNG
+  (an SVG at 192 dpi keeps its size; its text uses the system fonts, so it can
+  differ between machines). The format is read from the content
+  (`formato_del_contenido`, same rule as `image::detect`); anything else
+  (GIF…) becomes the alt text with a warning.
 - **`User-Agent`:** Pandoc sends none; `--request-header` adds one because
   some sites answer 400.
 - **Lookup paths:** `--resource-path` includes the Markdown's folder and

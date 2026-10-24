@@ -26,8 +26,8 @@ fn clear(frame: &mut Frame, area: Rect) {
 
 /// Qué hace el programa, en la vista de inicio.
 const WELCOME: Text = Text::new(
-    "Convierte un trabajo escrito en Markdown en un PDF listo para entregar, con formato APA 7, Harvard o MLA y el diseño de portada que elijas. Los datos de cada materia se guardan en un perfil.",
-    "Turns a paper written in Markdown into a PDF ready to hand in, with APA 7, Harvard or MLA format and the cover design you choose. Each course's data is saved in a profile.",
+    "Convierte un trabajo escrito en Markdown en un PDF listo para entregar, con formato APA 7 y el diseño de portada que elijas. Los datos de cada materia se guardan en un perfil.",
+    "Turns a paper written in Markdown into a PDF ready to hand in, with APA 7 format and the cover design you choose. Each course's data is saved in a profile.",
 );
 
 pub fn draw(frame: &mut Frame, app: &App) {

@@ -8,7 +8,7 @@ use ratatui::crossterm::event::KeyCode;
 
 use crate::logging;
 use crate::project::Project;
-use crate::template::{list_designs, list_formats, load_design, load_format};
+use crate::template::{list_designs, load_design};
 
 /// Lo que devuelve una entrada al elegirla.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -40,7 +40,6 @@ pub struct Item {
 pub enum PickerPurpose {
     Markdown,
     Profile,
-    Format,
     Template,
     /// Abrir una carpeta del proyecto con el explorador del sistema.
     Folder,
@@ -347,27 +346,14 @@ pub fn may_write(path: &Path) -> bool {
             .is_some_and(|first| first.as_os_str().to_string_lossy().starts_with(".tmp"))
 }
 
-/// Los formatos, con el nombre de su norma.
-pub fn format_items(project: &Project) -> Vec<Item> {
-    list_formats(project)
-        .into_iter()
-        .map(|key| {
-            let detail =
-                load_format(project, &key).map(|f| f.manifest.name.get().to_owned()).unwrap_or_default();
-            Item { label: key.clone(), detail, value: PickValue::Choice(key) }
-        })
-        .collect()
-}
-
-/// Los diseños que combinan con `format` (vacío = todos), con su descripción.
-pub fn design_items(project: &Project, format: &str) -> Vec<Item> {
+/// Los diseños, con su descripción.
+pub fn design_items(project: &Project) -> Vec<Item> {
     list_designs(project)
         .into_iter()
         .filter_map(|key| {
             let design = load_design(project, Some(&key)).ok()?;
-            let fits = format.is_empty() || design.is_self_contained() || design.accepts(format);
             let detail = design.manifest.description.as_ref().map(|d| d.get().to_owned()).unwrap_or_default();
-            fits.then(|| Item { label: key.clone(), detail, value: PickValue::Choice(key) })
+            Some(Item { label: key.clone(), detail, value: PickValue::Choice(key) })
         })
         .collect()
 }
