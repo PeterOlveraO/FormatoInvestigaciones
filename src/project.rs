@@ -42,12 +42,7 @@ pub fn absolute(path: &Path) -> PathBuf {
 // shortcut: si `path` es un enlace simbólico, queda un archivo normal en su lugar;
 // si alguien enlaza sus perfiles o ajustes, escribir en el destino del enlace.
 pub fn replace_file(path: &Path, write: impl FnOnce(&Path) -> std::io::Result<()>) -> std::io::Result<()> {
-    // Con el id del proceso: dos generaciones a la vez no se pisan el temporal.
-    let temporary = path.with_file_name(format!(
-        ".{}.{}.tmp",
-        path.file_name().unwrap_or_default().to_string_lossy(),
-        std::process::id()
-    ));
+    let temporary = temporary_for(path);
     match write(&temporary).and_then(|()| std::fs::rename(&temporary, path)) {
         Ok(()) => Ok(()),
         Err(error) => {
@@ -55,6 +50,16 @@ pub fn replace_file(path: &Path, write: impl FnOnce(&Path) -> std::io::Result<()
             Err(error)
         }
     }
+}
+
+/// El temporal que usa `replace_file` para `path` en este proceso. Con el id
+/// del proceso: dos generaciones a la vez no se pisan el temporal.
+pub fn temporary_for(path: &Path) -> PathBuf {
+    path.with_file_name(format!(
+        ".{}.{}.tmp",
+        path.file_name().unwrap_or_default().to_string_lossy(),
+        std::process::id()
+    ))
 }
 
 #[derive(Debug, Clone)]
@@ -214,7 +219,7 @@ impl Project {
         Ok((remote, diagrams))
     }
 
-    /// De dónde salen los logos: la carpeta indicada (que debe existir), la
+    /// De dónde salen los logos: la carpeta indicada (si no existe, ninguna: el CLI ya avisó), la
     /// `logos/` junto a la plantilla, la de la carpeta de trabajo o la
     /// compartida `templates/logos/`.
     /// Que no haya ninguna no es error: la portada se compila sin logos.
@@ -226,11 +231,11 @@ impl Project {
         if let Some(explicit) = explicit {
             let directory = absolute(&expand_home(explicit));
             if !directory.is_dir() {
-                return Err(GenerationError::new(tr!(
-                    es: "No existe la carpeta de logos: {}",
-                    en: "The logos folder does not exist: {}",
+                crate::logging::warn(format_args!(
+                    "logos folder {} not found; no logos",
                     directory.display()
-                )));
+                ));
+                return Ok(None);
             }
             return Ok(Some(directory));
         }
@@ -248,14 +253,21 @@ mod tests {
     use super::*;
 
     #[test]
-    fn an_explicit_logos_directory_wins_and_must_exist() {
+    fn an_explicit_logos_directory_wins_and_a_missing_one_means_no_logos() {
         let directory = tempfile::tempdir().unwrap();
         let project = Project::at(directory.path());
         let template = directory.path().join("base.ltx");
         let own = directory.path().join("mis-logos");
         std::fs::create_dir(&own).unwrap();
         assert_eq!(project.resolve_logos_directory(&template, Some(&own)).unwrap(), Some(own));
-        assert!(project.resolve_logos_directory(&template, Some(&directory.path().join("no"))).is_err());
+        // Que no exista no es error ni cae en otra carpeta: la portada sale sin logos.
+        std::fs::create_dir_all(project.templates_dir().join(LOGOS_DIRECTORY)).unwrap();
+        std::fs::write(project.templates_dir().join(LOGOS_DIRECTORY).join("logo-facultad.png"), "x").unwrap();
+        assert_eq!(
+            project.resolve_logos_directory(&template, Some(&directory.path().join("no"))).unwrap(),
+            None
+        );
+        std::fs::remove_dir_all(project.templates_dir().join(LOGOS_DIRECTORY)).unwrap();
         assert_eq!(project.resolve_logos_directory(&template, None).unwrap(), None);
         // Una `logos/` vacía en la carpeta de trabajo no tapa a `templates/logos/`.
         let shared = project.templates_dir().join(LOGOS_DIRECTORY);

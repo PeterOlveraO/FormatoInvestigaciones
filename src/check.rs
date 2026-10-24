@@ -205,8 +205,13 @@ pub fn check_design(
     let label = if design.is_self_contained() { "-" } else { DEFAULT_FORMAT };
     on_progress(label);
     let result = resolve_layout(project, Some(choice)).and_then(|layout| {
-        let options =
-            GenerateOptions { layout: Some(layout), file_name: Some(label.to_owned()), ..Default::default() };
+        // La salida es una carpeta temporal nueva: su estado de LaTeX no se volvería a usar.
+        let options = GenerateOptions {
+            layout: Some(layout),
+            file_name: Some(label.to_owned()),
+            skip_latex_state: true,
+            ..Default::default()
+        };
         generate_pdf(project, &catalog, output.path(), &sample_data(&design), &options, &mut |_| {})
     });
     // El registro guarda el error entero; el informe, solo el principio.

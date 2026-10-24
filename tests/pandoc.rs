@@ -71,6 +71,67 @@ fn boxes_and_references() {
     assert!(!references.contains(r"\begin{itemize}"));
 }
 
+// `## Libros` bajo «Referencias» no corta la sangría francesa; `# Anexos` sí.
+#[test]
+fn subheadings_inside_the_references_keep_the_list() {
+    let markdown = "# Referencias\n\n## Libros\n\nAutor, A. (2020). *Libro*.\n\n## Sitios web\n\nAutor, B. (2021). *Sitio*.\n\n# Anexos\n\nTexto del anexo.\n";
+    let Some(latex) = convert(markdown) else { return };
+    let opened = |text: &str| text.matches(r"\begin{ReferenceList}").count();
+    let closed = |text: &str| text.matches(r"\end{ReferenceList}").count();
+    let (references, annex) = latex.split_once("Anexos").unwrap();
+    assert_eq!((opened(references), closed(references)), (3, 3), "{latex}");
+    assert_eq!(opened(annex), 0, "{latex}");
+    // Cada referencia queda dentro de una lista, y los subtítulos fuera.
+    for part in references.split(r"\begin{ReferenceList}").skip(1) {
+        let inside = part.split(r"\end{ReferenceList}").next().unwrap();
+        assert!(!inside.contains(r"\subsection"), "{latex}");
+    }
+    assert!(latex.contains("Libro") && latex.contains("Sitio"));
+    assert!(!annex.split("Texto del anexo").next().unwrap().contains("ReferenceList"));
+}
+
+// Las cachés de diagramas e imágenes se escriben en un temporal y se renombran:
+// el archivo final no se toca hasta tener el contenido completo, así un corte
+// a medias no deja uno roto que las generaciones siguientes darían por bueno.
+#[test]
+fn the_filters_write_the_cache_through_a_temporary_file() {
+    if !has_tool("pandoc") {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let script = write(
+        directory.path(),
+        "prueba.lua",
+        // Con «falla», ningún temporal se puede abrir, como un disco lleno.
+        &format!(
+            "{}\nlocal abrir = io.open\nif arg[2] == \"falla\" then\n  io.open = function(r, m) if r:match(\"%.tmp$\") then return nil end return abrir(r, m) end\nend\nio.write(tostring(escribir(arg[1], \"nuevo\")))\n",
+            investigacion::pandoc::LUA_COMMON
+        ),
+    );
+    let run = |target: &std::path::Path, mode: &str| {
+        let output = std::process::Command::new("pandoc")
+            .arg("lua")
+            .arg(&script)
+            .arg(target)
+            .arg(mode)
+            .output()
+            .unwrap();
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    };
+    // Reemplaza un archivo que ya existe y no deja temporales, aunque otra
+    // generación tenga ocupado `<ruta>.tmp`: el temporal lleva un nombre único.
+    let cached = write(directory.path(), "diagrama.pdf", "viejo");
+    std::fs::create_dir(directory.path().join("diagrama.pdf.tmp")).unwrap();
+    assert_eq!(run(&cached, ""), "true");
+    assert_eq!(std::fs::read_to_string(&cached).unwrap(), "nuevo");
+    let files = std::fs::read_dir(directory.path()).unwrap().count();
+    assert_eq!(files, 3, "prueba.lua, diagrama.pdf y la carpeta ocupada");
+    // Si el temporal no se puede escribir, el archivo final queda como estaba.
+    let other = write(directory.path(), "otro.pdf", "viejo");
+    assert_eq!(run(&other, "falla"), "false");
+    assert_eq!(std::fs::read_to_string(&other).unwrap(), "viejo");
+}
+
 #[test]
 fn images_that_cannot_be_loaded_do_not_break_the_document() {
     let Some((latex, warnings)) = convert_with_warnings("![Un logo](https://localhost:1/no-existe.png)\n")

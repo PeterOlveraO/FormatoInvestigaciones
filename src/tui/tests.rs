@@ -552,6 +552,24 @@ fn every_design_is_offered_and_custom_fields_appear() {
     assert_eq!(app.build_args().fields, [("SALON".to_owned(), "B-204".to_owned())]);
 }
 
+// Un perfil escrito a mano con la clave en minúsculas llena el campo igual que en el CLI.
+#[test]
+fn a_lowercase_field_key_of_a_profile_fills_the_form() {
+    let (_dir, project) = sample_project();
+    std::fs::write(
+        project.courses_dir().join("ia.toml"),
+        "name = \"IA\"\ndesign = \"geometric-cover\"\n[fields]\nsalon = \"B-204\"\n",
+    )
+    .unwrap();
+    let mut app = App::new(project);
+    select(&mut app, FieldKey::Profile);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ia");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.field_value(FIELDS.len()), "B-204");
+    assert!(!app.missing_fields().iter().any(|m| m == "Salón"));
+}
+
 #[test]
 fn p_edits_the_chosen_profile_with_its_data() {
     i18n::set(Lang::Es);
@@ -1189,6 +1207,35 @@ fn the_general_cover_data_is_in_the_form() {
     assert!(render(&app).contains("Universidad"));
     // El semestre del perfil viejo ya no viaja.
     assert!(!fields.iter().any(|(name, _)| name == "SEMESTRE"), "{fields:?}");
+}
+
+// Con perfil, borrar un dato del formulario lo quita del PDF: no vuelve el del perfil.
+#[test]
+fn a_cleared_field_of_the_profile_is_cleared_in_the_pdf() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    std::fs::write(
+        project.courses_dir().join("ia.toml"),
+        "name = \"IA\"\nteacher = \"Docente IA\"\nuniversity = \"U\"\ndesign = \"geometric-cover\"\n[fields]\nSALON = \"B-204\"\n",
+    )
+    .unwrap();
+    let mut app = App::new(project);
+    select(&mut app, FieldKey::Profile);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ia");
+    press(&mut app, KeyCode::Enter);
+    for key in [FieldKey::Teacher, FieldKey::University] {
+        app.values[index_of(key)].clear();
+    }
+    app.extras[0].value.clear();
+    let args = app.build_args();
+    assert_eq!(args.teacher.as_deref(), Some(""));
+    for name in ["UNIVERSIDAD", "SALON"] {
+        assert!(args.fields.contains(&(name.to_owned(), String::new())), "{name} in {:?}", args.fields);
+    }
+    // Y el formulario lo dice así: vacío no sale, no «el del perfil».
+    let screen = render(&app);
+    assert!(screen.contains("no sale en la portada") && !screen.contains("el del perfil;"), "{screen}");
 }
 
 #[test]

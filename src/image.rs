@@ -4,7 +4,7 @@
 //! el PNG en la caché; los logos de la portada pueden usar `convert_to_png`.
 
 use std::ffi::OsString;
-use std::io::{BufWriter, Cursor};
+use std::io::{BufWriter, Cursor, Write};
 use std::path::Path;
 
 use crate::error::{GenerationError, Result};
@@ -12,6 +12,10 @@ use crate::project::replace_file;
 
 /// Entra en el nombre del PNG en la caché: subirla obliga a reconvertir todo.
 pub const CONVERTER_VERSION: &str = "1";
+
+/// Tiempo máximo de una conversión. Muy por debajo del límite de Pandoc
+/// (`TOOL_TIMEOUT`): una imagen lenta se queda en texto alternativo y el PDF sale.
+pub const CONVERTER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
 
 /// Tope de píxeles del PNG: una imagen mayor solo gastaría memoria y tiempo.
 pub const MAX_PIXELS: u64 = 40_000_000;
@@ -148,6 +152,12 @@ pub fn run_cli(args: &[OsString]) -> i32 {
         );
         return 2;
     };
+    // La variable solo la usan las pruebas, para no esperar 30 s.
+    let limit = std::env::var("INVESTIGACION_CONVERTER_TIMEOUT_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map_or(CONVERTER_TIMEOUT, std::time::Duration::from_millis);
+    exit_after(limit, Path::new(destination));
     match convert_to_png(Path::new(source), Path::new(destination)) {
         Ok(()) => 0,
         Err(error) => {
@@ -157,10 +167,65 @@ pub fn run_cli(args: &[OsString]) -> i32 {
     }
 }
 
+/// Termina el proceso (código 124) si sigue vivo tras `limit`. `pandoc.pipe` no
+/// tiene límite: si a Pandoc lo corta el suyo, este proceso quedaría huérfano
+/// y un SVG con muchos filtros puede tardar más de cinco minutos en dibujarse.
+/// Antes de salir borra el temporal de `destination` que se estuviera escribiendo.
+fn exit_after(limit: std::time::Duration, destination: &Path) {
+    let temporary = crate::project::temporary_for(destination);
+    std::thread::spawn(move || {
+        std::thread::sleep(limit);
+        let _ = std::fs::remove_file(&temporary);
+        // Sin `eprintln!`: si Pandoc ya murió, stderr es una tubería rota y
+        // `eprintln!` entraría en pánico en este hilo sin llegar a salir.
+        let _ = writeln!(
+            std::io::stderr(),
+            "{}",
+            tr!(
+                es: "la conversión tardó más de {} s y se detuvo.",
+                en: "the conversion took more than {} s and was stopped.",
+                limit.as_secs()
+            )
+        );
+        std::process::exit(124);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::BufReader;
+
+    // El límite termina el proceso, así que la prueba se relanza a sí misma
+    // como hijo: el hijo se queda dormido y el límite tiene que cortarlo.
+    #[test]
+    fn a_conversion_that_does_not_end_is_stopped() {
+        // El hijo deja a medias el temporal del PNG, como si lo estuviera escribiendo.
+        if let Some(png) = std::env::var_os("INVESTIGACION_TEST_EXIT_AFTER") {
+            let png = std::path::PathBuf::from(png);
+            std::fs::write(crate::project::temporary_for(&png), b"\x89PNG a medias").unwrap();
+            exit_after(std::time::Duration::from_millis(100), &png);
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            return;
+        }
+        let directory = tempfile::tempdir().unwrap();
+        let started = std::time::Instant::now();
+        // stderr es una tubería que nadie lee, como cuando a Pandoc lo cortó su límite.
+        let mut child = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "image::tests::a_conversion_that_does_not_end_is_stopped", "--nocapture"])
+            .env("INVESTIGACION_TEST_EXIT_AFTER", directory.path().join("imagen.png"))
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .unwrap();
+        drop(child.stderr.take());
+        let status = child.wait().unwrap();
+        assert_eq!(status.code(), Some(124));
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+        let left: Vec<_> =
+            std::fs::read_dir(directory.path()).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(left.is_empty(), "quedó el temporal: {left:?}");
+    }
 
     const SQUARE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20"><rect width="30" height="20" fill="red"/></svg>"#;
 

@@ -12,7 +12,9 @@ use crate::latex::render_template;
 use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::{pandoc_to_latex, resource_dirs};
-use crate::project::{DEFAULT_FORMAT, LOGO_FILES, Project, absolute, find_logo, replace_file};
+use crate::project::{
+    DEFAULT_FORMAT, LOGO_EXTENSIONS, LOGO_FILES, Project, absolute, find_logo, replace_file,
+};
 use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 
 /// Opciones de la generación que no son datos de la portada.
@@ -32,6 +34,8 @@ pub struct GenerateOptions {
     pub markdown: Option<String>,
     /// Este programa, para que los filtros conviertan SVG y WEBP; `None` = no se convierten.
     pub converter: Option<PathBuf>,
+    /// No usa ni guarda el `.aux`/`.toc` en `cache/latex/` (compilaciones de prueba).
+    pub skip_latex_state: bool,
 }
 
 /// Nombre final del PDF. Es independiente del título: por omisión sale del
@@ -131,13 +135,14 @@ pub fn generate_pdf(
         copy_logos(project, logos, temporary.path(), on_warning)?;
     }
     let search_dirs = resource_dirs(project, &markdown_path)?;
-    let state = latex_state_dir(project, &output_pdf, &layout.cache_key());
+    let state =
+        (!options.skip_latex_state).then(|| latex_state_dir(project, &output_pdf, &layout.cache_key()));
     logging::debug(format_args!(
         "generate: build folder {}, output {}",
         temporary.path().display(),
         output_pdf.display()
     ));
-    compile_pdf(&tex_path, &output_pdf, &search_dirs, Some(&state), on_warning)?;
+    compile_pdf(&tex_path, &output_pdf, &search_dirs, state.as_deref(), on_warning)?;
     // Que no se borre (Windows lo puede tener bloqueado) no es un error.
     if let Err(error) = temporary.close() {
         logging::debug(format_args!("build folder not removed: {error}"));
@@ -155,7 +160,22 @@ fn copy_logos(
     on_warning: &mut dyn FnMut(String),
 ) -> Result<()> {
     for name in LOGO_FILES {
-        let Some(source) = find_logo(logos, name) else { continue };
+        let Some(source) = find_logo(logos, name) else {
+            // `logo-universidad.PNG` o `.gif` no se toman (en Linux importan las mayúsculas): se avisa.
+            let similar =
+                std::fs::read_dir(logos).into_iter().flatten().flatten().map(|e| e.path()).find(|p| {
+                    p.is_file()
+                        && p.file_stem().is_some_and(|s| s.to_string_lossy().eq_ignore_ascii_case(name))
+                });
+            if let Some(similar) = similar {
+                let (similar, extensions) = (similar.display(), LOGO_EXTENSIONS.join(", "));
+                on_warning(tr!(
+                    es: "El logo {similar} no se usa: llámalo {name} con una de estas extensiones, en minúsculas: {extensions}. La portada sale sin él.",
+                    en: "The logo {similar} is not used: name it {name} with one of these extensions, in lowercase: {extensions}. The cover is built without it."
+                ));
+            }
+            continue;
+        };
         match logo_for_latex(project, &source) {
             Ok((path, extension)) => {
                 logging::debug(format_args!("logo {} -> {name}.{extension}", path.display()));
@@ -339,6 +359,22 @@ mod tests {
         assert_eq!(copies[0], good.join("trabajo.pdf"));
         assert_eq!(warnings.len(), 1);
         assert!(warnings[0].contains(&busy.display().to_string()));
+    }
+
+    #[test]
+    fn a_logo_with_another_extension_is_reported() {
+        crate::i18n::set(Lang::Es);
+        let directory = tempfile::tempdir().unwrap();
+        let (logos, destination) = (directory.path().join("logos"), directory.path().join("build"));
+        std::fs::create_dir_all(&logos).unwrap();
+        std::fs::create_dir_all(&destination).unwrap();
+        std::fs::write(logos.join("logo-universidad.gif"), b"GIF89a").unwrap();
+        std::fs::write(logos.join("logo-facultad.png"), b"\x89PNG").unwrap();
+        let mut warnings = Vec::new();
+        copy_logos(&Project::at(directory.path()), &logos, &destination, &mut |w| warnings.push(w)).unwrap();
+        assert_eq!(warnings.len(), 1, "{warnings:?}");
+        assert!(warnings[0].contains("logo-universidad.gif") && warnings[0].contains("minúsculas"));
+        assert!(destination.join("logo-facultad.png").is_file());
     }
 
     #[test]

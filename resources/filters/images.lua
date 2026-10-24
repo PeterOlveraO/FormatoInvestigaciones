@@ -95,7 +95,16 @@ local function convertir(origen, contenido, etiqueta, formato)
   local destino = CACHE .. "/" .. nombre
   if existe(destino) then return nombre end
   -- El motivo del fallo lo escribe el conversor en stderr (va al registro).
-  local ok = pcall(pandoc.pipe, CONVERSOR, { "--convert-image", origen, destino }, "")
+  local ok, fallo = pcall(pandoc.pipe, CONVERSOR, { "--convert-image", origen, destino }, "")
+  -- 124: el conversor pasó su límite de tiempo (`CONVERTER_TIMEOUT`).
+  if not ok and type(fallo) == "table" and fallo.error_code == 124 then
+    avisar(texto(
+      "La imagen " .. etiqueta .. " (" .. formato:upper() .. ") tardó demasiado en convertirse; " ..
+      "expórtala a PNG desde el programa con que la hiciste. Queda el texto alternativo.",
+      "The image " .. etiqueta .. " (" .. formato:upper() .. ") took too long to convert; " ..
+      "export it to PNG from the program you made it with. The alt text is used."))
+    return nil
+  end
   if not ok or not existe(destino) then
     avisar(texto(
       "No se pudo convertir la imagen " .. etiqueta .. " (" .. formato:upper() .. ") a PNG; queda el texto alternativo.",

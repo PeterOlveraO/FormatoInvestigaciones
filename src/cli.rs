@@ -13,8 +13,8 @@ use crate::error::Result;
 use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf, missing_data, missing_data_error};
 use crate::i18n::{self, Lang, Text};
 use crate::logging;
-use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
-use crate::project::{DEFAULT_FORMAT, Project};
+use crate::markdown::{expand_home, read_markdown, resolve_markdown_path, validate_markdown};
+use crate::project::{DEFAULT_FORMAT, Project, absolute};
 use crate::settings::Settings;
 use crate::template::{resolve_layout, retired_design_warning};
 
@@ -491,7 +491,6 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
 
     // Campos propios: los del perfil y, encima, los de --set.
     let mut fields = profile.map(|p| p.fields.clone()).unwrap_or_default();
-    fields = fields.into_iter().map(|(k, v)| (k.to_uppercase(), v)).collect();
     fields.extend(args.fields.iter().cloned());
 
     // Sin perfil, los datos generales también se dan con --set UNIVERSIDAD=….
@@ -518,6 +517,23 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         return Err(missing_data_error(&layout, &missing));
     }
 
+    // Los logos suelen vivir fuera del proyecto: por eso admiten los ajustes.
+    // Una carpeta que ya no está (una USB quitada) no impide el PDF: sale sin logos.
+    let logos = args.logos.clone().or_else(|| {
+        let from_env = settings.get(&["LOGOS"]);
+        (!from_env.is_empty()).then(|| PathBuf::from(from_env))
+    });
+    if let Some(folder) = &logos
+        && !absolute(&expand_home(folder)).is_dir()
+    {
+        let (folder, source) =
+            (folder.display(), if args.logos.is_some() { "--logos" } else { "LOGOS (settings.toml)" });
+        reporter.warning(tr!(
+            es: "No existe la carpeta de logos {folder} (de {source}); la portada sale sin logos.",
+            en: "The logos folder {folder} (from {source}) does not exist; the cover is built without logos."
+        ));
+    }
+
     let markdown_path = locate_markdown(args, project, course.as_ref())?;
     let markdown = read_markdown(&markdown_path)?;
     logging::info(format_args!("markdown: {} ({} bytes)", markdown_path.display(), markdown.len()));
@@ -528,11 +544,6 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         }
     }
 
-    // Los logos suelen vivir fuera del proyecto: por eso admiten los ajustes.
-    let logos = args.logos.clone().or_else(|| {
-        let from_env = settings.get(&["LOGOS"]);
-        (!from_env.is_empty()).then(|| PathBuf::from(from_env))
-    });
     let options = GenerateOptions {
         layout: Some(layout),
         doc_lang: Some(doc_lang),
@@ -541,6 +552,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         file_name: args.file_name.clone(),
         markdown: Some(markdown),
         converter: args.converter.clone(),
+        skip_latex_state: false,
     };
     let output_dir = args.output.clone().unwrap_or_else(|| match &course {
         Some(course) => course.output_dir(project),

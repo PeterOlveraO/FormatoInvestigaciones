@@ -291,6 +291,8 @@ fn the_built_in_design_passes_the_check() {
     assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
     assert_eq!(report.builds.len(), 1);
     assert!(report.passed(), "{report:?}");
+    // La revisión compila en una carpeta temporal: no deja estado en cache/latex/.
+    assert!(!directory.path().join("cache").join("latex").exists());
 }
 
 /// Genera un trabajo con una imagen copiada de `examples/` (o con `content`)
@@ -404,4 +406,70 @@ fn a_broken_logo_is_a_warning_and_the_cover_goes_without_it() {
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(warnings[0].contains("logo-facultad.svg"), "{warnings:?}");
     assert!(!has_image(&pdf));
+}
+
+/// Genera dos veces en el mismo proyecto (con `between` en medio) con un diseño
+/// con índice y sin compresión, para leer el texto del PDF. Devuelve el
+/// segundo PDF y el `.toc` guardado en `cache/latex/`.
+fn build_twice(first: &str, second: &str, between: impl Fn(&std::path::Path)) -> Option<(Vec<u8>, String)> {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return None;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let project = isolated_project(directory.path());
+    let design = directory.path().join("my-templates/designs/toc");
+    std::fs::create_dir_all(&design).unwrap();
+    std::fs::write(
+        design.join("template.ltx"),
+        "\\documentclass[%%CLASS_OPTIONS%%]{article}\n\\usepackage{investigacion-base}\n%%FORMAT%%\n\\usepackage{investigacion-final}\n\\pdfcompresslevel=0 \\pdfobjcompresslevel=0\n\\begin{document}\n\\tableofcontents\n%%CONTENIDO_MARKDOWN%%\n\\end{document}\n",
+    )
+    .unwrap();
+    let options = GenerateOptions {
+        layout: Some(resolve_layout(&project, Some("toc")).unwrap()),
+        ..Default::default()
+    };
+    let output = directory.path().join("salida");
+    let state_dirs = || -> Vec<std::path::PathBuf> {
+        let latex = directory.path().join("cache").join("latex");
+        std::fs::read_dir(latex).unwrap().flatten().map(|entry| entry.path()).collect()
+    };
+    let build = |markdown: &str| {
+        let source = write(directory.path(), "trabajo.md", markdown);
+        let pdf = generate_pdf(&project, &source, &output, &data("Caché"), &options, &mut |_| {}).unwrap();
+        std::fs::read(pdf).unwrap()
+    };
+    build(first);
+    let state = state_dirs();
+    assert_eq!(state.len(), 1, "una carpeta de estado por trabajo: {state:?}");
+    between(&state[0]);
+    let pdf = build(second);
+    assert_eq!(state_dirs(), state, "la segunda generación usa la misma carpeta");
+    let toc = std::fs::read(state[0].join("trabajo.toc")).unwrap();
+    Some((pdf, String::from_utf8_lossy(&toc).into_owned()))
+}
+
+fn contains(haystack: &[u8], needle: &str) -> bool {
+    haystack.windows(needle.len()).any(|window| window == needle.as_bytes())
+}
+
+// La segunda generación arranca con el índice de la anterior: si no viera que
+// cambió un encabezado, el PDF saldría con el índice viejo. Los números no
+// llevan interletraje, así que salen enteros en el PDF sin comprimir.
+#[test]
+fn the_cached_latex_state_follows_a_changed_heading() {
+    let Some((pdf, toc)) = build_twice("# Parte 1111\n\nTexto.\n", "# Parte 2222\n\nTexto.\n", |_| {}) else {
+        return;
+    };
+    assert!(toc.contains("2222") && !toc.contains("1111"), "{toc}");
+    assert!(contains(&pdf, "2222") && !contains(&pdf, "1111"), "el índice del PDF quedó viejo");
+}
+
+// Un `.aux` roto en la caché no impide el PDF: se compila desde cero.
+#[test]
+fn a_broken_cached_aux_still_gives_the_pdf() {
+    let markdown = "# Parte 3333\n\nTexto.\n";
+    let broken =
+        |state: &std::path::Path| std::fs::write(state.join("trabajo.aux"), "\\relax\n\\roto{").unwrap();
+    let Some((pdf, toc)) = build_twice(markdown, markdown, broken) else { return };
+    assert!(toc.contains("3333") && contains(&pdf, "3333"), "{toc}");
 }

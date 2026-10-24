@@ -32,12 +32,20 @@ local function existe(ruta)
   return error_de_lectura == nil
 end
 
+-- Escribe en un temporal y lo renombra: si Pandoc se corta a medias, no queda
+-- con el nombre final un archivo incompleto que `existe` daría por bueno.
 local function escribir(ruta, contenido)
-  local archivo = io.open(ruta, "wb")
+  -- Nombre único: dos generaciones a la vez no se pisan el temporal.
+  local temporal = ruta .. "." .. os.time() .. "-" .. math.random(1, 1000000000) .. ".tmp"
+  local archivo = io.open(temporal, "wb")
   if not archivo then return false end
-  archivo:write(contenido)
-  archivo:close()
-  return true
+  local escrito = archivo:write(contenido)
+  if archivo:close() and escrito then
+    os.remove(ruta) -- en Windows `os.rename` no reemplaza un archivo existente
+    if os.rename(temporal, ruta) then return true end
+  end
+  os.remove(temporal)
+  return false
 end
 
 -- Si el bloque lleva alguna de las clases (`{ dot = true, ... }`), sin
