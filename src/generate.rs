@@ -18,8 +18,8 @@ use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 /// Opciones de la generación que no son datos de la portada.
 #[derive(Debug, Default, Clone)]
 pub struct GenerateOptions {
-    /// Diseño: nombre de `templates/designs/` o ruta; `None` = el de omisión.
-    pub design: Option<String>,
+    /// Diseño y formato ya resueltos (`resolve_layout`); `None` = el diseño por omisión.
+    pub layout: Option<Layout>,
     /// Idioma del documento; `None` = el del formato.
     pub doc_lang: Option<Lang>,
     /// Interpreta los comandos LaTeX escritos en el Markdown.
@@ -70,7 +70,10 @@ pub fn generate_pdf(
         ));
     }
 
-    let layout = resolve_layout(project, options.design.as_deref())?;
+    let layout = match &options.layout {
+        Some(layout) => layout.clone(),
+        None => resolve_layout(project, None)?,
+    };
     let missing = missing_data(&layout, data);
     if !missing.is_empty() {
         return Err(missing_data_error(&layout, &missing));

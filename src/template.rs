@@ -5,9 +5,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
-use std::sync::LazyLock;
 
-use regex::Regex;
 use serde::Deserialize;
 
 use crate::encoding::decode_text;
@@ -156,9 +154,9 @@ impl Design {
 /// Los `%%NOMBRE%%` de un texto, sin los `%%`. Las líneas de comentario de
 /// LaTeX no cuentan, para poder mencionar un marcador al explicarlo.
 pub fn extract_markers(text: &str) -> BTreeSet<String> {
-    static MARKER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%%([A-Z_]+)%%").unwrap());
+    use crate::latex::{MARKER, is_comment_line};
     text.lines()
-        .filter(|line| !crate::latex::is_comment_line(line))
+        .filter(|line| !is_comment_line(line))
         .flat_map(|line| MARKER.captures_iter(line).map(|c| c[1].to_owned()).collect::<Vec<_>>())
         .collect()
 }

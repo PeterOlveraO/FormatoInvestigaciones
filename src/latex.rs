@@ -11,6 +11,9 @@ use crate::error::{GenerationError, Result};
 
 pub const CONTENT_MARKER: &str = "%%CONTENIDO_MARKDOWN%%";
 
+/// Qué es un marcador (`%%NOMBRE%%`): lo comparten el relleno y `template::extract_markers`.
+pub static MARKER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%%([A-Z_]+)%%").unwrap());
+
 /// Escapa texto del usuario antes de insertarlo en LaTeX.
 pub fn latex_escape(value: &str) -> String {
     let mut escaped = String::with_capacity(value.len());
@@ -54,7 +57,6 @@ pub fn render_template(template: &str, content: &str, data: &DocumentData) -> Re
     }
     // Lo que queda son campos propios del diseño (`%%SALON%%`): su valor, o
     // vacío si no se dio. Si eran obligatorios ya lo revisó `missing_data()`.
-    static MARKER: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"%%([A-Z_]+)%%").unwrap());
     rendered = MARKER
         .replace_all(&rendered, |found: &regex::Captures| {
             if &found[0] == CONTENT_MARKER {

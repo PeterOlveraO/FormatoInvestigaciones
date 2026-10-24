@@ -15,7 +15,7 @@ use crate::latex::is_comment_line;
 use crate::logging;
 use crate::project::DEFAULT_FORMAT;
 use crate::project::Project;
-use crate::template::{Design, STANDARD_MARKERS, load_design, retired_design_warning};
+use crate::template::{Design, STANDARD_MARKERS, load_design, resolve_layout, retired_design_warning};
 
 /// Resultado de la revisión: errores (impiden usarlo), avisos y la
 /// compilación de prueba.
@@ -204,12 +204,11 @@ pub fn check_design(
     let output = tempfile::Builder::new().prefix("investigacion-check-").tempdir()?;
     let label = if design.is_self_contained() { "-" } else { DEFAULT_FORMAT };
     on_progress(label);
-    let options = GenerateOptions {
-        design: Some(design.file.display().to_string()),
-        file_name: Some(label.to_owned()),
-        ..Default::default()
-    };
-    let result = generate_pdf(project, &catalog, output.path(), &sample_data(&design), &options, &mut |_| {});
+    let result = resolve_layout(project, Some(choice)).and_then(|layout| {
+        let options =
+            GenerateOptions { layout: Some(layout), file_name: Some(label.to_owned()), ..Default::default() };
+        generate_pdf(project, &catalog, output.path(), &sample_data(&design), &options, &mut |_| {})
+    });
     // El registro guarda el error entero; el informe, solo el principio.
     match &result {
         Ok(_) => logging::info(format_args!("check build with {label}: ok")),
