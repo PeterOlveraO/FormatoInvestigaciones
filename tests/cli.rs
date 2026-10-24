@@ -118,6 +118,23 @@ fn retired_designs_are_redirected_with_a_warning() {
     assert!(option.len() == 1 && option[0].contains("«starter»"), "{option:?}");
 }
 
+// Una carpeta de logos que no está es un aviso que dice de dónde vino, no un error.
+#[test]
+fn a_missing_logos_folder_is_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    let missing = std::env::temp_dir().join("investigacion-no-existe-logos");
+    let data = "university = \"U\"\nfaculty = \"F\"\n";
+    let option = warnings_with(data, &["--logos", missing.to_str().unwrap()]);
+    assert!(
+        option.len() == 1 && option[0].contains("--logos") && option[0].contains("sin logos"),
+        "{option:?}"
+    );
+    let settings = tempfile::NamedTempFile::new().unwrap();
+    std::fs::write(settings.path(), format!("LOGOS={}\n", missing.display())).unwrap();
+    let saved = warnings_with(data, &["--settings", settings.path().to_str().unwrap()]);
+    assert!(saved.len() == 1 && saved[0].contains("settings.toml"), "{saved:?}");
+}
+
 #[test]
 fn an_old_semester_is_read_and_ignored_with_a_warning() {
     investigacion::i18n::set(investigacion::i18n::Lang::Es);
