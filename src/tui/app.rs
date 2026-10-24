@@ -801,21 +801,24 @@ impl App {
         self.courses.iter().find(|s| s.key == key)
     }
 
-    /// Arma los mismos argumentos que recibiría el CLI. Los campos vacíos no
-    /// se pasan, para que siga valiendo el perfil.
+    /// Arma los mismos argumentos que recibiría el CLI. Sin perfil, los campos
+    /// vacíos no se pasan. Con perfil, el formulario ya muestra sus datos: un
+    /// dato de portada vacío se pasa vacío, para que el PDF tampoco lo lleve.
     pub fn build_args(&self) -> Args {
         let optional = |key| Some(self.value(key).to_owned()).filter(|v| !v.is_empty());
+        let with_profile = !self.value(FieldKey::Profile).is_empty();
+        let data = |key| Some(self.value(key).to_owned()).filter(|v| with_profile || !v.is_empty());
         // Las carpetas del formulario parten de la raíz del proyecto; `~` es la carpeta personal.
         let folder = |path: &str| self.project.resolve(path);
         Args {
             markdown: PathBuf::from(self.value(FieldKey::Markdown)),
             title: self.value(FieldKey::Title).to_owned(),
             file_name: optional(FieldKey::FileName),
-            course: optional(FieldKey::Course),
+            course: data(FieldKey::Course),
             profile: optional(FieldKey::Profile),
-            teacher: optional(FieldKey::Teacher),
-            members: optional(FieldKey::Members),
-            group: optional(FieldKey::Group),
+            teacher: data(FieldKey::Teacher),
+            members: data(FieldKey::Members),
+            group: data(FieldKey::Group),
             output: optional(FieldKey::Output).map(|o| folder(&o)),
             copy: self
                 .value(FieldKey::Copies)
@@ -837,7 +840,7 @@ impl App {
             .into_iter()
             .map(|(name, key)| (name.to_owned(), self.value(key).to_owned()))
             .chain(self.extras.iter().map(|e| (e.name.clone(), e.value.trim().to_owned())))
-            .filter(|(_, value)| !value.is_empty())
+            .filter(|(_, value)| with_profile || !value.is_empty())
             .collect(),
             doc_lang: None,
             logos: None,

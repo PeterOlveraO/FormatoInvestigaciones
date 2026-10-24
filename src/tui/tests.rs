@@ -1209,6 +1209,32 @@ fn the_general_cover_data_is_in_the_form() {
     assert!(!fields.iter().any(|(name, _)| name == "SEMESTRE"), "{fields:?}");
 }
 
+// Con perfil, borrar un dato del formulario lo quita del PDF: no vuelve el del perfil.
+#[test]
+fn a_cleared_field_of_the_profile_is_cleared_in_the_pdf() {
+    i18n::set(Lang::Es);
+    let (_dir, project) = sample_project();
+    std::fs::write(
+        project.courses_dir().join("ia.toml"),
+        "name = \"IA\"\nteacher = \"Docente IA\"\nuniversity = \"U\"\ndesign = \"geometric-cover\"\n[fields]\nSALON = \"B-204\"\n",
+    )
+    .unwrap();
+    let mut app = App::new(project);
+    select(&mut app, FieldKey::Profile);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ia");
+    press(&mut app, KeyCode::Enter);
+    for key in [FieldKey::Teacher, FieldKey::University] {
+        app.values[index_of(key)].clear();
+    }
+    app.extras[0].value.clear();
+    let args = app.build_args();
+    assert_eq!(args.teacher.as_deref(), Some(""));
+    for name in ["UNIVERSIDAD", "SALON"] {
+        assert!(args.fields.contains(&(name.to_owned(), String::new())), "{name} in {:?}", args.fields);
+    }
+}
+
 #[test]
 fn a_failed_generation_does_not_offer_the_previous_pdf() {
     let (_dir, project) = sample_project();
