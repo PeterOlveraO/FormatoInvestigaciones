@@ -56,11 +56,10 @@ impl Localized {
     }
 }
 
-/// `format.toml`: el nombre de la norma y lo que el programa necesita saber de ella.
+/// `format.toml`: lo que el programa necesita saber de la norma.
 #[derive(Debug, Clone, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct FormatManifest {
-    pub name: Localized,
     /// Idioma del documento por omisión (`es` o `en`); el perfil puede cambiarlo.
     #[serde(default = "default_language")]
     pub language: String,
@@ -106,7 +105,6 @@ pub struct DesignManifest {
 
 #[derive(Debug, Clone)]
 pub struct Format {
-    pub key: String,
     pub sty: PathBuf,
     pub manifest: FormatManifest,
 }
@@ -206,7 +204,7 @@ pub fn load_format(project: &Project) -> Result<Format> {
             en: "The format has an invalid language in format.toml: \"{value}\". Use es or en."
         )));
     }
-    Ok(Format { key: DEFAULT_FORMAT.to_owned(), sty: dir.join(FORMAT_FILE), manifest })
+    Ok(Format { sty: dir.join(FORMAT_FILE), manifest })
 }
 
 /// Diseños que ya no existen: llevan a la portada geométrica, con aviso.
@@ -301,7 +299,7 @@ impl Layout {
 
     /// Clave para la caché de LaTeX: cambia si cambia el diseño o el formato.
     pub fn cache_key(&self) -> String {
-        let format = self.format.as_ref().map(|f| f.key.as_str()).unwrap_or("-");
+        let format = if self.format.is_some() { DEFAULT_FORMAT } else { "-" };
         format!("{}|{}", self.design.file.display(), format)
     }
 }
@@ -322,7 +320,7 @@ mod tests {
         write(&t.join("formats/apa7/format.sty"), "x");
         write(
             &t.join("formats/apa7/format.toml"),
-            "name = \"APA 7\"\nclass_options = \"12pt\"\nheadings = [\"Introducción\"]\nheadings_en = [\"Introduction\"]\n",
+            "class_options = \"12pt\"\nheadings = [\"Introducción\"]\nheadings_en = [\"Introduction\"]\n",
         );
         write(
             &t.join("designs/cover/template.ltx"),
@@ -351,7 +349,7 @@ mod tests {
     fn layouts_load_apa7_unless_the_design_is_self_contained() {
         let (_dir, project) = sample();
         let layout = resolve_layout(&project, Some("cover")).unwrap();
-        assert_eq!(layout.format.as_ref().unwrap().key, "apa7");
+        assert!(layout.format.is_some());
         assert_eq!(layout.class_options(), "12pt");
         assert_eq!(layout.headings_for(Lang::Es), ["Introducción"]);
         assert_eq!(layout.headings_for(Lang::En), ["Introduction"]);
@@ -369,10 +367,10 @@ mod tests {
         assert_eq!(i18n::parse("fr"), None);
         let (_dir, project) = sample();
         let manifest = project.templates_dir().join("formats/apa7/format.toml");
-        write(&manifest, "name = \"APA 7\"\nlanguage = \"fr\"\n");
+        write(&manifest, "language = \"fr\"\n");
         let error = load_format(&project).unwrap_err().to_string();
         assert!(error.contains("«fr»"), "{error}");
-        write(&manifest, "name = \"APA 7\"\nlanguage = \"en-US\"\n");
+        write(&manifest, "language = \"en-US\"\n");
         assert_eq!(load_format(&project).unwrap().language(), Lang::En);
     }
 

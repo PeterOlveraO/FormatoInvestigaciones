@@ -485,7 +485,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         "layout: design {} ({}), format {}, document language {}",
         layout.design.key,
         layout.design.file.display(),
-        shown(layout.format.as_ref().map(|f| &f.key)),
+        shown(layout.format.as_ref().map(|_| DEFAULT_FORMAT)),
         doc_lang.code()
     ));
 

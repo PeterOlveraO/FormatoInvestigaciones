@@ -21,7 +21,6 @@ use crate::template::{Design, STANDARD_MARKERS, load_design, retired_design_warn
 /// compilación de prueba.
 #[derive(Debug, Default)]
 pub struct CheckReport {
-    pub design: String,
     pub errors: Vec<String>,
     pub warnings: Vec<String>,
     pub builds: Vec<(String, std::result::Result<(), String>)>,
@@ -56,7 +55,7 @@ pub fn similar_marker(name: &str) -> Option<&'static str> {
 
 /// Revisión estática: contrato y marcadores.
 pub fn inspect(design: &Design) -> CheckReport {
-    let mut report = CheckReport { design: design.key.clone(), ..Default::default() };
+    let mut report = CheckReport::default();
     let text = std::fs::read(&design.file)
         .ok()
         .and_then(|raw| decode_text(&raw, &design.file).ok())

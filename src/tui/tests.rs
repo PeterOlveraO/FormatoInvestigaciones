@@ -42,7 +42,7 @@ fn sample_project() -> (tempfile::TempDir, Project) {
     // El formato y dos diseños: uno con un campo propio obligatorio y otro
     // que pide pocos datos.
     write("templates/formats/apa7/format.sty", "x");
-    write("templates/formats/apa7/format.toml", "name = \"apa7\"\n");
+    write("templates/formats/apa7/format.toml", "");
     write(
         "templates/designs/geometric-cover/template.ltx",
         "%%FORMAT%%\n%%TITULO%% %%UNIVERSIDAD%% %%MATERIA%% %%DOCENTE%% %%SALON%%\n%%CONTENIDO_MARKDOWN%%\n",

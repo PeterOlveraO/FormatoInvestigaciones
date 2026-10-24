@@ -12,7 +12,7 @@ use crate::latex::render_template;
 use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::{pandoc_to_latex, resource_dirs};
-use crate::project::{LOGO_FILES, Project, absolute, find_logo, replace_file};
+use crate::project::{DEFAULT_FORMAT, LOGO_FILES, Project, absolute, find_logo, replace_file};
 use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 
 /// Opciones de la generación que no son datos de la portada.
@@ -82,7 +82,7 @@ pub fn generate_pdf(
         "generate: markdown {}, template {}, format {}, document language {}, logos {}",
         markdown_path.display(),
         template_file.display(),
-        layout.format.as_ref().map_or("-", |f| f.key.as_str()),
+        layout.format.as_ref().map_or("-", |_| DEFAULT_FORMAT),
         doc_lang.code(),
         logos.as_ref().map_or_else(|| "none".to_owned(), |l| l.display().to_string())
     ));
