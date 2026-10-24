@@ -6,14 +6,16 @@ program: two files, `template.ltx` and `template.toml`.
 
 1. Copy everything inside the big block below and paste it into ChatGPT,
    Claude, Gemini or the model you use.
-2. After it, describe the cover you want, or attach an image or a PDF of it.
-   Say which data it must show (title, student or team, course, teacher,
-   university, faculty, group, semester, date, and any extra such as the
-   room) and the colors, if you have them (hex codes are best).
+2. Attach `templates/designs/geometric-cover/template.ltx`, the built-in
+   design: the AI starts from it. Then describe the cover you want, or attach
+   an image or a PDF of it. Say which data it must show (title, student or
+   team, course, teacher, university, faculty, group or term, date, and any
+   extra such as the room) and the colors, if you have them (hex codes are
+   best).
 3. Create the folder `my-templates/designs/<name>/` in the project (git
    ignores it) and save the two files the AI gives you inside it.
-4. Validate it. This builds the example catalog with the design in every
-   format it accepts:
+4. Validate it. This checks the contract and builds the example catalog with
+   the design:
 
 ```bash
 investigacion --check-template <name>
@@ -37,11 +39,14 @@ A design is the cover (or the title block) and the look of the first pages.
 It is made of TWO files, which you must deliver:
 
 - `template.ltx`: a LaTeX document with placeholders.
-- `template.toml`: a small manifest (what the design is called, which formats
-  it accepts, which extra data it asks for).
+- `template.toml`: a small manifest (its description, which data it can do
+  without, which extra data it asks for).
 
 The user will describe the cover they want (in words, or with an image or a
-PDF). Reproduce it as faithfully as possible within the rules below. Do not
+PDF), usually attaching `geometric-cover/template.ltx`, the built-in design.
+Start from that file: keep its contract lines, its data commands, its
+`\SiHayLogo` command and its `\SegunIdioma` labels, and replace the cover.
+Reproduce the user's cover as faithfully as possible within the rules below. Do not
 ask questions: if something is missing, decide it and mention the decision in
 one line after the files. Write the short comments inside the files in
 Spanish (or in the language the user writes in).
@@ -53,9 +58,9 @@ There are three layers and the design is only the last one:
 1. BASE (`investigacion-base.sty` and `investigacion-final.sty`): universal.
    It loads everything the paper's content needs (tables, code, math,
    diagrams, charts, symbols, emoji, hyperlinks). The design must load it.
-2. FORMAT (APA 7, Harvard or MLA 9, chosen by the user): the norm. It sets the
-   paper size, margins, fonts, line spacing, headings, captions, page
-   numbers and the references style.
+2. FORMAT (APA 7, the only one): the norm. It sets the paper size, margins,
+   fonts, line spacing, headings, captions, page numbers and the references
+   style.
 3. DESIGN (your work): the cover or title block, its colors and its layout,
    plus its own data fields.
 
@@ -128,11 +133,10 @@ escape it again, and do not use a value inside `\url`, `\hypersetup` or
 | `%%UNIVERSIDAD%%` | University | Required (unless listed in `optional`) |
 | `%%FACULTAD%%` | Faculty or school | Required (unless in `optional`) |
 | `%%MATERIA%%` | Course name | Required (unless in `optional`) |
-| `%%SEMESTRE%%` | Term, for example `2026-2` | Required (unless in `optional`) |
 | `%%ALUMNO%%` | Student name | May be empty |
 | `%%INTEGRANTES%%` | Team members, one name per line, joined by `\\` | May be empty |
 | `%%DOCENTE%%` | Teacher | May be empty |
-| `%%GRUPO%%` | Group, for example `7-A` | May be empty |
+| `%%GRUPO%%` | Group or term, for example `7-A` | May be empty |
 | `%%FECHA_ENTREGA%%` | Delivery date, already in the document language | Always filled |
 | `%%CLASS_OPTIONS%%` | See section 2 | Only in `\documentclass` |
 | `%%FORMAT%%` | See section 2 | Once, alone on its line |
@@ -143,7 +147,7 @@ Important behavior:
 - The program asks the user only for the data whose marker appears in your
   file. A standard marker you do not write is simply not requested, so do not
   write markers you will not show.
-- `TITULO`, `UNIVERSIDAD`, `FACULTAD`, `MATERIA` and `SEMESTRE` are required
+- `TITULO`, `UNIVERSIDAD`, `FACULTAD` and `MATERIA` are required
   when used. If the design must work without one of them, list it in the
   `optional` array of `template.toml` AND hide its line when empty.
 - The others (`ALUMNO`, `INTEGRANTES`, `DOCENTE`, `GRUPO`) can arrive empty
@@ -156,8 +160,10 @@ Important behavior:
   members in `\begin{tabular}[t]{@{}l@{}}\ListaIntegrantes\end{tabular}` (or
   directly in a TikZ `node` with `align=left`) so each `\\` starts a new
   line.
-- Order of the data in the built-in covers: student or team, course,
-  teacher, semester, group. Follow it unless the user's cover says otherwise.
+- Order of the data in `geometric-cover`: student or team, course, teacher,
+  group. Follow it unless the user's cover says otherwise.
+- There is no semester field: the group holds the term (`7-A`, `2026-2`).
+  If the user asks for the term on the cover, show `%%GRUPO%%`.
 
 ## Custom fields
 
@@ -184,10 +190,6 @@ both languages.
 
 ```toml
 description = { es = "Portada con banda de color", en = "Cover with a color band" }
-# Formats it works with; the first one is the default. Built-in ones:
-# "apa7", "harvard", "mla". Empty = any format. Use all three unless the design
-# cannot work with one of them.
-formats = ["apa7", "harvard", "mla"]
 # Standard markers that the design uses but does not require.
 optional = ["FACULTAD"]
 
@@ -203,14 +205,15 @@ required = false
 - Every `[fields.X]` must have a matching `%%X%%` in the file, and the other
   way round (otherwise `--check-template` warns).
 - `optional` may only mention markers that the file really uses.
+- Do not write `formats`: there is only APA 7, and `--check-template` warns
+  about a leftover `formats` list.
 
 # 5. WHAT THE DESIGN OWNS AND WHAT IT MUST NOT TOUCH
 
 The design owns: the cover or title block, its colors, its decorations, the
 position of every item, and whether there is a table of contents.
 
-The design must NOT change (the format owns them, and the same design has to
-look right with APA 7, Harvard and MLA):
+The design must NOT change (the format owns them):
 
 - Fonts of the body, font packages (`newtxtext`, `lmodern`, `helvet`,
   `fontspec`...), line spacing (`setspace`), paragraph indentation.
@@ -258,8 +261,7 @@ loads the `babel` library, so arrows such as `->` work in every language.
   `\thispagestyle{empty}` for no page number on the cover (or
   `\thispagestyle{fancy}` to show the format's one). Inside the cover use
   `\singlespacing` (the format may double-space the document).
-- **A design without a cover** (a compact title block, like the built-in
-  `report`) is also fine: skip `titlepage`, print the block, then
+- **A design without a cover** (a compact title block) is also fine: skip `titlepage`, print the block, then
   `\FormatBodySetup` and the content.
 - **Table of contents.** Optional: `\tableofcontents` followed by `\newpage`
   after `\FormatBodySetup`. The format translates its title.
@@ -281,21 +283,21 @@ loads the `babel` library, so arrows such as `->` work in every language.
 - **Hyphenation.** To avoid breaking words in a big title use
   `\hyphenpenalty=10000\exhyphenpenalty=10000` inside the group.
 - **Language of the labels.** The labels ("Alumno", "Materia"...) are text in
-  your file. To follow the document language (es or en) define:
+  your file. To follow the document language (es or en) write
+  `\SegunIdioma{Materia}{Course}` (the base defines it). Do NOT use
+  `\iflanguage{spanish}`: when the document is in English babel does not know
+  Spanish and the build fails.
+- **Logos.** The user's logos are `logo-universidad` and `logo-facultad`. The
+  user may have them as SVG, PDF, PNG, JPG or WEBP; the program leaves each
+  one next to your file as `.pdf`, `.png` or `.jpg`. They are optional, so
+  always test them with the `\SiHayLogo` command of `geometric-cover`
+  (`\IfFileExists` does not try extensions):
 
   ```latex
-  \newcommand{\Etiqueta}[2]{\ifcsname captionsspanish\endcsname #1\else #2\fi}
-  ```
-
-  and write `\Etiqueta{Materia}{Course}`. Do NOT use `\iflanguage{spanish}`:
-  when the document is in English babel does not know Spanish and the build
-  fails.
-- **Logos.** The user's logos are `logo-universidad.png` and
-  `logo-facultad.png`. They are optional, so always wrap them:
-
-  ```latex
-  \IfFileExists{logo-universidad.png}{\includegraphics[height=1.4cm]{logo-universidad}}{}%
-  \IfFileExists{logo-facultad.png}{\includegraphics[height=1.0cm]{logo-facultad}}{}%
+  \newcommand{\SiHayLogo}[2]{\IfFileExists{#1.pdf}{#2}{\IfFileExists{#1.png}{#2}{\IfFileExists{#1.jpg}{#2}{}}}}
+  ...
+  \SiHayLogo{logo-universidad}{\includegraphics[height=1.4cm]{logo-universidad}}%
+  \SiHayLogo{logo-facultad}{\includegraphics[height=1.0cm]{logo-facultad}}%
   ```
 
   Scale by HEIGHT (a crest is almost square and a faculty logo is a long
@@ -325,7 +327,7 @@ loads the `babel` library, so arrows such as `->` work in every language.
   `node` with `align=left`, or a `\parbox`.
 - `\vspace` does nothing at the top of a page unless it is `\vspace*`.
 - Keep the cover on ONE page: the sum of `\vspace`, `\vfill` and text must fit
-  Letter (21.6 x 27.9 cm) with the 2.5 cm margins of the formats. Prefer
+  Letter (21.6 x 27.9 cm) with the 2.54 cm margins of APA 7. Prefer
   `\vfill` to push the date to the bottom.
 - In a TikZ `node`, long text needs `text width=` or it runs off the page.
 - Never write a literal `%%SOMETHING%%` in a comment, and never start a
@@ -341,15 +343,15 @@ loads the `babel` library, so arrows such as `->` work in every language.
 1. Study the description or the image: zones of the page, colors, text sizes,
    decorations, what data it shows, and whether it has a table of contents.
 2. Choose a short design name in lowercase with hyphens (`banner`,
-   `blue-frame`). It must NOT be any of: `geometric-cover`, `classic-cover`,
-   `report`, `starter`, `apa`, `apa-simple` (built-in names win over yours).
+   `blue-frame`). It must NOT be `geometric-cover` (the built-in name wins
+   over yours).
    The folder name is the design name.
 3. Decide the data: which standard markers it shows, which of them can be
    missing (`optional`), which custom fields it needs.
 4. Write `template.ltx` following sections 2 to 7, and `template.toml`.
 5. Go through the checklist in section 10 line by line.
 
-# 9. REFERENCE EXAMPLE (tested: passes `--check-template` with apa7, harvard and mla)
+# 9. REFERENCE EXAMPLE (tested: passes `--check-template`)
 
 A cover with a dark band and an accent stripe at the top (the title in white
 over the band), logos below, the data underneath with labels in the document
@@ -359,7 +361,6 @@ language, the delivery date at the bottom, and a custom field `SALON`.
 
 ```toml
 description = { es = "Portada con banda de color y etiquetas en el idioma del documento", en = "Cover with a color banner and labels in the document language" }
-formats = ["apa7", "harvard", "mla"]
 optional = ["FACULTAD"]
 
 [fields.SALON]
@@ -386,7 +387,6 @@ required = false
 \newcommand{\NombreMateria}{%%MATERIA%%}
 \newcommand{\NombreMaestro}{%%DOCENTE%%}
 \newcommand{\GrupoMateria}{%%GRUPO%%}
-\newcommand{\SemestreActual}{%%SEMESTRE%%}
 \newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
 \newcommand{\Salon}{%%SALON%%}
 
@@ -394,10 +394,8 @@ required = false
 \definecolor{BannerDark}{HTML}{1F3A5F}
 \definecolor{BannerAccent}{HTML}{E8A33D}
 
-% Etiqueta en el idioma del documento: \Etiqueta{español}{inglés}. (Con babel
-% solo en inglés \iflanguage{spanish} falla; \captionsspanish existe solo si
-% el español está cargado.)
-\newcommand{\Etiqueta}[2]{\ifcsname captionsspanish\endcsname #1\else #2\fi}
+% Cada logo llega como .pdf, .png o .jpg; \IfFileExists no prueba extensiones.
+\newcommand{\SiHayLogo}[2]{\IfFileExists{#1.pdf}{#2}{\IfFileExists{#1.png}{#2}{\IfFileExists{#1.jpg}{#2}{}}}}
 
 % Una línea «Etiqueta: valor» que se omite si el valor está vacío.
 \newcommand{\DatoPortada}[2]{\ifdefempty{#2}{}{\par\noindent\textbf{#1:} #2\par\vspace{0.2cm}}}
@@ -422,26 +420,25 @@ required = false
       {{\sffamily\bfseries\Huge \TituloTrabajo\par}};
   \end{tikzpicture}
   % Debajo de la banda: logos (opcionales) y datos.
-  \IfFileExists{logo-universidad.png}{\includegraphics[height=1.4cm]{logo-universidad}}{}%
-  \IfFileExists{logo-facultad.png}{\hspace{1cm}\includegraphics[height=1.0cm]{logo-facultad}}{}%
+  \SiHayLogo{logo-universidad}{\includegraphics[height=1.4cm]{logo-universidad}}%
+  \SiHayLogo{logo-facultad}{\hspace{1cm}\includegraphics[height=1.0cm]{logo-facultad}}%
   \par\vspace{0.6cm}
   {\sffamily\large\bfseries \NombreUniversidad\par}
   \ifdefempty{\NombreFacultad}{}{{\sffamily \NombreFacultad\par}}
   \vspace{1cm}
   % Los integrantes sustituyen al alumno.
   \ifdefempty{\ListaIntegrantes}{%
-    \DatoPortada{\Etiqueta{Alumno}{Student}}{\NombreAlumno}%
+    \DatoPortada{\SegunIdioma{Alumno}{Student}}{\NombreAlumno}%
   }{%
-    \par\noindent\textbf{\Etiqueta{Integrantes}{Members}:}\par
+    \par\noindent\textbf{\SegunIdioma{Integrantes}{Members}:}\par
     \begin{tabular}[t]{@{}l@{}}\ListaIntegrantes\end{tabular}\par\vspace{0.2cm}%
   }
-  \DatoPortada{\Etiqueta{Materia}{Course}}{\NombreMateria}
-  \DatoPortada{\Etiqueta{Docente}{Teacher}}{\NombreMaestro}
-  \DatoPortada{\Etiqueta{Semestre}{Term}}{\SemestreActual}
-  \DatoPortada{\Etiqueta{Grupo}{Group}}{\GrupoMateria}
-  \DatoPortada{\Etiqueta{Salón}{Room}}{\Salon}
+  \DatoPortada{\SegunIdioma{Materia}{Course}}{\NombreMateria}
+  \DatoPortada{\SegunIdioma{Docente}{Teacher}}{\NombreMaestro}
+  \DatoPortada{\SegunIdioma{Grupo}{Group}}{\GrupoMateria}
+  \DatoPortada{\SegunIdioma{Salón}{Room}}{\Salon}
   \vfill
-  {\sffamily\bfseries \Etiqueta{Fecha de entrega}{Due date}: \FechaEntrega\par}
+  {\sffamily\bfseries \SegunIdioma{Fecha de entrega}{Due date}: \FechaEntrega\par}
 \end{titlepage}
 
 % La portada cuenta como página 1.
@@ -472,14 +469,12 @@ required = false
 - [ ] Standard markers that may be empty are guarded; the ones the design can
       live without are in `optional`.
 - [ ] Members replace the student (`\ifdefempty{\ListaIntegrantes}`).
-- [ ] Logos wrapped in `\IfFileExists`, scaled by height, with the file name
-      only, and the cover works without them.
-- [ ] Labels follow the document language (`\ifcsname captionsspanish\endcsname`),
-      not `\iflanguage`.
+- [ ] Logos wrapped in `\SiHayLogo`, scaled by height, with the file name
+      only (no extension), and the cover works without them.
+- [ ] Labels follow the document language (`\SegunIdioma`), not `\iflanguage`.
 - [ ] The cover fits on one page for a long title and a long member list.
-- [ ] `template.toml` has the description and `formats` in both languages
-      and only the allowed keys: `description`, `formats`, `optional`,
-      `fields`.
+- [ ] `template.toml` has the description in both languages and only the
+      allowed keys: `description`, `optional`, `fields`.
 
 # 11. DELIVERY
 
@@ -495,7 +490,7 @@ Return exactly this, with no long explanations:
 mkdir -p my-templates/designs/<name>
 # save template.ltx and template.toml inside that folder, then:
 investigacion --check-template <name>
-investigacion paper.md -p <course profile> --design <name> --format apa7
+investigacion paper.md -p <course profile> --design <name>
 ```
 
 If `--check-template` prints errors, send them back to be fixed.
@@ -508,8 +503,8 @@ The description of the design the user wants is:
 ## Notes for the maintainer
 
 - The reference example above lives in this file only; it was checked with
-  `investigacion --check-template` in a copy of the project (all three
-  formats) and built with `--doc-lang es` and `--doc-lang en`.
+  `investigacion --check-template` in a copy of the project and built with
+  `--doc-lang es` and `--doc-lang en`.
 - Keep this prompt in sync with the design contract: `.claude/skills/latex-templates/SKILL.md`,
   `src/template.rs` (markers, manifest keys) and `src/check.rs` (what is
   checked).
