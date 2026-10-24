@@ -1484,8 +1484,13 @@ Behavior details:
 `compile_pdf` (`src/compile.rs`):
 
 - **Command:** `pdflatex -interaction=nonstopmode -halt-on-error
-  -file-line-error [-draftmode] trabajo.tex`, run inside the temp folder (only the
-  file name goes on the command line: a full path breaks on spaces and on the `~`
+  -file-line-error [-draftmode] -jobname=trabajo
+  "\ifdefined\pdfsuppressptexinfo\pdfsuppressptexinfo=-1\fi\input{trabajo.tex}"`,
+  run inside the temp folder. `\pdfsuppressptexinfo=-1` keeps pdfTeX from
+  writing the `PTEX.*` keys, which hold the absolute path of every included PDF
+  (diagrams, images, emoji): the PDF carries no path of the machine. It is on
+  the command line, not in the base, so it covers every design. Only the
+  file name goes on the command line (a full path breaks on spaces and on the `~`
   of Windows short paths such as `C:\Users\USUARI~1\...`). On MiKTeX it also
   gets `--enable-installer`. `TEXINPUTS` is `.`, then
   `pandoc::resource_dirs()` (the Markdown's folder, `cache/`, `cache/remote/`,

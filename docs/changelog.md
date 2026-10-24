@@ -75,6 +75,11 @@ warning:
 - Downloaded and converted images are written to a temporary file and then
   renamed, so a cut run never leaves half an image in `cache/`.
 - Two generations at the same time no longer share a temporary file.
+- The PDF no longer contains absolute paths of your computer. pdfTeX used to
+  write the full path of every included PDF (diagrams in `cache/`, images,
+  emoji from the TeX installation), and with it your user name. **PDFs made
+  with earlier versions still carry those paths: generate them again before
+  sharing them.**
 
 ## Unreleased
 
