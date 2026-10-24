@@ -282,11 +282,14 @@ found), `2` no design name after the option.
 
 | Code | When |
 |---|---|
-| `0` | The PDF was generated (a skipped extra copy is only a warning); `--help`/`--version` shown; `--check-template` passed; the menu closed normally. |
-| `1` | A generation error (missing data, file not found, Pandoc/pdflatex failure, unwritable folder, bad profile or settings file); `--check-template` found errors or a build failed; the menu closed because of an internal error. |
+| `0` | The PDF was generated; `--help`/`--version` shown; `--check-template` passed; the menu closed normally. Recovered problems only print a `Warning:` line and keep `0`: a missing or unreadable image, a broken SVG/WEBP, a remote image that cannot be downloaded, a missing or misnamed logo, Graphviz not installed, a skipped extra copy, a retired format or design (`mla`, `classic-cover`…), `semester` in a profile. |
+| `1` | A generation error: missing cover data, Markdown not found or empty, unknown profile or design, invalid profile or settings file, logos folder given but missing, unwritable output folder, Pandoc or pdflatex missing or past the 180 s limit, and LaTeX that does not compile. A broken ` ```pgfplot `/` ```tikz ` block or broken `$…$` math is real LaTeX, so it ends here: the message starts with `The LaTeX build failed:`, shows the line, and ends with `Full log: <output folder>/last-error.log` (`last-error.tex` is saved next to it). Also: `--check-template` found errors, a build failed or the design was not found; the menu closed because of an internal error or could not find `templates/`. |
 | `2` | An argument error (missing `--title`, unknown option, invalid value such as `--lang fr`, no design after `--check-template`). The message is in the interface language and ends with `Use --help to see the options.` |
+| `124` | Only the internal `--convert-image`: the conversion passed the 180 s limit and was stopped. The image filter then keeps the alt text, with a warning. |
 
-Errors go to standard error as `Error: <message>`.
+Errors go to standard error as `Error: <message>`; warnings as
+`Warning: <message>`. Every one is also written to the log
+([`INVESTIGACION_LOG`](#environment-variables)).
 
 ## Environment variables
 
