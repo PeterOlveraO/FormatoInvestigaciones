@@ -32,11 +32,16 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
   (`--titulo`, `--materia`, `--subject`, `--perfil`, `--template` for
   `--design`…); never remove them.
 - **Layout and data options:**
-  - `--format`, `--design`;
+  - `--design` (a retired name gets `retired_design_warning`); `--format` is
+    hidden and only kept for old commands (anything but `apa7` is a warning);
   - `--set NAME=value` (repeatable, `parse_field`, the name is uppercased);
   - `--doc-lang` (document language, separate from `--lang`).
-- **`--check-template <design>`** is handled in `main_with_args` **before**
-  clap parsing (it needs no Markdown or title) and runs `check::run_cli`.
+- **`--check-template <design>`** (or `=<design>`) is handled in
+  `main_with_args` **before** clap parsing (it needs no Markdown or title) and
+  runs `check::run_cli`. `--convert-image` is handled even earlier, in
+  `main.rs`, without log or settings (`image::run_cli`).
+- **`Args::converter`** (`#[arg(skip)]`) is this binary, set by `main.rs` and
+  `tui::run`, so the filters can convert SVG/WEBP.
 - **Help text** lives in `ARG_HELP` (`(id, Text help, Option<Text> value
   name)`), applied by `localized_command()` with `mut_arg`. It provides custom
   `-h/--help` and `-V/--version` and a `help_template` with translated
@@ -49,7 +54,8 @@ paths: "src/i18n.rs,src/cli.rs,src/tui/**,src/courses.rs,src/settings.rs,src/mai
   spaces in quotes" hint when the stray argument has no leading `-`),
   `InvalidValue` and `ValueValidation`. Other kinds use clap's message.
 - **Running a generation.** `execute()`:
-  1. loads `settings.toml` and the profile, then `resolve_layout` (design + format);
+  1. loads `settings.toml` and the profile, warns about retired `format`,
+     design names and `semester`, then `resolve_layout` (design + APA 7);
   2. builds `DocumentData` with `pick()` (option or `--set NAME=…` > profile), all
      cover data included;
   3. checks `missing_data()` before reading the Markdown;
@@ -114,24 +120,25 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
   form's own keys win on a clash.
 - **Profile wizard** (`wizard.rs`; New profile on home, `p`/`n` in the
   options):
-  - steps: key → format → design (filtered by `accepts`) → one step per marker
+  - steps: key → design → one step per marker
     the design uses (`STANDARD_STEPS` order) plus its custom fields → folder;
   - required data follows the same rules as `missing_data`;
   - Shift+Tab goes back;
   - `courses::save_profile` writes the TOML (only non-empty keys);
   - each profile holds **all** its data.
 - **Form:**
-  - `FIELDS` are the fixed fields (including Format and Design pickers; the
-    design list is filtered by the chosen format);
+  - `FIELDS` are the fixed fields (including the Design picker);
   - `App::extras` are the design's custom fields, appended after `FIELDS` and
     refreshed by `refresh_design()`;
   - use `total_fields()`, `field_label()`, `field_value()` and
     `is_required()` instead of indexing `FIELDS`. University, faculty,
-    course and semester are required only if the design uses their marker
+    and course are required only if the design uses their marker
     (`required_marker()`, same rules as `missing_data`);
-  - university, faculty, student and semester have no CLI option:
-    `build_args()` sends them as `--set UNIVERSIDAD=…` (`FACULTAD`, `ALUMNO`,
-    `SEMESTRE`).
+  - university, faculty and student have no CLI option: `build_args()`
+    sends them as `--set UNIVERSIDAD=…` (`FACULTAD`, `ALUMNO`);
+  - with a profile chosen, `build_args()` sends cleared cover fields as empty
+    values, so a datum the user deletes leaves the PDF too; without a profile
+    empty fields are not sent.
 - **Keys work in both languages.**
   - Home: ↑↓, Enter, `s`/`q` quit (`v` view PDF, hidden).
   - Form: `g`/F5 generate, `v` view PDF, `o` options, Esc home, `s`/`q`
@@ -179,12 +186,14 @@ and a thread runs `cli::execute()` with a `ChannelReporter`.
 
 - **`courses/<key>.toml`** (`CourseProfile`) holds:
   - `name` (required; alias `subject`);
-  - `university`, `faculty`, `student`, `semester`, `members`, `teacher`,
-    `group`;
-  - `format` and `design` (alias `template`);
+  - `university`, `faculty`, `student`, `members`, `teacher`, `group`;
+  - `design` (alias `template`);
+  - `semester` and `format`: retired, read so old profiles load, warned
+    about in `run_generation`, never saved;
   - `language`, `folder`, `output` (wins over `output/<folder>`), `copies`
     (array; `--copy` replaces it), and `[fields]` for custom fields.
-- **`deny_unknown_fields`:** a typo is an error, not silently ignored. The
+- **`deny_unknown_fields`:** a typo is an error, not silently ignored.
+  `[fields]` keys are uppercased by `Course::load`. The
   `toml` crate's detail message stays English.
 - **`folder`:** the Markdown is looked up in `input/<folder>` first, and the
   output goes to `output/<folder>`.
