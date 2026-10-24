@@ -42,12 +42,7 @@ pub fn absolute(path: &Path) -> PathBuf {
 // shortcut: si `path` es un enlace simbólico, queda un archivo normal en su lugar;
 // si alguien enlaza sus perfiles o ajustes, escribir en el destino del enlace.
 pub fn replace_file(path: &Path, write: impl FnOnce(&Path) -> std::io::Result<()>) -> std::io::Result<()> {
-    // Con el id del proceso: dos generaciones a la vez no se pisan el temporal.
-    let temporary = path.with_file_name(format!(
-        ".{}.{}.tmp",
-        path.file_name().unwrap_or_default().to_string_lossy(),
-        std::process::id()
-    ));
+    let temporary = temporary_for(path);
     match write(&temporary).and_then(|()| std::fs::rename(&temporary, path)) {
         Ok(()) => Ok(()),
         Err(error) => {
@@ -55,6 +50,16 @@ pub fn replace_file(path: &Path, write: impl FnOnce(&Path) -> std::io::Result<()
             Err(error)
         }
     }
+}
+
+/// El temporal que usa `replace_file` para `path` en este proceso. Con el id
+/// del proceso: dos generaciones a la vez no se pisan el temporal.
+pub fn temporary_for(path: &Path) -> PathBuf {
+    path.with_file_name(format!(
+        ".{}.{}.tmp",
+        path.file_name().unwrap_or_default().to_string_lossy(),
+        std::process::id()
+    ))
 }
 
 #[derive(Debug, Clone)]

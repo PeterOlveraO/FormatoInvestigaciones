@@ -157,7 +157,7 @@ pub fn run_cli(args: &[OsString]) -> i32 {
         .ok()
         .and_then(|ms| ms.parse().ok())
         .map_or(CONVERTER_TIMEOUT, std::time::Duration::from_millis);
-    exit_after(limit);
+    exit_after(limit, Path::new(destination));
     match convert_to_png(Path::new(source), Path::new(destination)) {
         Ok(()) => 0,
         Err(error) => {
@@ -170,9 +170,12 @@ pub fn run_cli(args: &[OsString]) -> i32 {
 /// Termina el proceso (código 124) si sigue vivo tras `limit`. `pandoc.pipe` no
 /// tiene límite: si a Pandoc lo corta el suyo, este proceso quedaría huérfano
 /// y un SVG con muchos filtros puede tardar más de cinco minutos en dibujarse.
-fn exit_after(limit: std::time::Duration) {
+/// Antes de salir borra el temporal de `destination` que se estuviera escribiendo.
+fn exit_after(limit: std::time::Duration, destination: &Path) {
+    let temporary = crate::project::temporary_for(destination);
     std::thread::spawn(move || {
         std::thread::sleep(limit);
+        let _ = std::fs::remove_file(&temporary);
         // Sin `eprintln!`: si Pandoc ya murió, stderr es una tubería rota y
         // `eprintln!` entraría en pánico en este hilo sin llegar a salir.
         let _ = writeln!(
@@ -197,16 +200,20 @@ mod tests {
     // como hijo: el hijo se queda dormido y el límite tiene que cortarlo.
     #[test]
     fn a_conversion_that_does_not_end_is_stopped() {
-        if std::env::var_os("INVESTIGACION_TEST_EXIT_AFTER").is_some() {
-            exit_after(std::time::Duration::from_millis(100));
+        // El hijo deja a medias el temporal del PNG, como si lo estuviera escribiendo.
+        if let Some(png) = std::env::var_os("INVESTIGACION_TEST_EXIT_AFTER") {
+            let png = std::path::PathBuf::from(png);
+            std::fs::write(crate::project::temporary_for(&png), b"\x89PNG a medias").unwrap();
+            exit_after(std::time::Duration::from_millis(100), &png);
             std::thread::sleep(std::time::Duration::from_secs(30));
             return;
         }
+        let directory = tempfile::tempdir().unwrap();
         let started = std::time::Instant::now();
         // stderr es una tubería que nadie lee, como cuando a Pandoc lo cortó su límite.
         let mut child = std::process::Command::new(std::env::current_exe().unwrap())
             .args(["--exact", "image::tests::a_conversion_that_does_not_end_is_stopped", "--nocapture"])
-            .env("INVESTIGACION_TEST_EXIT_AFTER", "1")
+            .env("INVESTIGACION_TEST_EXIT_AFTER", directory.path().join("imagen.png"))
             .stdout(std::process::Stdio::null())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -215,6 +222,9 @@ mod tests {
         let status = child.wait().unwrap();
         assert_eq!(status.code(), Some(124));
         assert!(started.elapsed() < std::time::Duration::from_secs(10));
+        let left: Vec<_> =
+            std::fs::read_dir(directory.path()).unwrap().flatten().map(|e| e.file_name()).collect();
+        assert!(left.is_empty(), "quedó el temporal: {left:?}");
     }
 
     const SQUARE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20"><rect width="30" height="20" fill="red"/></svg>"#;
