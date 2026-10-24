@@ -289,3 +289,60 @@ fn the_built_in_design_passes_the_check() {
     assert_eq!(report.builds.len(), 1);
     assert!(report.passed(), "{report:?}");
 }
+
+/// Genera un trabajo con una imagen copiada de `examples/` (o con `content`)
+/// usando el binario como conversor; devuelve los avisos y la carpeta.
+fn build_with_image(name: &str, content: &[u8]) -> Option<(Vec<String>, tempfile::TempDir)> {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return None;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    std::fs::write(directory.path().join(name), content).unwrap();
+    let source = write(directory.path(), "trabajo.md", &format!("# Introducción\n\n![Figura]({name})\n"));
+    let options =
+        GenerateOptions { converter: Some(env!("CARGO_BIN_EXE_investigacion").into()), ..Default::default() };
+    let mut warnings = Vec::new();
+    let pdf = generate_pdf(
+        &isolated_project(directory.path()),
+        &source,
+        &directory.path().join("salida"),
+        &data("Imagen"),
+        &options,
+        &mut |w| warnings.push(w),
+    )
+    .unwrap();
+    assert!(pdf.is_file());
+    Some((warnings, directory))
+}
+
+fn converted_pngs(directory: &tempfile::TempDir) -> usize {
+    std::fs::read_dir(directory.path().join("cache/remote"))
+        .unwrap()
+        .flatten()
+        .filter(|e| e.path().extension().is_some_and(|x| x == "png"))
+        .count()
+}
+
+#[test]
+fn an_svg_image_is_converted_to_png() {
+    let svg = std::fs::read(common::root().join("examples/sample-vector.svg")).unwrap();
+    let Some((warnings, directory)) = build_with_image("figura.svg", &svg) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+// Un WEBP con extensión .png (pasa al guardar desde el navegador) rompía pdflatex.
+#[test]
+fn a_webp_image_is_converted_even_with_a_misleading_extension() {
+    let webp = std::fs::read(common::root().join("examples/sample-photo.webp")).unwrap();
+    let Some((warnings, directory)) = build_with_image("falsa.png", &webp) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+#[test]
+fn a_broken_svg_is_a_warning_and_the_pdf_is_still_made() {
+    let Some((warnings, _directory)) = build_with_image("rota.svg", b"<svg <<< no es un svg") else { return };
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("rota.svg"), "{warnings:?}");
+}

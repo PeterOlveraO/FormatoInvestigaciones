@@ -16,10 +16,16 @@ path = "src/main.rs"
 chrono = { version = "0.4", default-features = false, features = ["clock", "std"] }
 # Sin colores ni sugerencias: los errores de argumentos los redacta `cli.rs`.
 clap = { version = "4", default-features = false, features = ["std", "derive", "help", "usage", "error-context"] }
+# Solo para decodificar WEBP; el PNG lo escribe `png`.
+image = { version = "0.25", default-features = false, features = ["webp"] }
 opener = "0.8"
+# Ya lo traen image y resvg; directo, para escribir la resolución (pHYs) del PNG.
+png = "0.18"
 # Trae crossterm (`ratatui::crossterm`), así la versión siempre coincide.
 ratatui = { version = "0.29", features = ["unstable-rendered-line-info"] }
 regex = "1"
+# SVG → PNG sin herramientas externas; texto con las fuentes del sistema.
+resvg = { version = "0.48", default-features = false, features = ["text", "system-fonts", "memmap-fonts"] }
 serde = { version = "1", features = ["derive"] }
 sys-locale = "0.3"
 tempfile = "3"

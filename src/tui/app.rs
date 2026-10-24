@@ -471,6 +471,8 @@ impl Reporter for ChannelReporter {
 
 pub struct App {
     pub project: Project,
+    /// Este programa, para convertir SVG y WEBP (lo pasa `main.rs`).
+    pub converter: Option<PathBuf>,
     pub values: [String; FIELDS.len()],
     pub selected: usize,
     pub mode: Mode,
@@ -523,6 +525,7 @@ impl App {
         let log = errors.into_iter().map(|e| LogLine::Warning(e.0)).collect();
         let mut app = Self {
             project,
+            converter: None,
             values: Default::default(),
             selected: index_of(FieldKey::Markdown),
             mode: Mode::Form,
@@ -839,6 +842,7 @@ impl App {
             doc_lang: None,
             logos: None,
             lang: Some(i18n::current()),
+            converter: self.converter.clone(),
         }
     }
 

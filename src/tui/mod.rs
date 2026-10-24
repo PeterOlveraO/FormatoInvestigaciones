@@ -22,8 +22,9 @@ use crate::logging;
 use crate::project::Project;
 use crate::settings::Settings;
 
-/// Abre el menú y devuelve el código de salida.
-pub fn run() -> i32 {
+/// Abre el menú y devuelve el código de salida. `converter` es este programa,
+/// para convertir SVG y WEBP.
+pub fn run(converter: Option<std::path::PathBuf>) -> i32 {
     let project = Project::discover();
     // Sin plantillas el menú no sirve de nada: mejor decirlo antes de abrirlo.
     if let Err(error) = project.require_templates() {
@@ -36,6 +37,7 @@ pub fn run() -> i32 {
     i18n::set(saved.unwrap_or_else(i18n::detect));
     theme::set(&settings.get(&theme::THEME_SETTINGS));
     let mut app = App::new(project);
+    app.converter = converter;
     // Un archivo roto se avisa en el menú; sigue con los valores por omisión.
     if let Some(problem) = problem {
         app.log.push(app::LogLine::Error(problem));

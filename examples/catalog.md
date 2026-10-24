@@ -613,6 +613,13 @@ El mismo archivo al 60 %, para ver que el tamaño es lo único que cambia:
 
 ![La tubería del generador, más grande](sample-image.png){width=60%}
 
+Un SVG y un WEBP, que pdflatex no compone, se convierten a PNG en `cache/`
+antes de compilar. Sin `{width=...}`, el SVG conserva su tamaño original:
+
+![Formas geométricas en SVG, a su tamaño](sample-vector.svg)
+
+![Un paisaje sencillo en WEBP](sample-photo.webp){width=40%}
+
 ## Fórmulas
 
 Las fórmulas en línea van entre signos de pesos, como $a^2 + b^2 = c^2$, y las

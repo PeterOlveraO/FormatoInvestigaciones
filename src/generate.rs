@@ -30,6 +30,8 @@ pub struct GenerateOptions {
     pub file_name: Option<String>,
     /// Markdown ya leído (el CLI lo lee antes para validarlo).
     pub markdown: Option<String>,
+    /// Este programa, para que los filtros conviertan SVG y WEBP; `None` = no se convierten.
+    pub converter: Option<PathBuf>,
 }
 
 /// Nombre final del PDF. Es independiente del título: por omisión sale del
@@ -89,8 +91,15 @@ pub fn generate_pdf(
     let template = template
         .replace("%%FORMAT%%", &layout.format_block(doc_lang))
         .replace("%%CLASS_OPTIONS%%", &layout.class_options());
-    let content =
-        pandoc_to_latex(project, &markdown_path, &markdown, options.allow_raw_latex, doc_lang, on_warning)?;
+    let content = pandoc_to_latex(
+        project,
+        &markdown_path,
+        &markdown,
+        options.allow_raw_latex,
+        doc_lang,
+        options.converter.as_deref(),
+        on_warning,
+    )?;
     let rendered = render_template(&template, &content, data)?;
 
     let output_directory = absolute(&expand_home(output_directory));
