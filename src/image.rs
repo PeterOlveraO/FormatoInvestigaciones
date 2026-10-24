@@ -148,6 +148,7 @@ pub fn run_cli(args: &[OsString]) -> i32 {
         );
         return 2;
     };
+    exit_after(crate::process::TOOL_TIMEOUT);
     match convert_to_png(Path::new(source), Path::new(destination)) {
         Ok(()) => 0,
         Err(error) => {
@@ -157,10 +158,49 @@ pub fn run_cli(args: &[OsString]) -> i32 {
     }
 }
 
+/// Termina el proceso (código 124) si sigue vivo tras `limit`. `pandoc.pipe` no
+/// tiene límite: si a Pandoc lo corta el suyo, este proceso quedaría huérfano
+/// y un SVG con muchos filtros puede tardar más de cinco minutos en dibujarse.
+fn exit_after(limit: std::time::Duration) {
+    std::thread::spawn(move || {
+        std::thread::sleep(limit);
+        eprintln!(
+            "{}",
+            tr!(
+                es: "la conversión tardó más de {} s y se detuvo.",
+                en: "the conversion took more than {} s and was stopped.",
+                limit.as_secs()
+            )
+        );
+        std::process::exit(124);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::io::BufReader;
+
+    // El límite termina el proceso, así que la prueba se relanza a sí misma
+    // como hijo: el hijo se queda dormido y el límite tiene que cortarlo.
+    #[test]
+    fn a_conversion_that_does_not_end_is_stopped() {
+        if std::env::var_os("INVESTIGACION_TEST_EXIT_AFTER").is_some() {
+            exit_after(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_secs(30));
+            return;
+        }
+        let started = std::time::Instant::now();
+        let status = std::process::Command::new(std::env::current_exe().unwrap())
+            .args(["--exact", "image::tests::a_conversion_that_does_not_end_is_stopped", "--nocapture"])
+            .env("INVESTIGACION_TEST_EXIT_AFTER", "1")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .unwrap();
+        assert_eq!(status.code(), Some(124));
+        assert!(started.elapsed() < std::time::Duration::from_secs(10));
+    }
 
     const SQUARE: &str = r#"<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20"><rect width="30" height="20" fill="red"/></svg>"#;
 
