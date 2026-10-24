@@ -32,6 +32,8 @@ pub struct GenerateOptions {
     pub markdown: Option<String>,
     /// Este programa, para que los filtros conviertan SVG y WEBP; `None` = no se convierten.
     pub converter: Option<PathBuf>,
+    /// No usa ni guarda el `.aux`/`.toc` en `cache/latex/` (compilaciones de prueba).
+    pub skip_latex_state: bool,
 }
 
 /// Nombre final del PDF. Es independiente del título: por omisión sale del
@@ -131,13 +133,14 @@ pub fn generate_pdf(
         copy_logos(project, logos, temporary.path(), on_warning)?;
     }
     let search_dirs = resource_dirs(project, &markdown_path)?;
-    let state = latex_state_dir(project, &output_pdf, &layout.cache_key());
+    let state =
+        (!options.skip_latex_state).then(|| latex_state_dir(project, &output_pdf, &layout.cache_key()));
     logging::debug(format_args!(
         "generate: build folder {}, output {}",
         temporary.path().display(),
         output_pdf.display()
     ));
-    compile_pdf(&tex_path, &output_pdf, &search_dirs, Some(&state), on_warning)?;
+    compile_pdf(&tex_path, &output_pdf, &search_dirs, state.as_deref(), on_warning)?;
     // Que no se borre (Windows lo puede tener bloqueado) no es un error.
     if let Err(error) = temporary.close() {
         logging::debug(format_args!("build folder not removed: {error}"));

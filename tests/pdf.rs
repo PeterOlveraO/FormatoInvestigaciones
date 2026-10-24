@@ -291,6 +291,8 @@ fn the_built_in_design_passes_the_check() {
     assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
     assert_eq!(report.builds.len(), 1);
     assert!(report.passed(), "{report:?}");
+    // La revisión compila en una carpeta temporal: no deja estado en cache/latex/.
+    assert!(!directory.path().join("cache").join("latex").exists());
 }
 
 /// Genera un trabajo con una imagen copiada de `examples/` (o con `content`)

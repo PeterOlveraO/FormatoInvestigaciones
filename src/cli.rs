@@ -540,6 +540,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         file_name: args.file_name.clone(),
         markdown: Some(markdown),
         converter: args.converter.clone(),
+        skip_latex_state: false,
     };
     let output_dir = args.output.clone().unwrap_or_else(|| match &course {
         Some(course) => course.output_dir(project),
