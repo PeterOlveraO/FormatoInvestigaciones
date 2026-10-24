@@ -1,5 +1,86 @@
 # Changelog
 
+## Unreleased: APA 7 only, one design, SVG and WEBP images
+
+The program now does one thing: APA 7 papers with the `geometric-cover`
+design, or a design of your own.
+
+### Removed
+
+- The **Harvard and MLA 9 formats**. APA 7 is the only format. Formats of
+  your own in `my-templates/formats/` are no longer read; a design without
+  `%%FORMAT%%` (self-contained) is the way to use other rules. The menu's
+  Format field and the wizard's format step are gone.
+- The **`classic-cover`, `report` and `starter` designs**. `geometric-cover` is
+  the built-in design; your own designs in `my-templates/designs/` still work.
+- The **semester**. The group holds the term (`7-A`, `2026-2`): the menu, the
+  wizard and the profiles no longer have a semester, and `geometric-cover`
+  no longer needs it. The cover loses its `SEMESTRE` line; only page 1 of a
+  paper changes.
+- The sample papers `binary-trees.md`, `paper-template.md` and `syntax.md`.
+  `examples/catalog.md` (and its PDF) shows every element.
+
+### Compatibility
+
+Old commands, profiles and designs keep working, each with a one-line
+warning:
+
+- `--format` (hidden now) and a profile's `format`: `apa7` is accepted
+  silently; any other value says "The format "mla" no longer exists; APA 7 is
+  used."
+- A profile's `semester` is ignored with a warning (put the term in `group`)
+  and the wizard no longer saves it. `--set SEMESTRE=…` is ignored with a
+  warning, unless your own design uses `%%SEMESTRE%%`.
+- The design names `apa`, `apa-simple`, `classic-cover`, `report` and
+  `starter` use `geometric-cover`, with a warning. A design of your own with
+  one of those names wins.
+- In a design, `formats` in `template.toml` and `%%SEMESTRE%%` still load;
+  `--check-template` warns about them.
+- `format.toml` ignores keys it does not know; `name` is optional and
+  ignored.
+- `.gitignore` no longer lists `/entrada/` and `/investigacion/`, two folder
+  names the program stopped using long ago. If you still have them in the
+  project folder, move them to `local/`, the new ignored folder for notes and
+  scratch files.
+
+### Added
+
+- **SVG and WEBP images** in the paper, local or from the web. The program
+  converts them to PNG itself (no extra tools) and caches the result. An SVG
+  keeps its size; its text is drawn with the fonts installed on the system,
+  so it can look slightly different on another computer. The format is read
+  from the file's content, so a JPG named `.png` works too. A conversion that
+  takes more than 30 s is stopped: the image's text stays, the warning
+  suggests exporting it to PNG, and the PDF is still made.
+- **Cover logos in SVG, PDF, PNG, JPG or WEBP** (`logo-universidad.*`,
+  `logo-facultad.*`). A logo with the right name but another extension or
+  upper case (`logo-facultad.PNG`) gets a warning that says how to rename it.
+- `--check-template=<design>` works, as well as `--check-template <design>`.
+
+### Fixed
+
+- A `--logos` or `LOGOS` folder that does not exist (a removed USB drive) is a
+  warning and the cover is built without logos, instead of an error.
+- In the menu, clearing a cover field of the chosen profile removes it from
+  the PDF too (before, the profile's value came back). The field's hint says
+  so: "not shown on the cover".
+- A profile written by hand with lowercase `[fields]` keys (`salon = "B-204"`)
+  fills the design's field in the menu too, not only in the command line.
+- Subheadings inside the references (`## Libros` under `# Referencias`) no
+  longer end the hanging indent for the entries after them.
+- When a build with the saved LaTeX state hits pdflatex's 180 s limit, it is
+  no longer repeated from scratch: the error arrives in 3 minutes instead of
+  6, and `last-error.tex`/`.log` are always saved.
+- `--check-template` no longer leaves new folders in `cache/latex/`.
+- Downloaded and converted images are written to a temporary file and then
+  renamed, so a cut run never leaves half an image in `cache/`.
+- Two generations at the same time no longer share a temporary file.
+- The PDF no longer contains absolute paths of your computer. pdfTeX used to
+  write the full path of every included PDF (diagrams in `cache/`, images,
+  emoji from the TeX installation), and with it your user name. **PDFs made
+  with earlier versions still carry those paths: generate them again before
+  sharing them.**
+
 ## Unreleased
 
 **Windows is supported** (tested on Windows 11 with MiKTeX). Installation steps

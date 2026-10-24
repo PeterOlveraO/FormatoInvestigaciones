@@ -332,7 +332,15 @@ fn run_passes(
             command.arg("-draftmode");
         }
         logging::info(format_args!("pdflatex pass {run}{}", if draft { " (draft mode)" } else { "" }));
-        command.arg(tex_name).current_dir(temp_dir).env("TEXINPUTS", texinputs);
+        // Sin las claves PTEX.*: pdfTeX guardaría en el PDF la ruta absoluta de cada
+        // PDF incluido (caché, carpeta personal). Va en la orden y no en la base para
+        // cubrir cualquier diseño; `\ifdefined` por si el pdfTeX es anterior a 1.40.15.
+        let mut input =
+            OsString::from("\\ifdefined\\pdfsuppressptexinfo\\pdfsuppressptexinfo=-1\\fi\\input{");
+        input.push(tex_name);
+        input.push("}");
+        command.arg(format!("-jobname={}", tex_path.file_stem().unwrap_or_default().to_string_lossy()));
+        command.arg(input).current_dir(temp_dir).env("TEXINPUTS", texinputs);
 
         let started = std::time::Instant::now();
         let result = run_with_timeout(command, None, timeout).map_err(|e| match e {

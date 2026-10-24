@@ -473,3 +473,22 @@ fn a_broken_cached_aux_still_gives_the_pdf() {
     let Some((pdf, toc)) = build_twice(markdown, markdown, broken) else { return };
     assert!(toc.contains("3333") && contains(&pdf, "3333"), "{toc}");
 }
+
+// pdfTeX guardaba en el PDF la ruta absoluta de cada PDF incluido
+// (PTEX.FileName): la caché y la carpeta personal salían en el archivo.
+#[test]
+fn the_pdf_does_not_contain_local_paths() {
+    let Some((first, _, _first_dir)) = build(RICH_MARKDOWN, "Primero") else { return };
+    let figure = std::fs::read(&first).unwrap();
+    let Some((warnings, directory)) = build_with_image("figura.pdf", &figure) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    let pdf = std::fs::read(directory.path().join("salida/trabajo.pdf")).unwrap();
+    // El diccionario de un PDF incluido (un Form XObject) nunca va comprimido:
+    // si está a la vista, PTEX.FileName también lo estaría.
+    assert!(contains(&pdf, "/Subtype /Form"), "the included PDF should be a visible form XObject");
+    assert!(!contains(&pdf, "PTEX"), "the PDF keeps PTEX keys");
+    for path in [directory.path(), &std::env::temp_dir()] {
+        let path = path.to_string_lossy();
+        assert!(!contains(&pdf, &path), "the PDF contains {path}");
+    }
+}

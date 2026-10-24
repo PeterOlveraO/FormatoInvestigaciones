@@ -2,15 +2,15 @@
 
 A short, friendly guide to turn a Markdown paper into a PDF, with the menu or
 with one command. Installation is in [install.md](install.md). Every
-option is in [cli.md](cli.md); formats, designs and the Markdown syntax are
-in [reference.md](reference.md).
+option is in [cli.md](cli.md); the format, designs and the Markdown syntax
+are in [reference.md](reference.md).
 
 ## The idea
 
 1. You write your paper in a Markdown file (`.md`). Put it in `input/`, or
    anywhere you like.
 2. You tell the program the title and the course.
-3. You get a PDF with a cover, in APA 7, Harvard or MLA 9 format.
+3. You get a PDF with a cover, in APA 7 format.
 
 ## The menu
 
@@ -32,11 +32,11 @@ investigacion
    folder; change it in Options (`w`). Esc keeps everything in the program
    folder, as before.
 3. **Profile wizard.** If you have no course profiles yet, a wizard opens. A
-   profile saves the data of one course (university, teacher, group, format,
+   profile saves the data of one course (university, teacher, group,
    design…) so you do not type it every time. The wizard asks, one step at a
    time:
    - a short profile name, such as `ia`;
-   - the format and the design;
+   - the design;
    - the data that design shows (a `*` marks what is required);
    - the folder inside `input/` where that course's papers live (optional).
 
@@ -68,12 +68,11 @@ Choose **Generate a PDF**. The fields are:
 
 | Field | What to put |
 |---|---|
-| Course profile | Pick one: it fills all the cover data, format, design and output folder. Optional. |
+| Course profile | Pick one: it fills all the cover data, design and output folder. Optional. |
 | Markdown file | **Required.** Browse with the arrows; typing filters the list. |
 | Title | **Required.** Shown on the cover; it does not name the file. |
 | PDF file name | Optional. By default, the name of the Markdown file. |
-| University, Faculty, Student, Course, Teacher, Team members, Group, Semester | Cover data. Empty means "use the profile's". Marked `*` when the design needs it. |
-| Format | `apa7`, `harvard`, `mla`… Empty: the first one the design accepts. |
+| University, Faculty, Student, Course, Teacher, Team members, Group | Cover data, filled from the profile. Clear a line (Del) and it is not shown on the cover. Marked `*` when the design needs it. |
 | Design | The cover and look. Empty: `geometric-cover`. |
 | Output folder | Browse to the folder and choose `./`. Empty: `output/` (or the profile's). Type a new name to create a folder. |
 | Extra copies | Browse and choose `./`; each folder is added to the list (Del clears it). Type a new name to create a folder. |
@@ -146,10 +145,10 @@ investigacion Tarea1.md -p ia --title "Búsqueda heurística"
 # 2. Without a profile: give the cover data
 investigacion Tarea1.md --title "Tema" --course "Cálculo" \
   --set UNIVERSIDAD="Nombre de la universidad" --set FACULTAD="Nombre de la facultad" \
-  --set SEMESTRE="2026-2"
+  --group "7-A"
 
-# 3. Another format and design
-investigacion Tarea1.md -p ia --title "Tema" --format mla --design classic-cover
+# 3. A paper in English (the language of the PDF)
+investigacion Essay.md -p ia --title "Graph Theory" --doc-lang en
 
 # 4. A team paper, with a copy in another folder
 investigacion Tarea1.md -p ia --title "Tema" --members "Ana Ruiz, Luis Paz" --copy ~/Drive/Entregas

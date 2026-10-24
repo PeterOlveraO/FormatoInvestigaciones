@@ -1,6 +1,6 @@
 ---
 name: regenerate-catalog
-description: Rebuild the versioned examples/catalog.pdf and the README cover screenshot without personal data or logos. Use after changing templates, filters or examples/catalog.md.
+description: Rebuild the versioned examples/catalog.pdf and the README screenshots (docs/images/*.png) without personal data or logos. Use after changing templates, filters or examples/catalog.md.
 disable-model-invocation: true
 ---
 
@@ -18,7 +18,7 @@ git. They **must not contain personal data or institutional logos**:
    ```bash
    cargo build --release
    mkdir -p /tmp/nologos
-   target/release/investigacion examples/catalog.md -p example --design geometric-cover --format apa7 \
+   target/release/investigacion examples/catalog.md -p example --design geometric-cover \
      --title "Catalogo de elementos" --logos /tmp/nologos --output /tmp/pub --lang es
    ```
 
@@ -40,5 +40,6 @@ git. They **must not contain personal data or institutional logos**:
    cp /tmp/cover-01.png docs/images/cover.png
    ```
 
-4. `diagram.png` and `charts.png` are pages of the catalog. Regenerate them
-   only if those pages changed (find the page with `pdftotext -f N -l N`).
+4. `diagram.png` and `charts.png` are pages of the catalog, shown in the
+   README next to the cover. Regenerate them only if those pages changed (find
+   the page with `pdftotext -f N -l N`), at the same resolution as the cover.
