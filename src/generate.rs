@@ -12,14 +12,14 @@ use crate::latex::render_template;
 use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::{pandoc_to_latex, resource_dirs};
-use crate::project::{LOGO_FILES, Project, absolute, find_logo, replace_file};
+use crate::project::{DEFAULT_FORMAT, LOGO_FILES, Project, absolute, find_logo, replace_file};
 use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 
 /// Opciones de la generación que no son datos de la portada.
 #[derive(Debug, Default, Clone)]
 pub struct GenerateOptions {
-    /// Diseño: nombre de `templates/designs/` o ruta; `None` = el de omisión.
-    pub design: Option<String>,
+    /// Diseño y formato ya resueltos (`resolve_layout`); `None` = el diseño por omisión.
+    pub layout: Option<Layout>,
     /// Idioma del documento; `None` = el del formato.
     pub doc_lang: Option<Lang>,
     /// Interpreta los comandos LaTeX escritos en el Markdown.
@@ -70,7 +70,10 @@ pub fn generate_pdf(
         ));
     }
 
-    let layout = resolve_layout(project, options.design.as_deref())?;
+    let layout = match &options.layout {
+        Some(layout) => layout.clone(),
+        None => resolve_layout(project, None)?,
+    };
     let missing = missing_data(&layout, data);
     if !missing.is_empty() {
         return Err(missing_data_error(&layout, &missing));
@@ -82,7 +85,7 @@ pub fn generate_pdf(
         "generate: markdown {}, template {}, format {}, document language {}, logos {}",
         markdown_path.display(),
         template_file.display(),
-        layout.format.as_ref().map_or("-", |f| f.key.as_str()),
+        layout.format.as_ref().map_or("-", |_| DEFAULT_FORMAT),
         doc_lang.code(),
         logos.as_ref().map_or_else(|| "none".to_owned(), |l| l.display().to_string())
     ));

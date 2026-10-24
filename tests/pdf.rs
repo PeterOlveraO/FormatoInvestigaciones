@@ -5,7 +5,7 @@ mod common;
 use common::{data, has_tool, isolated_project, write};
 use investigacion::generate::{GenerateOptions, generate_pdf};
 use investigacion::i18n::Lang;
-use investigacion::template::list_designs;
+use investigacion::template::{list_designs, resolve_layout};
 
 const RICH_MARKDOWN: &str = r#"# Introducción
 
@@ -185,7 +185,7 @@ fn every_design_compiles_with_and_without_optional_fields() {
     for design in designs {
         for (index, values) in [&full, &bare].into_iter().enumerate() {
             let options = GenerateOptions {
-                design: Some(design.clone()),
+                layout: Some(resolve_layout(&project, Some(&design)).unwrap()),
                 file_name: Some(format!("{design}-{index}")),
                 ..Default::default()
             };
@@ -265,7 +265,10 @@ fn a_minimal_design_with_a_custom_field_compiles() {
     let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
     let mut values = data("Minimo");
     values.fields.insert("SALON".into(), "B-204 & Lab".into());
-    let options = GenerateOptions { design: Some("minimal".into()), ..Default::default() };
+    let options = GenerateOptions {
+        layout: Some(resolve_layout(&project, Some("minimal")).unwrap()),
+        ..Default::default()
+    };
     let pdf = generate_pdf(&project, &source, &directory.path().join("out"), &values, &options, &mut |_| {})
         .unwrap();
     assert!(pdf.is_file());

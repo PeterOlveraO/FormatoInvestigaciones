@@ -485,7 +485,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         "layout: design {} ({}), format {}, document language {}",
         layout.design.key,
         layout.design.file.display(),
-        shown(layout.format.as_ref().map(|f| &f.key)),
+        shown(layout.format.as_ref().map(|_| DEFAULT_FORMAT)),
         doc_lang.code()
     ));
 
@@ -534,7 +534,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         (!from_env.is_empty()).then(|| PathBuf::from(from_env))
     });
     let options = GenerateOptions {
-        design: Some(layout.design.file.display().to_string()),
+        layout: Some(layout),
         doc_lang: Some(doc_lang),
         allow_raw_latex: args.allow_latex,
         logos,

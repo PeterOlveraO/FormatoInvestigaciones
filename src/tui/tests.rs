@@ -42,7 +42,7 @@ fn sample_project() -> (tempfile::TempDir, Project) {
     // El formato y dos diseños: uno con un campo propio obligatorio y otro
     // que pide pocos datos.
     write("templates/formats/apa7/format.sty", "x");
-    write("templates/formats/apa7/format.toml", "name = \"apa7\"\n");
+    write("templates/formats/apa7/format.toml", "");
     write(
         "templates/designs/geometric-cover/template.ltx",
         "%%FORMAT%%\n%%TITULO%% %%UNIVERSIDAD%% %%MATERIA%% %%DOCENTE%% %%SALON%%\n%%CONTENIDO_MARKDOWN%%\n",
@@ -51,14 +51,14 @@ fn sample_project() -> (tempfile::TempDir, Project) {
         "templates/designs/geometric-cover/template.toml",
         "[fields.SALON]\nlabel = { es = \"Salón\", en = \"Room\" }\nrequired = true\n",
     );
-    write("templates/designs/classic-cover/template.ltx", "%%FORMAT%%\n%%TITULO%%\n%%CONTENIDO_MARKDOWN%%\n");
+    write("templates/designs/my-cover/template.ltx", "%%FORMAT%%\n%%TITULO%%\n%%CONTENIDO_MARKDOWN%%\n");
     std::fs::create_dir_all(root.join("input/IA")).unwrap();
     std::fs::write(root.join("input/IA/Tarea 1.md"), "# Introducción\n").unwrap();
     std::fs::write(root.join("input/suelto.md"), "# Introducción\n").unwrap();
     std::fs::create_dir_all(root.join("courses")).unwrap();
     std::fs::write(
         root.join("courses/ia.toml"),
-        "name = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"classic-cover\"\nfolder = \"IA\"\n",
+        "name = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"my-cover\"\nfolder = \"IA\"\n",
     )
     .unwrap();
     let project = Project::at(root);
@@ -205,7 +205,7 @@ fn choosing_a_profile_fills_the_form_and_the_markdown_picker_starts_in_its_folde
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.value(FieldKey::Course), "Inteligencia artificial");
     assert_eq!(app.value(FieldKey::Teacher), "Docente IA");
-    assert_eq!(app.value(FieldKey::Template), "classic-cover");
+    assert_eq!(app.value(FieldKey::Template), "my-cover");
     assert_eq!(Path::new(app.value(FieldKey::Output)), Path::new("output/IA"));
 
     select(&mut app, FieldKey::Markdown);
@@ -534,7 +534,7 @@ fn every_design_is_offered_and_custom_fields_appear() {
     press(&mut app, KeyCode::Enter);
     let Mode::Picking(picker) = &app.mode else { panic!() };
     let labels: Vec<&str> = picker.visible().iter().map(|i| i.label.as_str()).collect();
-    assert_eq!(labels, ["classic-cover", "geometric-cover"]);
+    assert_eq!(labels, ["geometric-cover", "my-cover"]);
     press(&mut app, KeyCode::Esc);
     // El diseño con %%SALON%% suma un campo obligatorio al formulario.
     select(&mut app, FieldKey::Template);
@@ -813,11 +813,11 @@ fn a_profile_that_cannot_be_saved_keeps_the_wizard_open() {
     std::fs::write(&courses, "").unwrap();
     let mut app = App::new(project);
     app.open_wizard(None);
-    for answer in ["nuevo", "classic"] {
+    for answer in ["nuevo", "my-cover"] {
         type_text(&mut app, answer);
         press(&mut app, KeyCode::Enter);
     }
-    // classic-cover no pide datos: la carpeta y las copias se pasan con Tab.
+    // my-cover no pide datos: la carpeta y las copias se pasan con Tab.
     press(&mut app, KeyCode::Tab);
     press(&mut app, KeyCode::Tab);
     let Mode::Wizard(wizard) = &app.mode else { panic!("el asistente se cerró sin guardar") };
