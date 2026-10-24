@@ -22,7 +22,7 @@ the code wins. Related files:
 | [`prompts/design.md`](prompts/design.md) | Prompt that tells an AI how to make a compatible design |
 | [`changelog.md`](changelog.md) | User-visible changes |
 | [`../courses/README.md`](../courses/README.md), [`../courses/example.toml`](../courses/example.toml) | Profile file reference and an example |
-| [`../examples/catalog.md`](../examples/catalog.md), [`../examples/syntax.md`](../examples/syntax.md) | Papers that exercise every supported element |
+| [`../examples/catalog.md`](../examples/catalog.md) | Paper that exercises every supported element |
 
 ## Table of contents
 
@@ -950,8 +950,7 @@ format ([section 8](#built-in-formats)).
 
 Elements that are written as in any Markdown guide (tables, footnotes,
 lists, quotes, code, math) are covered by Pandoc itself. For a rendered
-version of every element see [`../examples/syntax.md`](../examples/syntax.md) and
-[`../examples/catalog.md`](../examples/catalog.md)
+version of every element see [`../examples/catalog.md`](../examples/catalog.md)
 ([PDF](../examples/catalog.pdf)).
 
 ### Tables
