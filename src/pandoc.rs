@@ -103,6 +103,7 @@ pub fn pandoc_to_latex(
     markdown: &str,
     allow_raw_latex: bool,
     doc_lang: crate::i18n::Lang,
+    converter: Option<&Path>,
     on_warning: &mut dyn FnMut(String),
 ) -> Result<String> {
     let (remote, diagrams) = project.media_directories()?;
@@ -148,6 +149,12 @@ pub fn pandoc_to_latex(
         .env("INVESTIGACION_LANG", crate::i18n::current().code())
         // Y el texto que va dentro del PDF (títulos de las cajas), en el del documento.
         .env("INVESTIGACION_DOC_LANG", doc_lang.code());
+    // Solo en el Command de Pandoc: el filtro de imágenes llama a este binario.
+    if let Some(converter) = converter {
+        command
+            .env("INVESTIGACION_CONVERTER", converter)
+            .env("INVESTIGACION_CONVERTER_VERSION", crate::image::CONVERTER_VERSION);
+    }
 
     logging::info(format_args!(
         "pandoc: converting {} ({} bytes, raw LaTeX {}, document language {})",

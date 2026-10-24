@@ -77,6 +77,10 @@ pub struct Args {
 
     #[arg(long, alias = "idioma", value_parser = parse_lang_arg)]
     pub lang: Option<Lang>,
+
+    /// Este programa, para convertir SVG y WEBP; lo pone `main.rs`, no es una opción.
+    #[arg(skip)]
+    pub converter: Option<PathBuf>,
 }
 
 /// `NOMBRE=valor` para un campo propio del diseño; el nombre va en mayúsculas.
@@ -521,6 +525,7 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         logos,
         file_name: args.file_name.clone(),
         markdown: Some(markdown),
+        converter: args.converter.clone(),
     };
     let output_dir = args.output.clone().unwrap_or_else(|| match &course {
         Some(course) => course.output_dir(project),
@@ -547,8 +552,9 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     Ok(pdf)
 }
 
-/// Punto de entrada del CLI; devuelve el código de salida.
-pub fn main_with_args<I, T>(argv: I) -> i32
+/// Punto de entrada del CLI; devuelve el código de salida. `converter` es este
+/// programa (`current_exe`), para convertir SVG y WEBP.
+pub fn main_with_args<I, T>(argv: I, converter: Option<PathBuf>) -> i32
 where
     I: IntoIterator<Item = T>,
     T: Into<OsString> + Clone,
@@ -586,7 +592,7 @@ where
         }
         return crate::check::run_cli(&project, &design);
     }
-    let args = match parse_args(argv) {
+    let mut args = match parse_args(argv) {
         Ok(args) => args,
         Err(error) => {
             match error.kind() {
@@ -603,6 +609,7 @@ where
             return error.exit_code();
         }
     };
+    args.converter = converter;
     match execute(&args, &project, &mut ConsoleReporter) {
         Ok(_) => 0,
         Err(error) => {

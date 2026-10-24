@@ -25,6 +25,7 @@ Every command and option of `investigacion`. For a friendly introduction see
 | `investigacion --check-template <design>` | Checks a design and builds the catalog with it. |
 | `investigacion --help` (`-h`) | Shows the help, in the interface language. |
 | `investigacion --version` (`-V`) | Shows the version (`investigacion 2.0.0`). |
+| `investigacion --convert-image <SOURCE> <DESTINATION>` | Internal, hidden from `--help`: the image filter calls it to turn an SVG or WEBP into a PNG. It must be the first argument; it does not read `settings.toml` or write the log. Exit code `0` converted, `1` failed (short reason on standard error), `2` wrong number of arguments. |
 
 Only the Markdown file and `--title` are always required. The rest is
 required only if the chosen design uses it (see

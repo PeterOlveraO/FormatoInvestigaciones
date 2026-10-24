@@ -20,7 +20,8 @@ fn convert_in(markdown: &str, doc_lang: Lang) -> Option<(String, Vec<String>)> {
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project(), &source, markdown, false, doc_lang, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project(), &source, markdown, false, doc_lang, None, &mut |w| warnings.push(w))
+            .unwrap();
     Some((latex, warnings))
 }
 
@@ -97,7 +98,8 @@ fn local_images_in_formats_pdflatex_cannot_typeset_are_replaced() {
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, None, &mut |w| warnings.push(w))
+            .unwrap();
     assert!(!latex.contains("includesvg"), "{latex}");
     assert!(latex.contains(r"\emph{Una figura}"));
     assert!(warnings.iter().any(|w| w.contains("fig.svg") && w.contains("svg")), "{warnings:?}");
@@ -207,8 +209,9 @@ fn raw_latex_in_a_caption_follows_the_body_setting() {
     let markdown = "```{.pgfplot caption=\"Figura \\noexiste{x}\"}\n\\draw (0,0);\n```\n";
     let directory = tempfile::tempdir().unwrap();
     let source = write(directory.path(), "trabajo.md", markdown);
-    let convert =
-        |allow_raw| pandoc_to_latex(&project(), &source, markdown, allow_raw, Lang::Es, &mut |_| {}).unwrap();
+    let convert = |allow_raw| {
+        pandoc_to_latex(&project(), &source, markdown, allow_raw, Lang::Es, None, &mut |_| {}).unwrap()
+    };
     let without = convert(false);
     assert!(!without.contains(r"\noexiste{x}"), "{without}");
     assert!(without.contains(r"\textbackslash noexiste"), "{without}");
@@ -228,7 +231,8 @@ fn a_folder_named_like_an_image_is_not_an_image() {
     let source = write(directory.path(), "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project(), &source, markdown, false, Lang::Es, None, &mut |w| warnings.push(w))
+            .unwrap();
     assert!(!latex.contains("includegraphics"), "{latex}");
     assert!(latex.contains(r"\emph{x}"), "{latex}");
     assert!(!warnings.is_empty());
@@ -255,7 +259,8 @@ fn an_image_in_a_folder_with_the_path_separator_is_copied_to_the_cache() {
     let source = write(&folder, "trabajo.md", markdown);
     let mut warnings = Vec::new();
     let latex =
-        pandoc_to_latex(&project, &source, markdown, false, Lang::Es, &mut |w| warnings.push(w)).unwrap();
+        pandoc_to_latex(&project, &source, markdown, false, Lang::Es, None, &mut |w| warnings.push(w))
+            .unwrap();
     assert!(latex.contains("Introducción"), "{latex}");
     assert!(warnings.iter().any(|w| w.contains("separador")), "{warnings:?}");
     // LaTeX no ve la carpeta: la imagen tiene que llegar por la caché, con su nombre.
