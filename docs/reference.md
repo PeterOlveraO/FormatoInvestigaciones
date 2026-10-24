@@ -184,6 +184,7 @@ Personal data never goes into the repository (`.gitignore`):
 | `/templates/logos/*` except `README.md`, and `/templates/*/logos/` | Institutional logos are rarely redistributable |
 | `/my-templates/` | Your own formats and designs |
 | `/cache/` | Regenerable; the log contains paths and titles |
+| `/local/` | Everything that is not versioned goes here (notes, loose PDFs, scratch tests) |
 | `last-error.tex`, `last-error.log` | Leftovers of failed builds |
 | `/target/`, editor and OS files | Build output and noise |
 
