@@ -13,9 +13,8 @@ teacher = "Nombre del docente"
 group = "7-A"
 semester = "2026-2"
 
-format = "apa7"                          # apa7, harvard, mla…
-design = "geometric-cover"               # geometric-cover, classic-cover, report…
-# language = "es"                        # default: the format's
+design = "geometric-cover"               # or one of yours in my-templates/designs/
+# language = "es"                        # default: Spanish
 folder = "IA"                            # input/IA and output/IA
 # output = "~/Documentos/Entregas/IA"     # instead of output/IA
 # copies = ["~/Drive/IA"]                 # extra copies of the PDF

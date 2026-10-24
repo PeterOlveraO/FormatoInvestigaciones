@@ -222,7 +222,7 @@ pub const FIELDS: [Field; 15] = [
             "Portada y aspecto del documento. Los diseños están en templates/designs/ y en my-templates/designs/.",
             "Cover and look of the document. Designs live in templates/designs/ and my-templates/designs/.",
         ),
-        example: Text::new("classic-cover", "classic-cover"),
+        example: Text::new("geometric-cover", "geometric-cover"),
         empty: Text::new("geometric-cover (APA 7)", "geometric-cover (APA 7)"),
     },
     Field {

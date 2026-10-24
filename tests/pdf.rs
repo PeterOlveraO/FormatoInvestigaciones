@@ -173,7 +173,7 @@ fn every_design_compiles_with_and_without_optional_fields() {
     let project = isolated_project(directory.path());
     let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
     let designs = list_designs(&project);
-    assert!(designs.len() >= 2, "{designs:?}");
+    assert!(!designs.is_empty(), "{designs:?}");
 
     let mut full = data("Completo");
     full.members = vec!["Ana Ruiz".into(), "Luis Paz".into()];
@@ -238,17 +238,13 @@ fn cover_labels_follow_the_document_language() {
     let project = isolated_project(directory.path());
     let source =
         write(directory.path(), "paper.md", "# Introduction\n\nText.\n\n# References\n\nSmith (2020).\n");
-    let options = GenerateOptions {
-        design: Some("classic-cover".into()),
-        doc_lang: Some(Lang::En),
-        ..Default::default()
-    };
+    let options = GenerateOptions { doc_lang: Some(Lang::En), ..Default::default() };
     let pdf =
         generate_pdf(&project, &source, &directory.path().join("out"), &data("Paper"), &options, &mut |_| {})
             .unwrap();
     let text = std::process::Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
     let text = String::from_utf8_lossy(&text.stdout);
-    assert!(text.contains("Course:") && !text.contains("Materia:"), "{text}");
+    assert!(text.contains("COURSE:") && !text.contains("MATERIA:"), "{text}");
 }
 
 #[test]
@@ -276,7 +272,7 @@ fn a_minimal_design_with_a_custom_field_compiles() {
 }
 
 #[test]
-fn the_starter_design_passes_the_check() {
+fn the_built_in_design_passes_the_check() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
     }
@@ -288,7 +284,7 @@ fn the_starter_design_passes_the_check() {
     for file in ["catalog.md", "sample-image.png"] {
         std::fs::copy(common::root().join("examples").join(file), examples.join(file)).unwrap();
     }
-    let report = investigacion::check::check_design(&project, "starter", &mut |_| {}).unwrap();
+    let report = investigacion::check::check_design(&project, "geometric-cover", &mut |_| {}).unwrap();
     assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
     assert_eq!(report.builds.len(), 1);
     assert!(report.passed(), "{report:?}");

@@ -15,7 +15,7 @@ use crate::latex::is_comment_line;
 use crate::logging;
 use crate::project::DEFAULT_FORMAT;
 use crate::project::Project;
-use crate::template::{Design, STANDARD_MARKERS, load_design};
+use crate::template::{Design, STANDARD_MARKERS, load_design, retired_design_warning};
 
 /// Resultado de la revisión: errores (impiden usarlo), avisos y la
 /// compilación de prueba.
@@ -179,6 +179,7 @@ pub fn check_design(
     let design = load_design(project, Some(choice))?;
     logging::info(format_args!("check design: {} ({})", design.key, design.file.display()));
     let mut report = inspect(&design);
+    report.warnings.extend(retired_design_warning(choice, &design));
     for error in &report.errors {
         logging::warn(format_args!("check error: {error}"));
     }

@@ -16,7 +16,7 @@ use crate::logging;
 use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
 use crate::project::{DEFAULT_FORMAT, Project};
 use crate::settings::Settings;
-use crate::template::resolve_layout;
+use crate::template::{resolve_layout, retired_design_warning};
 
 /// Opciones del comando. Sus nombres van en inglés; la ayuda de cada una está
 /// en `ARG_HELP`, en los dos idiomas. Los nombres antiguos (`--titulo`,
@@ -456,7 +456,11 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         ));
     }
     // Diseño: la opción gana, luego el perfil.
-    let layout = resolve_layout(project, args.design.as_deref().or(from_profile(|p| &p.design)))?;
+    let design = args.design.as_deref().or(from_profile(|p| &p.design));
+    let layout = resolve_layout(project, design)?;
+    if let Some(warning) = design.and_then(|d| retired_design_warning(d, &layout.design)) {
+        reporter.warning(warning);
+    }
     let doc_lang =
         layout.document_language(args.doc_lang.or(from_profile(|p| &p.language).and_then(i18n::parse)));
     logging::info(format_args!(

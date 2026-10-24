@@ -15,15 +15,6 @@ pub const DEFAULT_TEMPLATE: &str = "geometric-cover";
 pub const DEFAULT_FORMAT: &str = "apa7";
 pub const TEMPLATE_FILE: &str = "template.ltx";
 pub const FORMAT_FILE: &str = "format.sty";
-
-/// Nombres de plantilla de la versión anterior, que siguen valiendo.
-pub fn legacy_design(name: &str) -> &str {
-    match name {
-        "apa" => "geometric-cover",
-        "apa-simple" => "classic-cover",
-        other => other,
-    }
-}
 pub const LOGOS_DIRECTORY: &str = "logos";
 /// Claves de `settings.toml` con la carpeta de trabajo, la española primero.
 pub const WORKSPACE_SETTINGS: [&str; 2] = ["CARPETA_TRABAJO", "INVESTIGACION_WORKSPACE"];

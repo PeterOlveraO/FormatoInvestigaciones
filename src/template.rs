@@ -14,9 +14,7 @@ use crate::encoding::decode_text;
 use crate::error::{GenerationError, Result};
 use crate::i18n::{self, Lang};
 use crate::markdown::expand_home;
-use crate::project::{
-    DEFAULT_FORMAT, DEFAULT_TEMPLATE, FORMAT_FILE, Project, TEMPLATE_FILE, absolute, legacy_design,
-};
+use crate::project::{DEFAULT_FORMAT, DEFAULT_TEMPLATE, FORMAT_FILE, Project, TEMPLATE_FILE, absolute};
 
 /// Marcadores que el programa llena por su cuenta. Cualquier otro `%%NOMBRE%%`
 /// de un diseño es un campo propio (como `%%SALON%%`).
@@ -212,16 +210,33 @@ pub fn load_format(project: &Project) -> Result<Format> {
     Ok(Format { key: DEFAULT_FORMAT.to_owned(), sty: dir.join(FORMAT_FILE), manifest })
 }
 
-/// Un diseño por nombre (los antiguos `apa`/`apa-simple` también valen), por
-/// carpeta o por ruta al `.ltx`. Sin nada, el diseño por omisión.
+/// Diseños que ya no existen: llevan a la portada geométrica, con aviso.
+pub const RETIRED_DESIGNS: [&str; 5] = ["apa", "apa-simple", "classic-cover", "report", "starter"];
+
+/// El aviso para quien pidió un diseño retirado y recibió el de omisión. Un
+/// diseño propio con ese nombre gana y no lleva aviso.
+pub fn retired_design_warning(choice: &str, design: &Design) -> Option<String> {
+    let choice = choice.trim();
+    (RETIRED_DESIGNS.contains(&choice) && design.key != choice).then(|| {
+        tr!(
+            es: "El diseño «{choice}» ya no existe; se usa {DEFAULT_TEMPLATE}.",
+            en: "The design \"{choice}\" no longer exists; {DEFAULT_TEMPLATE} is used."
+        )
+    })
+}
+
+/// Un diseño por nombre, por carpeta o por ruta al `.ltx`; un nombre retirado
+/// lleva al de omisión. Sin nada, el diseño por omisión.
 pub fn load_design(project: &Project, choice: Option<&str>) -> Result<Design> {
     let choice = choice.map(str::trim).filter(|c| !c.is_empty()).unwrap_or(DEFAULT_TEMPLATE);
-    let name = legacy_design(choice);
-    let by_name = roots(project).into_iter().map(|r| r.join(name).join(TEMPLATE_FILE)).find(|f| f.is_file());
+    let by_name = |name: &str| {
+        roots(project).into_iter().map(|r| r.join(name).join(TEMPLATE_FILE)).find(|f| f.is_file())
+    };
     let path = absolute(&expand_home(Path::new(choice)));
-    let file = by_name
+    let file = by_name(choice)
         .or_else(|| path.is_file().then(|| path.clone()))
-        .or_else(|| path.join(TEMPLATE_FILE).is_file().then(|| path.join(TEMPLATE_FILE)));
+        .or_else(|| path.join(TEMPLATE_FILE).is_file().then(|| path.join(TEMPLATE_FILE)))
+        .or_else(|| RETIRED_DESIGNS.contains(&choice).then(|| by_name(DEFAULT_TEMPLATE)).flatten());
     let Some(file) = file else {
         let available = list_designs(project);
         let available =
@@ -360,6 +375,28 @@ mod tests {
         assert!(error.contains("«fr»"), "{error}");
         write(&manifest, "name = \"APA 7\"\nlanguage = \"en-US\"\n");
         assert_eq!(load_format(&project).unwrap().language(), Lang::En);
+    }
+
+    #[test]
+    fn retired_designs_lead_to_the_default_with_a_warning() {
+        i18n::set(Lang::Es);
+        let (_dir, project) = sample();
+        write(
+            &project.templates_dir().join("designs/geometric-cover/template.ltx"),
+            "%%CONTENIDO_MARKDOWN%%\n",
+        );
+        for old in RETIRED_DESIGNS {
+            let design = load_design(&project, Some(old)).unwrap();
+            assert_eq!(design.key, DEFAULT_TEMPLATE);
+            assert!(retired_design_warning(old, &design).is_some_and(|w| w.contains(&format!("«{old}»"))));
+        }
+        // Uno propio con un nombre retirado gana, sin aviso.
+        write(&project.root.join("my-templates/designs/report/template.ltx"), "%%CONTENIDO_MARKDOWN%%\n");
+        let mine = load_design(&project, Some("report")).unwrap();
+        assert_eq!(mine.key, "report");
+        assert!(retired_design_warning("report", &mine).is_none());
+        let current = load_design(&project, Some("cover")).unwrap();
+        assert!(retired_design_warning("cover", &current).is_none());
     }
 
     #[test]

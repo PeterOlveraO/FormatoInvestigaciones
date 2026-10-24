@@ -58,7 +58,7 @@ fn sample_project() -> (tempfile::TempDir, Project) {
     std::fs::create_dir_all(root.join("courses")).unwrap();
     std::fs::write(
         root.join("courses/ia.toml"),
-        "name = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"apa-simple\"\nfolder = \"IA\"\n",
+        "name = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"classic-cover\"\nfolder = \"IA\"\n",
     )
     .unwrap();
     let project = Project::at(root);
@@ -205,7 +205,7 @@ fn choosing_a_profile_fills_the_form_and_the_markdown_picker_starts_in_its_folde
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.value(FieldKey::Course), "Inteligencia artificial");
     assert_eq!(app.value(FieldKey::Teacher), "Docente IA");
-    assert_eq!(app.value(FieldKey::Template), "apa-simple");
+    assert_eq!(app.value(FieldKey::Template), "classic-cover");
     assert_eq!(Path::new(app.value(FieldKey::Output)), Path::new("output/IA"));
 
     select(&mut app, FieldKey::Markdown);

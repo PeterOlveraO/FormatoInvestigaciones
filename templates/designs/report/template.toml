@@ -1,3 +1,0 @@
-description = { es = "Informe con bloque de título compacto, sin portada", en = "Report with a compact title block, no cover page" }
-# Se muestran si existen, pero no se exigen.
-optional = ["UNIVERSIDAD", "FACULTAD", "MATERIA"]

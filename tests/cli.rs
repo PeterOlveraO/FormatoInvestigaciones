@@ -47,9 +47,9 @@ fn only_the_data_the_design_uses_is_required() {
     std::fs::write(mine.join("template.toml"), "[fields.SALON]\nrequired = true\n").unwrap();
     let without_field = run(dir, "", &["--design", "simple"]);
     assert!(without_field.contains("SALON") && !without_field.contains("UNIVERSIDAD"), "{without_field}");
-    // El informe muestra universidad y materia si existen, pero no las exige.
+    // Un diseño retirado lleva a la portada geométrica, que sí exige la universidad.
     let report = run(dir, "", &["--design", "report"]);
-    assert!(report.contains("no-existe.md"), "{report}");
+    assert!(report.contains("UNIVERSIDAD"), "{report}");
     // Con el campo, los datos están completos y el error ya es el Markdown que no existe.
     let complete = run(dir, "", &["--design", "simple", "--set", "SALON=B-204"]);
     assert!(complete.contains("no-existe.md"), "{complete}");
@@ -104,4 +104,16 @@ fn old_formats_are_ignored_with_a_warning() {
     // La opción gana sobre el perfil, también al avisar.
     let option = warnings_with("format = \"mla\"\n", &["--format", "harvard"]);
     assert!(option.len() == 1 && option[0].contains("«harvard»"), "{option:?}");
+}
+
+#[test]
+fn retired_designs_are_redirected_with_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    assert!(warnings_with("design = \"geometric-cover\"\n", &[]).is_empty());
+    for old in ["apa", "apa-simple", "classic-cover", "report", "starter"] {
+        let warnings = warnings_with(&format!("design = \"{old}\"\n"), &[]);
+        assert!(warnings.len() == 1 && warnings[0].contains(&format!("«{old}»")), "{warnings:?}");
+    }
+    let option = warnings_with("template = \"apa-simple\"\n", &["--design", "starter"]);
+    assert!(option.len() == 1 && option[0].contains("«starter»"), "{option:?}");
 }
