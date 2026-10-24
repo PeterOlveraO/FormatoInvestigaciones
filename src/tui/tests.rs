@@ -39,29 +39,26 @@ fn sample_project() -> (tempfile::TempDir, Project) {
         std::fs::create_dir_all(path.parent().unwrap()).unwrap();
         std::fs::write(path, text).unwrap();
     };
-    // Dos formatos y dos diseños: uno solo para APA, con un campo propio
-    // obligatorio, y otro que combina con los dos y pide pocos datos.
-    for format in ["apa7", "harvard"] {
-        write(&format!("templates/formats/{format}/format.sty"), "x");
-        write(&format!("templates/formats/{format}/format.toml"), &format!("name = \"{format}\"\n"));
-    }
+    // El formato y dos diseños: uno con un campo propio obligatorio y otro
+    // que pide pocos datos.
+    write("templates/formats/apa7/format.sty", "x");
+    write("templates/formats/apa7/format.toml", "name = \"apa7\"\n");
     write(
         "templates/designs/geometric-cover/template.ltx",
         "%%FORMAT%%\n%%TITULO%% %%UNIVERSIDAD%% %%MATERIA%% %%DOCENTE%% %%SALON%%\n%%CONTENIDO_MARKDOWN%%\n",
     );
     write(
         "templates/designs/geometric-cover/template.toml",
-        "formats = [\"apa7\"]\n[fields.SALON]\nlabel = { es = \"Salón\", en = \"Room\" }\nrequired = true\n",
+        "[fields.SALON]\nlabel = { es = \"Salón\", en = \"Room\" }\nrequired = true\n",
     );
     write("templates/designs/classic-cover/template.ltx", "%%FORMAT%%\n%%TITULO%%\n%%CONTENIDO_MARKDOWN%%\n");
-    write("templates/designs/classic-cover/template.toml", "formats = [\"apa7\", \"harvard\"]\n");
     std::fs::create_dir_all(root.join("input/IA")).unwrap();
     std::fs::write(root.join("input/IA/Tarea 1.md"), "# Introducción\n").unwrap();
     std::fs::write(root.join("input/suelto.md"), "# Introducción\n").unwrap();
     std::fs::create_dir_all(root.join("courses")).unwrap();
     std::fs::write(
         root.join("courses/ia.toml"),
-        "name = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"apa-simple\"\nfolder = \"IA\"\n",
+        "name = \"Inteligencia artificial\"\nteacher = \"Docente IA\"\ngroup = \"M\"\ntemplate = \"classic-cover\"\nfolder = \"IA\"\n",
     )
     .unwrap();
     let project = Project::at(root);
@@ -145,7 +142,7 @@ fn with_profiles_and_a_saved_language_the_menu_opens_at_home() {
     app.start(None, false);
     assert!(matches!(app.mode, Mode::Home(0)));
     let screen = render(&app);
-    for expected in ["Generar un PDF", "Nuevo perfil", "Opciones", "Salir", "APA 7, Harvard o MLA"] {
+    for expected in ["Generar un PDF", "Nuevo perfil", "Opciones", "Salir", "formato APA 7"] {
         assert!(screen.contains(expected), "{expected} en:\n{screen}");
     }
     assert!(screen.contains("Perfiles (1): ia"));
@@ -208,7 +205,7 @@ fn choosing_a_profile_fills_the_form_and_the_markdown_picker_starts_in_its_folde
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.value(FieldKey::Course), "Inteligencia artificial");
     assert_eq!(app.value(FieldKey::Teacher), "Docente IA");
-    assert_eq!(app.value(FieldKey::Template), "apa-simple");
+    assert_eq!(app.value(FieldKey::Template), "classic-cover");
     assert_eq!(Path::new(app.value(FieldKey::Output)), Path::new("output/IA"));
 
     select(&mut app, FieldKey::Markdown);
@@ -458,9 +455,7 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
 
     type_text(&mut app, "Bases de Datos");
     press(&mut app, KeyCode::Enter);
-    type_text(&mut app, "apa7");
-    press(&mut app, KeyCode::Enter);
-    // Con apa7 se ofrecen los dos diseños; se elige el que tiene campo propio.
+    // Se elige el diseño que tiene campo propio.
     type_text(&mut app, "geometric");
     press(&mut app, KeyCode::Enter);
     // Pasos: universidad*, materia*, docente, salón*, carpeta y copias.
@@ -496,7 +491,6 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
     for expected in [
         "name = \"Bases de datos\"",
         "university = \"Universidad Norte\"",
-        "format = \"apa7\"",
         "design = \"geometric-cover\"",
         "folder = \"BD\"",
         "SALON = \"B-204\"",
@@ -504,6 +498,7 @@ fn the_wizard_creates_a_profile_with_the_data_of_the_design() {
         assert!(saved.contains(expected), "{expected} en:\n{saved}");
     }
     assert!(!saved.contains("teacher"), "lo vacío no se guarda");
+    assert!(!saved.contains("format"), "el formato ya no se guarda");
     let profile = crate::courses::find_course(&project, "bases-de-datos").unwrap().profile;
     assert!(profile.output.is_empty(), "el asistente ya no pide la salida");
     assert_eq!(profile.copies.len(), 1);
@@ -531,23 +526,17 @@ fn the_first_run_asks_the_language_and_then_opens_the_wizard() {
 }
 
 #[test]
-fn designs_are_filtered_by_format_and_custom_fields_appear() {
+fn every_design_is_offered_and_custom_fields_appear() {
     i18n::set(Lang::Es);
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
-    // Con harvard solo se ofrece el diseño que lo acepta.
-    select(&mut app, FieldKey::Format);
-    press(&mut app, KeyCode::Enter);
-    type_text(&mut app, "harvard");
-    press(&mut app, KeyCode::Enter);
     select(&mut app, FieldKey::Template);
     press(&mut app, KeyCode::Enter);
     let Mode::Picking(picker) = &app.mode else { panic!() };
     let labels: Vec<&str> = picker.visible().iter().map(|i| i.label.as_str()).collect();
-    assert_eq!(labels, ["classic-cover"]);
+    assert_eq!(labels, ["classic-cover", "geometric-cover"]);
     press(&mut app, KeyCode::Esc);
     // El diseño con %%SALON%% suma un campo obligatorio al formulario.
-    app.values[index_of(FieldKey::Format)].clear();
     select(&mut app, FieldKey::Template);
     press(&mut app, KeyCode::Enter);
     type_text(&mut app, "geometric");
@@ -778,8 +767,8 @@ fn renaming_a_profile_in_the_wizard_does_not_leave_the_old_one() {
     let mut app = App::new(project);
     app.open_wizard(Some("ia"));
     type_text(&mut app, "2");
-    // Nombre, formato y diseño con Enter; la carpeta (sin cambiarla) y las copias con Tab.
-    for _ in 0..3 {
+    // Nombre y diseño con Enter; la carpeta (sin cambiarla) y las copias con Tab.
+    for _ in 0..2 {
         press(&mut app, KeyCode::Enter);
     }
     press(&mut app, KeyCode::Tab);
@@ -824,7 +813,7 @@ fn a_profile_that_cannot_be_saved_keeps_the_wizard_open() {
     std::fs::write(&courses, "").unwrap();
     let mut app = App::new(project);
     app.open_wizard(None);
-    for answer in ["nuevo", "apa7", "classic"] {
+    for answer in ["nuevo", "classic"] {
         type_text(&mut app, answer);
         press(&mut app, KeyCode::Enter);
     }
@@ -847,7 +836,7 @@ fn the_papers_folder_must_be_inside_input() {
     let (_dir, project) = sample_project();
     let mut app = App::new(project);
     app.open_wizard(Some("ia"));
-    for _ in 0..3 {
+    for _ in 0..2 {
         press(&mut app, KeyCode::Enter);
     }
     // Empieza en input/IA, la carpeta del perfil; al subir dos veces se sale de input/.
@@ -1165,7 +1154,7 @@ fn random_keys_never_panic_at_any_size() {
     }
 }
 
-/// Universidad, facultad, alumno y semestre: se llenan con el perfil, se
+/// Universidad, facultad y alumno: se llenan con el perfil, se
 /// exigen solo si el diseño los usa y viajan al CLI como `--set`.
 #[test]
 fn the_general_cover_data_is_in_the_form() {
@@ -1187,7 +1176,6 @@ fn the_general_cover_data_is_in_the_form() {
     type_text(&mut app, "ia");
     press(&mut app, KeyCode::Enter);
     assert_eq!(app.value(FieldKey::University), "U");
-    assert_eq!(app.value(FieldKey::Semester), "7");
     assert!(!app.missing_fields().contains(&"Universidad".to_owned()));
 
     select(&mut app, FieldKey::Faculty);
@@ -1195,10 +1183,12 @@ fn the_general_cover_data_is_in_the_form() {
     type_text(&mut app, "Ingeniería");
     press(&mut app, KeyCode::Enter);
     let fields = app.build_args().fields;
-    for pair in [("UNIVERSIDAD", "U"), ("FACULTAD", "Ingeniería"), ("ALUMNO", "Ana"), ("SEMESTRE", "7")] {
+    for pair in [("UNIVERSIDAD", "U"), ("FACULTAD", "Ingeniería"), ("ALUMNO", "Ana")] {
         assert!(fields.contains(&(pair.0.to_owned(), pair.1.to_owned())), "{pair:?} in {fields:?}");
     }
     assert!(render(&app).contains("Universidad"));
+    // El semestre del perfil viejo ya no viaja.
+    assert!(!fields.iter().any(|(name, _)| name == "SEMESTRE"), "{fields:?}");
 }
 
 #[test]

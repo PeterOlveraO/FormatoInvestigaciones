@@ -9,8 +9,8 @@ porque dependen de lo que el documento diga y no de cómo se compone.
 2. Referencias con sangría francesa. APA 7 pide que la primera línea de cada
    referencia vaya al margen y las demás sangradas. Aquí se localiza el
    encabezado «Referencias», se deshace la lista de viñetas si se escribió así y
-   se envuelve todo en el entorno ReferenceList, que cada formato define
-   (sangría francesa en APA, Harvard y MLA).
+   se envuelve todo en el entorno ReferenceList, que el formato define
+   (sangría francesa en APA).
 
 3. Listas muy anidadas. LaTeX admite 4 niveles de viñetas, 4 de números y 6
    en total; más allá se detiene con «Too deeply nested». Lo que pase del

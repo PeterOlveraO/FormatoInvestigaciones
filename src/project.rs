@@ -15,21 +15,11 @@ pub const DEFAULT_TEMPLATE: &str = "geometric-cover";
 pub const DEFAULT_FORMAT: &str = "apa7";
 pub const TEMPLATE_FILE: &str = "template.ltx";
 pub const FORMAT_FILE: &str = "format.sty";
-
-/// Nombres de plantilla de la versión anterior, que siguen valiendo.
-pub fn legacy_design(name: &str) -> &str {
-    match name {
-        "apa" => "geometric-cover",
-        "apa-simple" => "classic-cover",
-        other => other,
-    }
-}
 pub const LOGOS_DIRECTORY: &str = "logos";
 /// Claves de `settings.toml` con la carpeta de trabajo, la española primero.
 pub const WORKSPACE_SETTINGS: [&str; 2] = ["CARPETA_TRABAJO", "INVESTIGACION_WORKSPACE"];
 /// Lo que se crea en una carpeta de trabajo nueva.
-pub const WORKSPACE_DIRS: [&str; 6] =
-    ["input", "output", "courses", "my-templates/designs", "my-templates/formats", LOGOS_DIRECTORY];
+pub const WORKSPACE_DIRS: [&str; 5] = ["input", "output", "courses", "my-templates/designs", LOGOS_DIRECTORY];
 /// Nombres que busca la portada dentro de la carpeta de logos.
 pub const LOGO_FILES: [&str; 2] = ["logo-universidad.png", "logo-facultad.png"];
 
@@ -189,7 +179,7 @@ impl Project {
     pub fn courses_dir(&self) -> PathBuf {
         self.work.join("courses")
     }
-    /// Los formatos y diseños propios (`formats/`, `designs/`).
+    /// Los diseños propios (`designs/`).
     pub fn user_templates_dir(&self) -> PathBuf {
         self.work.join("my-templates")
     }

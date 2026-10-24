@@ -20,8 +20,6 @@ use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 pub struct GenerateOptions {
     /// Diseño: nombre de `templates/designs/` o ruta; `None` = el de omisión.
     pub design: Option<String>,
-    /// Formato (`apa7`, `harvard`…); `None` = el primero que acepta el diseño.
-    pub format: Option<String>,
     /// Idioma del documento; `None` = el del formato.
     pub doc_lang: Option<Lang>,
     /// Interpreta los comandos LaTeX escritos en el Markdown.
@@ -70,7 +68,7 @@ pub fn generate_pdf(
         ));
     }
 
-    let layout = resolve_layout(project, options.design.as_deref(), options.format.as_deref())?;
+    let layout = resolve_layout(project, options.design.as_deref())?;
     let missing = missing_data(&layout, data);
     if !missing.is_empty() {
         return Err(missing_data_error(&layout, &missing));
@@ -147,7 +145,7 @@ fn latex_state_dir(project: &Project, output_pdf: &Path, template: &str) -> Path
 /// tiene su marcador, y los campos propios que su ficha marca como obligatorios.
 pub fn missing_data(layout: &Layout, data: &DocumentData) -> Vec<String> {
     let design = &layout.design;
-    let values = [&data.title, &data.university, &data.faculty, &data.semester, &data.course];
+    let values = [&data.title, &data.university, &data.faculty, &data.course];
     let mut missing: Vec<String> = REQUIRED_MARKERS
         .into_iter()
         .zip(values)

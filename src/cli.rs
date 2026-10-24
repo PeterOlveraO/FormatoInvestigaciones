@@ -14,9 +14,9 @@ use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf, missing_data, 
 use crate::i18n::{self, Lang, Text};
 use crate::logging;
 use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
-use crate::project::Project;
+use crate::project::{DEFAULT_FORMAT, Project};
 use crate::settings::Settings;
-use crate::template::resolve_layout;
+use crate::template::{resolve_layout, retired_design_warning};
 
 /// Opciones del comando. Sus nombres van en inglés; la ayuda de cada una está
 /// en `ARG_HELP`, en los dos idiomas. Los nombres antiguos (`--titulo`,
@@ -63,7 +63,8 @@ pub struct Args {
     #[arg(long, aliases = ["template", "plantilla", "diseno"])]
     pub design: Option<String>,
 
-    #[arg(long, alias = "formato")]
+    // Ya no se elige formato (solo APA 7): se acepta, oculta, por compatibilidad.
+    #[arg(long, alias = "formato", hide = true)]
     pub format: Option<String>,
 
     #[arg(long = "set", value_parser = parse_field)]
@@ -92,7 +93,7 @@ fn parse_lang_arg(value: &str) -> std::result::Result<Lang, String> {
 }
 
 /// Ayuda de cada opción: (id del argumento, descripción, nombre del valor).
-const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
+const ARG_HELP: [(&str, Text, Option<Text>); 17] = [
     (
         "markdown",
         Text::new(
@@ -128,8 +129,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "profile",
         Text::new(
-            "Perfil de materia de courses/ (p. ej. ia): todos los datos de portada, formato, diseño y carpetas",
-            "Course profile from courses/ (e.g. ia): all the cover data, format, design and folders",
+            "Perfil de materia de courses/ (p. ej. ia): todos los datos de portada, diseño y carpetas",
+            "Course profile from courses/ (e.g. ia): all the cover data, design and folders",
         ),
         Some(Text::new("PERFIL", "PROFILE")),
     ),
@@ -152,8 +153,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "group",
         Text::new(
-            "Grupo, p. ej. \"7-A\". Si se omite, el del perfil; si no hay, la línea no sale",
-            "Group, e.g. \"7-A\". Falls back to the profile's; if none, the line is omitted",
+            "Grupo o periodo, p. ej. \"7-A\". Si se omite, el del perfil; si no hay, la línea no sale",
+            "Group or term, e.g. \"7-A\". Falls back to the profile's; if none, the line is omitted",
         ),
         Some(Text::new("GRUPO", "GROUP")),
     ),
@@ -198,14 +199,6 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
         Some(Text::new("DISEÑO", "DESIGN")),
     ),
     (
-        "format",
-        Text::new(
-            "Formato (la norma): apa7, harvard, mla… Por omisión, el primero que acepta el diseño",
-            "Format (the norm): apa7, harvard, mla… Default: the first one the design accepts",
-        ),
-        Some(Text::new("FORMATO", "FORMAT")),
-    ),
-    (
         "fields",
         Text::new(
             "Campo propio del diseño, como --set SALON=\"B-204\". Se puede repetir",
@@ -216,8 +209,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
     (
         "doc_lang",
         Text::new(
-            "Idioma del documento (es o en). Por omisión, el del perfil o el del formato",
-            "Document language (es or en). Default: the profile's, or the format's",
+            "Idioma del documento (es o en). Por omisión, el del perfil o español",
+            "Document language (es or en). Default: the profile's, or Spanish",
         ),
         Some(Text::new("IDIOMA", "LANG")),
     ),
@@ -250,8 +243,8 @@ pub fn localized_command() -> clap::Command {
     let mut command = Args::command()
         .about(
             Text::new(
-                "Genera un trabajo académico en PDF (APA 7, Harvard o MLA 9) a partir de un archivo Markdown.",
-                "Generates an academic paper in PDF (APA 7, Harvard or MLA 9) from a Markdown file.",
+                "Genera un trabajo académico en PDF (APA 7) a partir de un archivo Markdown.",
+                "Generates an academic paper in PDF (APA 7) from a Markdown file.",
             )
             .get(),
         )
@@ -452,12 +445,36 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     let from_profile =
         |get: fn(&CourseProfile) -> &str| profile.map(get).map(str::trim).filter(|v| !v.is_empty());
 
-    // Diseño y formato: la opción gana, luego el perfil.
-    let layout = resolve_layout(
-        project,
-        args.design.as_deref().or(from_profile(|p| &p.design)),
-        args.format.as_deref().or(from_profile(|p| &p.format)),
-    )?;
+    // Solo hay APA 7: otro formato (de --format o de un perfil viejo) se avisa y se ignora.
+    if let Some(format) = args.format.as_deref().or(from_profile(|p| &p.format)).map(str::trim)
+        && !format.is_empty()
+        && !format.eq_ignore_ascii_case(DEFAULT_FORMAT)
+    {
+        reporter.warning(tr!(
+            es: "El formato «{format}» ya no existe; se usa APA 7.",
+            en: "The format \"{format}\" no longer exists; APA 7 is used."
+        ));
+    }
+    // Diseño: la opción gana, luego el perfil.
+    let design = args.design.as_deref().or(from_profile(|p| &p.design));
+    let layout = resolve_layout(project, design)?;
+    if let Some(warning) = design.and_then(|d| retired_design_warning(d, &layout.design)) {
+        reporter.warning(warning);
+    }
+    // El semestre ya no es un dato: el grupo cumple su función. Solo un diseño
+    // propio con %%SEMESTRE%% lo usa, como campo propio.
+    if profile.is_some_and(|p| !p.semester.trim().is_empty()) {
+        reporter.warning(tr!(
+            es: "El perfil tiene semester, que ya no se usa y se ignora: pon el periodo en group (p. ej. 7-A).",
+            en: "The profile has semester, which is no longer used and is ignored: put the term in group (e.g. 7-A)."
+        ));
+    }
+    if !layout.design.uses("SEMESTRE") && args.fields.iter().any(|(name, _)| name == "SEMESTRE") {
+        reporter.warning(tr!(
+            es: "--set SEMESTRE ya no se usa y se ignora: usa --group (p. ej. 7-A).",
+            en: "--set SEMESTRE is no longer used and is ignored: use --group (e.g. 7-A)."
+        ));
+    }
     let doc_lang =
         layout.document_language(args.doc_lang.or(from_profile(|p| &p.language).and_then(i18n::parse)));
     logging::info(format_args!(
@@ -479,7 +496,6 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
         university: pick(set("UNIVERSIDAD"), from_profile(|p| &p.university)),
         faculty: pick(set("FACULTAD"), from_profile(|p| &p.faculty)),
         student: pick(set("ALUMNO"), from_profile(|p| &p.student)),
-        semester: pick(set("SEMESTRE"), from_profile(|p| &p.semester)),
         title: args.title.trim().to_owned(),
         course: pick(args.course.as_deref().or(set("MATERIA")), from_profile(|p| &p.name)),
         teacher: pick(args.teacher.as_deref().or(set("DOCENTE")), from_profile(|p| &p.teacher)),
@@ -515,7 +531,6 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     });
     let options = GenerateOptions {
         design: Some(layout.design.file.display().to_string()),
-        format: layout.format.as_ref().map(|f| f.key.clone()),
         doc_lang: Some(doc_lang),
         allow_raw_latex: args.allow_latex,
         logos,
@@ -641,6 +656,7 @@ mod tests {
         assert!(help.contains("Usage: investigacion <MARKDOWN> --title <TITLE>"), "{help}");
         assert!(help.contains("--course <COURSE>") && help.contains("Show this help"));
         assert!(!help.contains("--subject"), "los alias quedan ocultos");
+        assert!(!help.contains("--format"), "--format ya no se anuncia");
     }
 
     #[test]

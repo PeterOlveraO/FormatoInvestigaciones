@@ -46,7 +46,6 @@ pub fn render_template(template: &str, content: &str, data: &DocumentData) -> Re
         ("%%MATERIA%%", latex_escape(&data.course)),
         ("%%GRUPO%%", latex_escape(&data.group)),
         ("%%DOCENTE%%", latex_escape(&data.teacher)),
-        ("%%SEMESTRE%%", latex_escape(&data.semester)),
         ("%%FECHA_ENTREGA%%", latex_escape(&data.date)),
     ];
     let mut rendered = template.to_owned();
@@ -156,7 +155,6 @@ mod tests {
             university: "U".into(),
             faculty: "F".into(),
             student: "A".into(),
-            semester: "S".into(),
             title: "T".into(),
             course: "M".into(),
             teacher: "D".into(),

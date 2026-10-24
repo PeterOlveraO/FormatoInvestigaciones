@@ -5,7 +5,7 @@ mod common;
 use common::{data, has_tool, isolated_project, write};
 use investigacion::generate::{GenerateOptions, generate_pdf};
 use investigacion::i18n::Lang;
-use investigacion::template::{list_designs, list_formats, load_design};
+use investigacion::template::list_designs;
 
 const RICH_MARKDOWN: &str = r#"# Introducción
 
@@ -165,7 +165,7 @@ fn images_with_dot_relative_or_percent_encoded_paths_are_found() {
 }
 
 #[test]
-fn every_design_compiles_with_each_compatible_format_and_without_optional_fields() {
+fn every_design_compiles_with_and_without_optional_fields() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
     }
@@ -173,7 +173,7 @@ fn every_design_compiles_with_each_compatible_format_and_without_optional_fields
     let project = isolated_project(directory.path());
     let source = write(directory.path(), "trabajo.md", RICH_MARKDOWN);
     let designs = list_designs(&project);
-    assert!(designs.len() >= 2, "{designs:?}");
+    assert!(!designs.is_empty(), "{designs:?}");
 
     let mut full = data("Completo");
     full.members = vec!["Ana Ruiz".into(), "Luis Paz".into()];
@@ -183,34 +183,28 @@ fn every_design_compiles_with_each_compatible_format_and_without_optional_fields
     bare.teacher.clear();
 
     for design in designs {
-        let accepted = load_design(&project, Some(&design)).unwrap();
-        for format in list_formats(&project).into_iter().filter(|f| accepted.accepts(f)) {
-            for (index, values) in [&full, &bare].into_iter().enumerate() {
-                let options = GenerateOptions {
-                    design: Some(design.clone()),
-                    format: Some(format.clone()),
-                    file_name: Some(format!("{design}-{format}-{index}")),
-                    ..Default::default()
-                };
-                let pdf = generate_pdf(
-                    &project,
-                    &source,
-                    &directory.path().join("salida"),
-                    values,
-                    &options,
-                    &mut |_| {},
-                )
-                .unwrap_or_else(|e| panic!("{design} + {format}: {e}"));
-                assert!(pdf.is_file());
-                // El estado de LaTeX se guarda aunque el diseño no tenga índice.
-                let prefix = format!("{design}-{format}-{index}-");
-                let saved =
-                    std::fs::read_dir(project.cache_dir().join("latex")).unwrap().flatten().any(|e| {
-                        e.file_name().to_string_lossy().starts_with(&prefix)
-                            && e.path().join("trabajo.toc").is_file()
-                    });
-                assert!(saved, "{design} + {format}: the latex state was not saved");
-            }
+        for (index, values) in [&full, &bare].into_iter().enumerate() {
+            let options = GenerateOptions {
+                design: Some(design.clone()),
+                file_name: Some(format!("{design}-{index}")),
+                ..Default::default()
+            };
+            let pdf = generate_pdf(
+                &project,
+                &source,
+                &directory.path().join("salida"),
+                values,
+                &options,
+                &mut |_| {},
+            )
+            .unwrap_or_else(|e| panic!("{design}: {e}"));
+            assert!(pdf.is_file());
+            // El estado de LaTeX se guarda aunque el diseño no tenga índice.
+            let prefix = format!("{design}-{index}-");
+            let saved = std::fs::read_dir(project.cache_dir().join("latex")).unwrap().flatten().any(|e| {
+                e.file_name().to_string_lossy().starts_with(&prefix) && e.path().join("trabajo.toc").is_file()
+            });
+            assert!(saved, "{design}: the latex state was not saved");
         }
     }
 }
@@ -244,17 +238,13 @@ fn cover_labels_follow_the_document_language() {
     let project = isolated_project(directory.path());
     let source =
         write(directory.path(), "paper.md", "# Introduction\n\nText.\n\n# References\n\nSmith (2020).\n");
-    let options = GenerateOptions {
-        design: Some("classic-cover".into()),
-        doc_lang: Some(Lang::En),
-        ..Default::default()
-    };
+    let options = GenerateOptions { doc_lang: Some(Lang::En), ..Default::default() };
     let pdf =
         generate_pdf(&project, &source, &directory.path().join("out"), &data("Paper"), &options, &mut |_| {})
             .unwrap();
     let text = std::process::Command::new("pdftotext").arg(&pdf).arg("-").output().unwrap();
     let text = String::from_utf8_lossy(&text.stdout);
-    assert!(text.contains("Course:") && !text.contains("Materia:"), "{text}");
+    assert!(text.contains("COURSE:") && !text.contains("MATERIA:"), "{text}");
 }
 
 #[test]
@@ -282,7 +272,7 @@ fn a_minimal_design_with_a_custom_field_compiles() {
 }
 
 #[test]
-fn the_starter_design_passes_the_check_with_every_format() {
+fn the_built_in_design_passes_the_check() {
     if !(has_tool("pandoc") && has_tool("pdflatex")) {
         return;
     }
@@ -294,8 +284,8 @@ fn the_starter_design_passes_the_check_with_every_format() {
     for file in ["catalog.md", "sample-image.png"] {
         std::fs::copy(common::root().join("examples").join(file), examples.join(file)).unwrap();
     }
-    let report = investigacion::check::check_design(&project, "starter", &mut |_| {}).unwrap();
+    let report = investigacion::check::check_design(&project, "geometric-cover", &mut |_| {}).unwrap();
     assert!(report.errors.is_empty() && report.warnings.is_empty(), "{report:?}");
-    assert_eq!(report.builds.len(), 3);
+    assert_eq!(report.builds.len(), 1);
     assert!(report.passed(), "{report:?}");
 }
