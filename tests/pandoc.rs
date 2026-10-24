@@ -102,22 +102,33 @@ fn the_filters_write_the_cache_through_a_temporary_file() {
     let script = write(
         directory.path(),
         "prueba.lua",
-        &format!("{}\nio.write(tostring(escribir(arg[1], \"nuevo\")))\n", investigacion::pandoc::LUA_COMMON),
+        // Con «falla», ningún temporal se puede abrir, como un disco lleno.
+        &format!(
+            "{}\nlocal abrir = io.open\nif arg[2] == \"falla\" then\n  io.open = function(r, m) if r:match(\"%.tmp$\") then return nil end return abrir(r, m) end\nend\nio.write(tostring(escribir(arg[1], \"nuevo\")))\n",
+            investigacion::pandoc::LUA_COMMON
+        ),
     );
-    let run = |target: &std::path::Path| {
-        let output =
-            std::process::Command::new("pandoc").arg("lua").arg(&script).arg(target).output().unwrap();
+    let run = |target: &std::path::Path, mode: &str| {
+        let output = std::process::Command::new("pandoc")
+            .arg("lua")
+            .arg(&script)
+            .arg(target)
+            .arg(mode)
+            .output()
+            .unwrap();
         String::from_utf8_lossy(&output.stdout).into_owned()
     };
-    // Reemplaza un archivo que ya existe y no deja el temporal.
+    // Reemplaza un archivo que ya existe y no deja temporales, aunque otra
+    // generación tenga ocupado `<ruta>.tmp`: el temporal lleva un nombre único.
     let cached = write(directory.path(), "diagrama.pdf", "viejo");
-    assert_eq!(run(&cached), "true");
+    std::fs::create_dir(directory.path().join("diagrama.pdf.tmp")).unwrap();
+    assert_eq!(run(&cached, ""), "true");
     assert_eq!(std::fs::read_to_string(&cached).unwrap(), "nuevo");
-    assert!(!directory.path().join("diagrama.pdf.tmp").exists());
+    let files = std::fs::read_dir(directory.path()).unwrap().count();
+    assert_eq!(files, 3, "prueba.lua, diagrama.pdf y la carpeta ocupada");
     // Si el temporal no se puede escribir, el archivo final queda como estaba.
     let other = write(directory.path(), "otro.pdf", "viejo");
-    std::fs::create_dir(directory.path().join("otro.pdf.tmp")).unwrap();
-    assert_eq!(run(&other), "false");
+    assert_eq!(run(&other, "falla"), "false");
     assert_eq!(std::fs::read_to_string(&other).unwrap(), "viejo");
 }
 

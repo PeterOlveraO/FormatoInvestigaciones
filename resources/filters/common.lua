@@ -35,7 +35,8 @@ end
 -- Escribe en un temporal y lo renombra: si Pandoc se corta a medias, no queda
 -- con el nombre final un archivo incompleto que `existe` daría por bueno.
 local function escribir(ruta, contenido)
-  local temporal = ruta .. ".tmp"
+  -- Nombre único: dos generaciones a la vez no se pisan el temporal.
+  local temporal = ruta .. "." .. os.time() .. "-" .. math.random(1, 1000000000) .. ".tmp"
   local archivo = io.open(temporal, "wb")
   if not archivo then return false end
   local escrito = archivo:write(contenido)
