@@ -1,4 +1,5 @@
 # APA 7, trabajo estudiantil.
+name = { es = "APA 7", en = "APA 7" }
 # Idioma del documento por omisión; el perfil o --doc-lang pueden cambiarlo.
 language = "es"
 # Opciones de \documentclass: tamaño de letra y papel.

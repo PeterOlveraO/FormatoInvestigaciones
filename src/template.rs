@@ -54,9 +54,9 @@ impl Localized {
     }
 }
 
-/// `format.toml`: lo que el programa necesita saber de la norma.
+/// `format.toml`: lo que el programa necesita saber de la norma. Sin
+/// `deny_unknown_fields`: así `name` (que exigen los binarios viejos) se ignora.
 #[derive(Debug, Clone, Deserialize)]
-#[serde(deny_unknown_fields)]
 pub struct FormatManifest {
     /// Idioma del documento por omisión (`es` o `en`); el perfil puede cambiarlo.
     #[serde(default = "default_language")]
@@ -369,6 +369,15 @@ mod tests {
         let error = load_format(&project).unwrap_err().to_string();
         assert!(error.contains("«fr»"), "{error}");
         write(&manifest, "language = \"en-US\"\n");
+        assert_eq!(load_format(&project).unwrap().language(), Lang::En);
+    }
+
+    #[test]
+    fn a_format_manifest_with_name_still_loads() {
+        // El `name` que traen las plantillas (y exigen los binarios viejos) se ignora.
+        let (_dir, project) = sample();
+        let manifest = project.templates_dir().join("formats/apa7/format.toml");
+        write(&manifest, "name = { es = \"APA 7\", en = \"APA 7\" }\nlanguage = \"en\"\n");
         assert_eq!(load_format(&project).unwrap().language(), Lang::En);
     }
 
