@@ -66,3 +66,42 @@ fn a_missing_project_folder_is_explained() {
     let error = execute(&args, &project, &mut Silent).unwrap_err().0;
     assert!(error.contains("project folder") && error.contains("INVESTIGACION_HOME"), "{error}");
 }
+
+struct Collect(Vec<String>);
+impl Reporter for Collect {
+    fn warning(&mut self, message: String) {
+        self.0.push(message);
+    }
+    fn info(&mut self, _: String) {}
+}
+
+/// Avisos de una ejecución con el perfil `viejo` (su texto) y opciones extra.
+fn warnings_with(profile: &str, extra: &[&str]) -> Vec<String> {
+    let directory = tempfile::tempdir().unwrap();
+    let dir = directory.path();
+    std::fs::create_dir_all(dir.join("courses")).unwrap();
+    std::fs::write(dir.join("courses/viejo.toml"), format!("name = \"M\"\n{profile}")).unwrap();
+    let markdown = dir.join("no-existe.md");
+    let mut argv = vec!["investigacion", markdown.to_str().unwrap(), "--title", "T", "-p", "viejo"];
+    argv.extend_from_slice(extra);
+    let args: Args = clap::Parser::try_parse_from(argv).unwrap();
+    let mut reporter = Collect(Vec::new());
+    let error = execute(&args, &common::isolated_project(dir), &mut reporter).unwrap_err().0;
+    assert!(error.contains("no-existe.md") || error.contains("UNIVERSIDAD"), "{error}");
+    reporter.0
+}
+
+#[test]
+fn old_formats_are_ignored_with_a_warning() {
+    investigacion::i18n::set(investigacion::i18n::Lang::Es);
+    // apa7 sigue valiendo en silencio, en el perfil y en --format.
+    assert!(warnings_with("format = \"apa7\"\n", &["--format", "apa7"]).is_empty());
+    let profile = warnings_with("format = \"mla\"\n", &[]);
+    assert!(
+        profile.len() == 1 && profile[0].contains("«mla»") && profile[0].contains("APA 7"),
+        "{profile:?}"
+    );
+    // La opción gana sobre el perfil, también al avisar.
+    let option = warnings_with("format = \"mla\"\n", &["--format", "harvard"]);
+    assert!(option.len() == 1 && option[0].contains("«harvard»"), "{option:?}");
+}

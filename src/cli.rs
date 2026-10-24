@@ -14,7 +14,7 @@ use crate::generate::{GenerateOptions, copy_pdf_to, generate_pdf, missing_data, 
 use crate::i18n::{self, Lang, Text};
 use crate::logging;
 use crate::markdown::{read_markdown, resolve_markdown_path, validate_markdown};
-use crate::project::Project;
+use crate::project::{DEFAULT_FORMAT, Project};
 use crate::settings::Settings;
 use crate::template::resolve_layout;
 
@@ -63,7 +63,8 @@ pub struct Args {
     #[arg(long, aliases = ["template", "plantilla", "diseno"])]
     pub design: Option<String>,
 
-    #[arg(long, alias = "formato")]
+    // Ya no se elige formato (solo APA 7): se acepta, oculta, por compatibilidad.
+    #[arg(long, alias = "formato", hide = true)]
     pub format: Option<String>,
 
     #[arg(long = "set", value_parser = parse_field)]
@@ -92,7 +93,7 @@ fn parse_lang_arg(value: &str) -> std::result::Result<Lang, String> {
 }
 
 /// Ayuda de cada opción: (id del argumento, descripción, nombre del valor).
-const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
+const ARG_HELP: [(&str, Text, Option<Text>); 17] = [
     (
         "markdown",
         Text::new(
@@ -196,11 +197,6 @@ const ARG_HELP: [(&str, Text, Option<Text>); 18] = [
             "Design (cover and look): a name from templates/designs/ or the path to a .ltx file",
         ),
         Some(Text::new("DISEÑO", "DESIGN")),
-    ),
-    (
-        "format",
-        Text::new("Formato (la norma): solo apa7", "Format (the norm): only apa7"),
-        Some(Text::new("FORMATO", "FORMAT")),
     ),
     (
         "fields",
@@ -449,6 +445,16 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
     let from_profile =
         |get: fn(&CourseProfile) -> &str| profile.map(get).map(str::trim).filter(|v| !v.is_empty());
 
+    // Solo hay APA 7: otro formato (de --format o de un perfil viejo) se avisa y se ignora.
+    if let Some(format) = args.format.as_deref().or(from_profile(|p| &p.format)).map(str::trim)
+        && !format.is_empty()
+        && !format.eq_ignore_ascii_case(DEFAULT_FORMAT)
+    {
+        reporter.warning(tr!(
+            es: "El formato «{format}» ya no existe; se usa APA 7.",
+            en: "The format \"{format}\" no longer exists; APA 7 is used."
+        ));
+    }
     // Diseño: la opción gana, luego el perfil.
     let layout = resolve_layout(project, args.design.as_deref().or(from_profile(|p| &p.design)))?;
     let doc_lang =
@@ -633,6 +639,7 @@ mod tests {
         assert!(help.contains("Usage: investigacion <MARKDOWN> --title <TITLE>"), "{help}");
         assert!(help.contains("--course <COURSE>") && help.contains("Show this help"));
         assert!(!help.contains("--subject"), "los alias quedan ocultos");
+        assert!(!help.contains("--format"), "--format ya no se anuncia");
     }
 
     #[test]
