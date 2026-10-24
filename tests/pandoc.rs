@@ -90,6 +90,37 @@ fn subheadings_inside_the_references_keep_the_list() {
     assert!(!annex.split("Texto del anexo").next().unwrap().contains("ReferenceList"));
 }
 
+// Las cachés de diagramas e imágenes se escriben en un temporal y se renombran:
+// el archivo final no se toca hasta tener el contenido completo, así un corte
+// a medias no deja uno roto que las generaciones siguientes darían por bueno.
+#[test]
+fn the_filters_write_the_cache_through_a_temporary_file() {
+    if !has_tool("pandoc") {
+        return;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let script = write(
+        directory.path(),
+        "prueba.lua",
+        &format!("{}\nio.write(tostring(escribir(arg[1], \"nuevo\")))\n", investigacion::pandoc::LUA_COMMON),
+    );
+    let run = |target: &std::path::Path| {
+        let output =
+            std::process::Command::new("pandoc").arg("lua").arg(&script).arg(target).output().unwrap();
+        String::from_utf8_lossy(&output.stdout).into_owned()
+    };
+    // Reemplaza un archivo que ya existe y no deja el temporal.
+    let cached = write(directory.path(), "diagrama.pdf", "viejo");
+    assert_eq!(run(&cached), "true");
+    assert_eq!(std::fs::read_to_string(&cached).unwrap(), "nuevo");
+    assert!(!directory.path().join("diagrama.pdf.tmp").exists());
+    // Si el temporal no se puede escribir, el archivo final queda como estaba.
+    let other = write(directory.path(), "otro.pdf", "viejo");
+    std::fs::create_dir(directory.path().join("otro.pdf.tmp")).unwrap();
+    assert_eq!(run(&other), "false");
+    assert_eq!(std::fs::read_to_string(&other).unwrap(), "viejo");
+}
+
 #[test]
 fn images_that_cannot_be_loaded_do_not_break_the_document() {
     let Some((latex, warnings)) = convert_with_warnings("![Un logo](https://localhost:1/no-existe.png)\n")
