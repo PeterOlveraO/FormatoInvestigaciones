@@ -1233,6 +1233,9 @@ fn a_cleared_field_of_the_profile_is_cleared_in_the_pdf() {
     for name in ["UNIVERSIDAD", "SALON"] {
         assert!(args.fields.contains(&(name.to_owned(), String::new())), "{name} in {:?}", args.fields);
     }
+    // Y el formulario lo dice así: vacío no sale, no «el del perfil».
+    let screen = render(&app);
+    assert!(screen.contains("no sale en la portada") && !screen.contains("el del perfil;"), "{screen}");
 }
 
 #[test]

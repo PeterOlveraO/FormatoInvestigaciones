@@ -136,7 +136,7 @@ pub const FIELDS: [Field; 14] = [
             "Name of the university, as shown on the cover.",
         ),
         example: Text::new("Universidad Autónoma de Ejemplo", "Example State University"),
-        empty: Text::new("la del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Faculty,
@@ -145,7 +145,7 @@ pub const FIELDS: [Field; 14] = [
         required: false,
         help: Text::new("Facultad o escuela.", "Faculty or school."),
         example: Text::new("Facultad de Ingeniería", "School of Engineering"),
-        empty: Text::new("la del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Student,
@@ -157,7 +157,7 @@ pub const FIELDS: [Field; 14] = [
             "Your full name. With team members, the cover shows them instead.",
         ),
         example: Text::new("Ana Ruiz Pérez", "Ana Ruiz Pérez"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Course,
@@ -179,7 +179,7 @@ pub const FIELDS: [Field; 14] = [
         required: false,
         help: Text::new("Nombre del docente.", "Name of the teacher."),
         example: Text::new("Nombre del docente", "Name of the teacher"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Members,
@@ -191,7 +191,7 @@ pub const FIELDS: [Field; 14] = [
             "Team names separated by commas. With members, the cover does not show the student.",
         ),
         example: Text::new("Ana Ruiz, Luis Paz", "Ana Ruiz, Luis Paz"),
-        empty: Text::new("los del perfil; si no hay, el alumno", "the profile's; if none, the student"),
+        empty: Text::new("sale el alumno", "the student is shown"),
     },
     Field {
         key: FieldKey::Group,
@@ -200,7 +200,7 @@ pub const FIELDS: [Field; 14] = [
         required: false,
         help: Text::new("Grupo o periodo, p. ej. 7-A.", "Group or term, e.g. 7-A."),
         example: Text::new("7-A", "7-A"),
-        empty: Text::new("el del perfil; si no hay, no sale", "the profile's; if none, omitted"),
+        empty: Text::new("no sale en la portada", "not shown on the cover"),
     },
     Field {
         key: FieldKey::Template,
