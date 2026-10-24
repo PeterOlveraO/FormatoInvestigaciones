@@ -71,6 +71,25 @@ fn boxes_and_references() {
     assert!(!references.contains(r"\begin{itemize}"));
 }
 
+// `## Libros` bajo «Referencias» no corta la sangría francesa; `# Anexos` sí.
+#[test]
+fn subheadings_inside_the_references_keep_the_list() {
+    let markdown = "# Referencias\n\n## Libros\n\nAutor, A. (2020). *Libro*.\n\n## Sitios web\n\nAutor, B. (2021). *Sitio*.\n\n# Anexos\n\nTexto del anexo.\n";
+    let Some(latex) = convert(markdown) else { return };
+    let opened = |text: &str| text.matches(r"\begin{ReferenceList}").count();
+    let closed = |text: &str| text.matches(r"\end{ReferenceList}").count();
+    let (references, annex) = latex.split_once("Anexos").unwrap();
+    assert_eq!((opened(references), closed(references)), (3, 3), "{latex}");
+    assert_eq!(opened(annex), 0, "{latex}");
+    // Cada referencia queda dentro de una lista, y los subtítulos fuera.
+    for part in references.split(r"\begin{ReferenceList}").skip(1) {
+        let inside = part.split(r"\end{ReferenceList}").next().unwrap();
+        assert!(!inside.contains(r"\subsection"), "{latex}");
+    }
+    assert!(latex.contains("Libro") && latex.contains("Sitio"));
+    assert!(!annex.split("Texto del anexo").next().unwrap().contains("ReferenceList"));
+}
+
 #[test]
 fn images_that_cannot_be_loaded_do_not_break_the_document() {
     let Some((latex, warnings)) = convert_with_warnings("![Un logo](https://localhost:1/no-existe.png)\n")
