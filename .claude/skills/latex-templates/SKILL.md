@@ -175,8 +175,10 @@ The base only loads pgfplots. Styles live in the format (apa7: grayscale via
 
 ## Logos
 
-- **Names:** `logo-universidad.png` and `logo-facultad.png`, wrapped in
-  `\IfFileExists`.
+- **Names:** `logo-universidad` and `logo-facultad`, found as svg, pdf, png,
+  jpg, jpeg, webp (`find_logo`). `generate::copy_logos` leaves each in the
+  temp dir as `.pdf`/`.png`/`.jpg` by content (SVG/WEBP converted to PNG);
+  the design tests them with `\SiHayLogo`.
 - **Lookup** (`resolve_logos_directory`):
   1. `--logos`/`LOGOS`;
   2. `logos/` next to the design;

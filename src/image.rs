@@ -220,6 +220,38 @@ mod tests {
         assert_eq!(std::fs::read_dir(directory.path()).unwrap().count(), 2);
     }
 
+    // Un SVG no lee archivos: las imágenes enlazadas quedan en blanco aunque
+    // existan. El PNG no se vería igual (resvg va sin mapas de bits); el SVG
+    // enlazado sí, y es el que hace fallar la prueba si se quita el bloqueo.
+    #[test]
+    fn an_svg_does_not_load_linked_local_files() {
+        let directory = tempfile::tempdir().unwrap();
+        let linked_svg = directory.path().join("archivo-local.svg");
+        let linked_png = directory.path().join("archivo-local.png");
+        std::fs::write(&linked_svg, SQUARE).unwrap();
+        convert_to_png(&linked_svg, &linked_png).unwrap();
+        let source = directory.path().join("enlace.svg");
+        let destination = directory.path().join("enlace.png");
+        // Rutas absolutas: sin el bloqueo, resvg las cargaría desde cualquier carpeta.
+        let image = |path: &Path| format!(r#"<image href="{}" width="30" height="20"/>"#, path.display());
+        std::fs::write(
+            &source,
+            format!(
+                r#"<svg xmlns="http://www.w3.org/2000/svg" width="30" height="20">{}{}</svg>"#,
+                image(&linked_png),
+                image(&linked_svg)
+            ),
+        )
+        .unwrap();
+        convert_to_png(&source, &destination).unwrap();
+        let mut reader = png::Decoder::new(BufReader::new(std::fs::File::open(&destination).unwrap()))
+            .read_info()
+            .unwrap();
+        let mut pixels = vec![0; reader.output_buffer_size().unwrap()];
+        reader.next_frame(&mut pixels).unwrap();
+        assert!(pixels.iter().all(|&byte| byte == 0));
+    }
+
     #[test]
     fn a_webp_keeps_its_pixels() {
         let source = Path::new(env!("CARGO_MANIFEST_DIR")).join("examples/sample-photo.webp");

@@ -221,8 +221,8 @@ const ARG_HELP: [(&str, Text, Option<Text>); 17] = [
     (
         "logos",
         Text::new(
-            "Carpeta con logo-universidad.png y logo-facultad.png. Si se omite, LOGOS de settings.toml",
-            "Folder with logo-universidad.png and logo-facultad.png. Falls back to LOGOS in settings.toml",
+            "Carpeta con logo-universidad y logo-facultad (SVG, PDF, PNG, JPG o WEBP). Si se omite, LOGOS de settings.toml",
+            "Folder with logo-universidad and logo-facultad (SVG, PDF, PNG, JPG or WEBP). Falls back to LOGOS in settings.toml",
         ),
         Some(Text::new("CARPETA", "FOLDER")),
     ),

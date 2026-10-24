@@ -84,6 +84,6 @@ fn the_cover_order_is_fixed() {
 fn the_template_looks_for_the_generic_logo_names() {
     let template = full_template();
     for name in investigacion::project::LOGO_FILES {
-        assert!(template.contains(&format!(r"\IfFileExists{{{name}}}")));
+        assert!(template.contains(&format!(r"\SiHayLogo{{{name}}}")));
     }
 }

@@ -346,3 +346,59 @@ fn a_broken_svg_is_a_warning_and_the_pdf_is_still_made() {
     assert_eq!(warnings.len(), 1, "{warnings:?}");
     assert!(warnings[0].contains("rota.svg"), "{warnings:?}");
 }
+
+/// Genera un trabajo sin imágenes con un solo logo, `name`, en su carpeta;
+/// devuelve los avisos, el PDF y la carpeta.
+fn build_with_logo(name: &str, content: &[u8]) -> Option<(Vec<String>, Vec<u8>, tempfile::TempDir)> {
+    if !(has_tool("pandoc") && has_tool("pdflatex")) {
+        return None;
+    }
+    let directory = tempfile::tempdir().unwrap();
+    let logos = directory.path().join("mis-logos");
+    std::fs::create_dir(&logos).unwrap();
+    std::fs::write(logos.join(name), content).unwrap();
+    let source = write(directory.path(), "trabajo.md", "# Introducción\n\nTexto.\n");
+    let options = GenerateOptions { logos: Some(logos), ..Default::default() };
+    let mut warnings = Vec::new();
+    let pdf = generate_pdf(
+        &isolated_project(directory.path()),
+        &source,
+        &directory.path().join("salida"),
+        &data("Logo"),
+        &options,
+        &mut |w| warnings.push(w),
+    )
+    .unwrap();
+    Some((warnings, std::fs::read(pdf).unwrap(), directory))
+}
+
+fn has_image(pdf: &[u8]) -> bool {
+    pdf.windows(13).any(|w| w == b"/Subtype/Imag" || w == b"/Subtype /Ima")
+}
+
+#[test]
+fn an_svg_logo_is_converted_and_shown() {
+    let svg = std::fs::read(common::root().join("examples/sample-vector.svg")).unwrap();
+    let Some((warnings, pdf, directory)) = build_with_logo("logo-universidad.svg", &svg) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert!(has_image(&pdf));
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+// Un WEBP guardado como .png: se reconoce por el contenido.
+#[test]
+fn a_webp_logo_is_converted_even_with_a_misleading_extension() {
+    let webp = std::fs::read(common::root().join("examples/sample-photo.webp")).unwrap();
+    let Some((warnings, pdf, directory)) = build_with_logo("logo-universidad.png", &webp) else { return };
+    assert!(warnings.is_empty(), "{warnings:?}");
+    assert!(has_image(&pdf));
+    assert_eq!(converted_pngs(&directory), 1);
+}
+
+#[test]
+fn a_broken_logo_is_a_warning_and_the_cover_goes_without_it() {
+    let Some((warnings, pdf, _directory)) = build_with_logo("logo-facultad.svg", b"<svg <<<") else { return };
+    assert_eq!(warnings.len(), 1, "{warnings:?}");
+    assert!(warnings[0].contains("logo-facultad.svg"), "{warnings:?}");
+    assert!(!has_image(&pdf));
+}
