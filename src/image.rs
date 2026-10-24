@@ -13,6 +13,10 @@ use crate::project::replace_file;
 /// Entra en el nombre del PNG en la caché: subirla obliga a reconvertir todo.
 pub const CONVERTER_VERSION: &str = "1";
 
+/// Tiempo máximo de una conversión. Muy por debajo del límite de Pandoc
+/// (`TOOL_TIMEOUT`): una imagen lenta se queda en texto alternativo y el PDF sale.
+pub const CONVERTER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(30);
+
 /// Tope de píxeles del PNG: una imagen mayor solo gastaría memoria y tiempo.
 pub const MAX_PIXELS: u64 = 40_000_000;
 
@@ -148,7 +152,12 @@ pub fn run_cli(args: &[OsString]) -> i32 {
         );
         return 2;
     };
-    exit_after(crate::process::TOOL_TIMEOUT);
+    // La variable solo la usan las pruebas, para no esperar 30 s.
+    let limit = std::env::var("INVESTIGACION_CONVERTER_TIMEOUT_MS")
+        .ok()
+        .and_then(|ms| ms.parse().ok())
+        .map_or(CONVERTER_TIMEOUT, std::time::Duration::from_millis);
+    exit_after(limit);
     match convert_to_png(Path::new(source), Path::new(destination)) {
         Ok(()) => 0,
         Err(error) => {
