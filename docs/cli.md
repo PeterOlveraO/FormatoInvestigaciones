@@ -341,7 +341,7 @@ it has one `KEY=value` per line.
 # comments start with #
 IDIOMA="en"
 TEMA="nord"
-LOGOS="/home/me/logos"
+LOGOS="~/logos"
 ```
 
 - Accepted keys: `IDIOMA` (or `INTERFACE_LANGUAGE`), `TEMA` (or `THEME`),
