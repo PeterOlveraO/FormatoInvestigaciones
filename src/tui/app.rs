@@ -1138,8 +1138,8 @@ impl App {
                         "logos",
                         project.work.join("logos"),
                         Text::new(
-                            "logo-universidad.png y logo-facultad.png",
-                            "logo-universidad.png and logo-facultad.png",
+                            "logo-universidad y logo-facultad (SVG, PDF, PNG, JPG o WEBP)",
+                            "logo-universidad and logo-facultad (SVG, PDF, PNG, JPG or WEBP)",
                         ),
                     ),
                     (".", project.work.clone(), Text::new("carpeta de trabajo", "work folder")),

@@ -12,7 +12,7 @@ use crate::latex::render_template;
 use crate::logging;
 use crate::markdown::{expand_home, read_markdown, resolve_markdown_path};
 use crate::pandoc::{pandoc_to_latex, resource_dirs};
-use crate::project::{Project, absolute, replace_file};
+use crate::project::{LOGO_FILES, Project, absolute, find_logo, replace_file};
 use crate::template::{Layout, REQUIRED_MARKERS, resolve_layout};
 
 /// Opciones de la generación que no son datos de la portada.
@@ -124,6 +124,9 @@ pub fn generate_pdf(
         temporary.path(),
         logos.as_deref(),
     )?;
+    if let Some(logos) = &logos {
+        copy_logos(project, logos, temporary.path(), on_warning)?;
+    }
     let search_dirs = resource_dirs(project, &markdown_path)?;
     let state = latex_state_dir(project, &output_pdf, &layout.cache_key());
     logging::debug(format_args!(
@@ -137,6 +140,64 @@ pub fn generate_pdf(
         logging::debug(format_args!("build folder not removed: {error}"));
     }
     Ok(output_pdf)
+}
+
+/// Deja cada logo de la portada en `destination` con la extensión de su
+/// contenido (`.pdf`, `.png` o `.jpg`); SVG y WEBP pasan antes a PNG en la
+/// caché. Un logo que no sirve es un aviso y la portada sale sin él.
+fn copy_logos(
+    project: &Project,
+    logos: &Path,
+    destination: &Path,
+    on_warning: &mut dyn FnMut(String),
+) -> Result<()> {
+    for name in LOGO_FILES {
+        let Some(source) = find_logo(logos, name) else { continue };
+        match logo_for_latex(project, &source) {
+            Ok((path, extension)) => {
+                logging::debug(format_args!("logo {} -> {name}.{extension}", path.display()));
+                std::fs::copy(&path, destination.join(format!("{name}.{extension}")))?;
+            }
+            Err(error) => {
+                let source = source.display();
+                on_warning(tr!(
+                    es: "No se pudo usar el logo {source}: {error} La portada sale sin él.",
+                    en: "Could not use the logo {source}: {error} The cover is built without it."
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// El archivo que pdflatex puede componer y su extensión, según el contenido.
+fn logo_for_latex(project: &Project, source: &Path) -> Result<(PathBuf, &'static str)> {
+    let bytes = std::fs::read(source)?;
+    let extension = if bytes.starts_with(b"%PDF") {
+        "pdf"
+    } else if bytes.starts_with(b"\x89PNG") {
+        "png"
+    } else if bytes.starts_with(b"\xFF\xD8\xFF") {
+        "jpg"
+    } else if crate::image::detect(&bytes).is_some() {
+        // Mismo esquema que las imágenes del Markdown: hash de versión + contenido.
+        // `DefaultHasher` puede cambiar entre versiones de Rust; solo obligaría a reconvertir.
+        use std::hash::{Hash, Hasher};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        (crate::image::CONVERTER_VERSION, &bytes).hash(&mut hasher);
+        let (converted, _) = project.media_directories()?;
+        let converted = converted.join(format!("logo-{:016x}.png", hasher.finish()));
+        if !converted.is_file() {
+            crate::image::convert_to_png(source, &converted)?;
+        }
+        return Ok((converted, "png"));
+    } else {
+        return Err(GenerationError::new(tr!(
+            es: "no es SVG, PDF, PNG, JPG ni WEBP.",
+            en: "it is not SVG, PDF, PNG, JPG or WEBP."
+        )));
+    };
+    Ok((source.to_path_buf(), extension))
 }
 
 /// Carpeta de caché con el `.aux`/`.toc` de este trabajo: una por PDF de

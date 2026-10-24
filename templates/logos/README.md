@@ -5,12 +5,13 @@ institutional logos are rarely redistributable.
 
 | File | Where it appears | Usually |
 |---|---|---|
-| `logo-universidad.png` | Top left | The university's coat of arms |
-| `logo-facultad.png` | Top right | The faculty's or school's logo |
+| `logo-universidad.*` | Top left | The university's coat of arms |
+| `logo-facultad.*` | Top right | The faculty's or school's logo |
 
 - **Optional.** Both files are optional: without them the cover is generated
   without logos.
-- **Format.** Use PNG, ideally with a transparent background.
+- **Format.** SVG, PDF, PNG, JPG or WEBP, looked up in that order (SVG and
+  WEBP are converted to PNG). Ideally with a transparent background.
 - **Color.** Use dark or colored logos, because a white logo is invisible on
   the white cover.
 - **Margins.** The template scales the logos by height (1.6 cm and 0.88 cm), so

@@ -26,6 +26,10 @@
 \newcommand{\NombreMaestro}{%%DOCENTE%%}
 \newcommand{\FechaEntrega}{%%FECHA_ENTREGA%%}
 
+% El programa deja cada logo como .pdf, .png o .jpg según su contenido, y
+% \IfFileExists no prueba extensiones: por eso se prueban las tres.
+\newcommand{\SiHayLogo}[2]{\IfFileExists{#1.pdf}{#2}{\IfFileExists{#1.png}{#2}{\IfFileExists{#1.jpg}{#2}{}}}}
+
 % hyperref, footnotehyper y los metadatos del PDF: van al final del preámbulo.
 \usepackage{investigacion-final}
 
@@ -118,11 +122,12 @@
         % Van dentro del marco (la línea superior está en yshift=-2cm) y por
         % encima del nombre de la universidad, que empieza en yshift=-5.4cm.
         %
-        % Se buscan dos archivos con nombre fijo: `logo-universidad.png` a la
-        % izquierda y `logo-facultad.png` a la derecha. Salen de la carpeta de
-        % logos (templates/logos/ por omisión, o la que indique --logos), que
-        % generate_pdf() copia junto al .tex temporal y compile_pdf() agrega a
-        % TEXINPUTS; por eso aquí basta con el nombre, sin ruta ni extensión.
+        % Se buscan dos archivos con nombre fijo: `logo-universidad` a la
+        % izquierda y `logo-facultad` a la derecha (SVG, PDF, PNG, JPG o WEBP).
+        % Salen de la carpeta de logos (templates/logos/ por omisión, o la que
+        % indique --logos); generate_pdf() los deja junto al .tex temporal (SVG y
+        % WEBP ya convertidos a PNG), así que aquí basta con el nombre, sin ruta
+        % ni extensión.
         % Si faltan, la portada se compila igual (mismo criterio que los .sty
         % opcionales del preámbulo).
         %
@@ -130,12 +135,12 @@
         % ser muy distintas: un escudo es casi cuadrado y el logotipo de una
         % facultad suele ser una banda alargada. Si tus logos se ven
         % descolocados, estos dos valores son los que hay que ajustar.
-        \IfFileExists{logo-universidad.png}{%
+        \SiHayLogo{logo-universidad}{%
             \node[anchor=north west, inner sep=0pt] at ([xshift=3.5cm, yshift=-2.6cm]current page.north west)
-                {\includegraphics[height=1.6cm]{logo-universidad}};}{}
-        \IfFileExists{logo-facultad.png}{%
+                {\includegraphics[height=1.6cm]{logo-universidad}};}
+        \SiHayLogo{logo-facultad}{%
             \node[anchor=north west, inner sep=0pt] at ([xshift=11.3cm, yshift=-3.18cm]current page.north west)
-                {\includegraphics[height=0.88cm]{logo-facultad}};}{}
+                {\includegraphics[height=0.88cm]{logo-facultad}};}
 
         % ==========================================
         % TEXTOS DE LA PORTADA

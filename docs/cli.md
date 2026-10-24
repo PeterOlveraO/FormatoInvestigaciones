@@ -131,8 +131,9 @@ several fields. If the same name appears twice, the last one wins.
 **`--doc-lang`**: language of the PDF (`es` or `en`): babel, the date and the
 titles of boxes. It is independent of the interface language (`--lang`).
 
-**`--logos`**: folder with `logo-universidad.png` and `logo-facultad.png`. The
-folder must exist. Without the option, the `LOGOS` setting is used; if there
+**`--logos`**: folder with `logo-universidad` and `logo-facultad`, each as SVG,
+PDF, PNG, JPG or WEBP (looked up in that order; SVG and WEBP are converted to
+PNG). The folder must exist. Without the option, the `LOGOS` setting is used; if there
 is none, the `logos/` folder next to the design, then `logos/` in your work
 folder, then `templates/logos/`. No
 logos at all is not an error: the cover is built without them.

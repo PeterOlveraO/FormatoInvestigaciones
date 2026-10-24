@@ -9,6 +9,7 @@ use crate::error::{GenerationError, Result};
 use crate::latex::{summarize_latex_errors, unsupported_character_warnings};
 use crate::logging;
 use crate::process::{RunError, TOOL_TIMEOUT, run_with_timeout};
+use crate::project::LOGO_FILES;
 
 /// Un índice que cambia de longitud desplaza las páginas; se repite pdflatex
 /// hasta que el `.toc` se estabiliza, con este máximo.
@@ -16,7 +17,7 @@ pub const MAX_LATEX_RUNS: usize = 4;
 
 /// Copia al temporal lo que la plantilla carga por nombre: el preámbulo común
 /// (`*.sty` de `common/`), los `.sty` que traiga la propia plantilla y los
-/// logos. pdflatex corre dentro de ese temporal y los encuentra por nombre.
+/// demás archivos de la carpeta de logos. pdflatex corre dentro de ese temporal y los encuentra por nombre.
 pub fn copy_template_assets(
     template: &Path,
     common_dir: &Path,
@@ -39,9 +40,12 @@ pub fn copy_template_assets(
         }
     }
     // Sin carpeta de logos no pasa nada: la portada los envuelve en \IfFileExists.
+    // Los dos logos de la portada no: los deja `generate::copy_logos`, ya listos.
     if let Some(logos) = logos {
         for entry in std::fs::read_dir(logos)?.flatten() {
-            if entry.path().is_file() {
+            let is_cover_logo =
+                entry.path().file_stem().is_some_and(|stem| LOGO_FILES.iter().any(|l| stem == *l));
+            if entry.path().is_file() && !is_cover_logo {
                 std::fs::copy(entry.path(), destination.join(entry.file_name()))?;
             }
         }
