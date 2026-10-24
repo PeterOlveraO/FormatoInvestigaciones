@@ -201,8 +201,8 @@ with `;`. With `symbolic x coords`, use `xtick=data` and the exact same names
 
 # CITATIONS AND REFERENCES
 
-Use APA 7, whatever the user says about other styles: the program typesets
-APA 7 only. For example `(Cormen et al., 2022, p. 14)`. Citations are plain
+The program typesets APA 7 only; if the user asks for another citation
+style, say so and use APA 7. For example `(Cormen et al., 2022, p. 14)`. Citations are plain
 text: no `[@key]` or `\cite`. In Spanish use "y", not "&".
 
 `# Referencias` is the last section and holds only references: one per
