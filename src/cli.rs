@@ -491,7 +491,6 @@ fn run_generation(args: &Args, project: &Project, reporter: &mut dyn Reporter) -
 
     // Campos propios: los del perfil y, encima, los de --set.
     let mut fields = profile.map(|p| p.fields.clone()).unwrap_or_default();
-    fields = fields.into_iter().map(|(k, v)| (k.to_uppercase(), v)).collect();
     fields.extend(args.fields.iter().cloned());
 
     // Sin perfil, los datos generales también se dan con --set UNIVERSIDAD=….

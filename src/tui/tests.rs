@@ -552,6 +552,24 @@ fn every_design_is_offered_and_custom_fields_appear() {
     assert_eq!(app.build_args().fields, [("SALON".to_owned(), "B-204".to_owned())]);
 }
 
+// Un perfil escrito a mano con la clave en minúsculas llena el campo igual que en el CLI.
+#[test]
+fn a_lowercase_field_key_of_a_profile_fills_the_form() {
+    let (_dir, project) = sample_project();
+    std::fs::write(
+        project.courses_dir().join("ia.toml"),
+        "name = \"IA\"\ndesign = \"geometric-cover\"\n[fields]\nsalon = \"B-204\"\n",
+    )
+    .unwrap();
+    let mut app = App::new(project);
+    select(&mut app, FieldKey::Profile);
+    press(&mut app, KeyCode::Enter);
+    type_text(&mut app, "ia");
+    press(&mut app, KeyCode::Enter);
+    assert_eq!(app.field_value(FIELDS.len()), "B-204");
+    assert!(!app.missing_fields().iter().any(|m| m == "Salón"));
+}
+
 #[test]
 fn p_edits_the_chosen_profile_with_its_data() {
     i18n::set(Lang::Es);

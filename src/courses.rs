@@ -72,7 +72,7 @@ impl Course {
     /// Lee y valida un perfil; los errores dicen qué archivo falló.
     pub fn load(path: &Path) -> Result<Self> {
         let text = decode_text(&std::fs::read(path)?, path)?;
-        let profile: CourseProfile = toml::from_str(&text).map_err(|e| {
+        let mut profile: CourseProfile = toml::from_str(&text).map_err(|e| {
             // El detalle (`e.message()`) lo redacta el crate toml y va en inglés.
             GenerationError::new(tr!(
                 es: "El perfil de materia {} no es válido: {}",
@@ -88,6 +88,9 @@ impl Course {
                 path.display()
             )));
         }
+        // Los marcadores van en mayúsculas: `salon` es `SALON` para el CLI y para el menú.
+        // Al revés, para que con `salon` y `SALON` repetidos gane `SALON` (el que escribe el asistente).
+        profile.fields = profile.fields.into_iter().rev().map(|(k, v)| (k.to_uppercase(), v)).collect();
         let key = path.file_stem().unwrap_or_default().to_string_lossy().into_owned();
         Ok(Self { key, profile })
     }
@@ -321,6 +324,17 @@ mod tests {
         let path = save_profile(&project, "viejo", &course.profile).unwrap();
         let saved = std::fs::read_to_string(path).unwrap();
         assert!(!saved.contains("semester") && saved.contains("group = \"7-A\""), "{saved}");
+    }
+
+    #[test]
+    fn field_keys_are_read_in_capitals() {
+        let text = "name = \"M\"\n[fields]\nsalon = \"viejo\"\nSALON = \"nuevo\"\naula = \"B\"\n";
+        let (_dir, project) = project_with(&[("m.toml", text)]);
+        let fields = find_course(&project, "m").unwrap().profile.fields;
+        assert_eq!(
+            fields.into_iter().collect::<Vec<_>>(),
+            [("AULA".to_owned(), "B".to_owned()), ("SALON".to_owned(), "nuevo".to_owned())]
+        );
     }
 
     #[test]
