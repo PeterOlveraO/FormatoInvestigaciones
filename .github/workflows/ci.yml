@@ -39,13 +39,21 @@ jobs:
           & "$bin\miktex.exe" --admin packages update
       - run: cargo fmt --check
       - run: cargo clippy --all-targets -- -D warnings
+      # MiKTeX arma los formatos e instala los paquetes al primer uso. El
+      # catálogo, en los dos idiomas, lo deja todo listo antes de las pruebas,
+      # que así corren en paralelo sin instalar lo mismo a la vez.
+      - name: Warm up MiKTeX
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          cargo build
+          target/debug/investigacion examples/catalog.md -p example --title CI --output "$RUNNER_TEMP"
+          target/debug/investigacion examples/catalog.md -p example --title CI --output "$RUNNER_TEMP" --doc-lang en
       # Las fallas también salen como anotación, que se ve sin iniciar sesión.
       - name: cargo test
         shell: bash
-        # MiKTeX instala los paquetes al primer uso; varias pruebas a la vez
-        # chocan al instalar el mismo paquete, así que en Windows van de una.
         env:
-          RUST_TEST_THREADS: ${{ runner.os == 'Windows' && '1' || '4' }}
+          RUST_TEST_THREADS: 4
         run: |
           set -o pipefail
           cargo test --no-fail-fast 2>&1 | tee test.log || {
