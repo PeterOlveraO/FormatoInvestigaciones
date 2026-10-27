@@ -472,6 +472,13 @@ mod tests {
         }
         let directory = tempfile::tempdir().unwrap();
         let base = directory.path();
+        // MiKTeX recién instalado arma el formato en la primera llamada y tarda
+        // más que el límite de la prueba sin llegar a escribir el .log: se le
+        // da una compilación previa, sin límite corto, para medir solo el corte.
+        let warm_up = base.join("previa.tex");
+        std::fs::write(&warm_up, "\\documentclass{article}\\begin{document}x\\end{document}\n").unwrap();
+        let _ = compile(&warm_up, &base.join("previa-final.pdf"), &[], None, TOOL_TIMEOUT, &mut |_| {});
+
         let tex = base.join("trabajo.tex");
         // `\x` se llama a sí mismo para siempre.
         std::fs::write(&tex, "\\documentclass{article}\\begin{document}\\def\\x{\\x}\\x\\end{document}\n")
